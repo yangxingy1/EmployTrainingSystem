@@ -32,7 +32,8 @@ public class FreeMoveTask : MonoBehaviour
 
     float _startTime;
     float _valveAngle;
-    float _lastValveInputAngle;
+    float _valveGrabStartX;
+    float _valveGrabStartAngle;
     float _lastButtonPressTime = -99f;
     int _dropCount;
     bool _buttonPressed;
@@ -44,8 +45,9 @@ public class FreeMoveTask : MonoBehaviour
     const float ZoneRadius = 0.42f;
     const float ButtonRadius = 0.42f;
     const float ButtonCooldown = 0.45f;
-    const float ValveRadius = 0.95f;
-    const float ValveMinStableRadius = 0.08f;
+    const float ValveRadius = 1.05f;
+    const float ValveGripThreshold = 0.40f;
+    const float ValveDragDegreesPerUnit = 72f;
     const float TargetValveAngle = 90f;
     const float ValveTolerance = 12f;
 
@@ -361,25 +363,22 @@ public class FreeMoveTask : MonoBehaviour
         Vector3 offset = grasp.hand.GripPoint - center;
         float handleDistance = new Vector2(offset.x, offset.y).magnitude;
         bool near = grasp.hand.IsActive && handleDistance <= ValveRadius;
-        bool active = near && grasp.Held == null && grasp.GripSignal >= grasp.grabThreshold;
+        bool active = !_valveComplete && near && grasp.Held == null && grasp.GripSignal >= ValveGripThreshold;
         _valveNear = near;
 
         if (active)
         {
-            float inputAngle = handleDistance >= ValveMinStableRadius
-                ? Mathf.Atan2(offset.y, offset.x) * Mathf.Rad2Deg
-                : grasp.hand.PalmAngle;
             if (!_rotatingValve)
             {
                 _rotatingValve = true;
-                _lastValveInputAngle = inputAngle;
+                _valveGrabStartX = grasp.hand.GripPoint.x;
+                _valveGrabStartAngle = _valveAngle;
             }
             else
             {
-                float delta = Mathf.DeltaAngle(_lastValveInputAngle, inputAngle);
-                if (Mathf.Abs(delta) > 0.35f)
-                    _valveAngle = Mathf.Clamp(_valveAngle + Mathf.Abs(delta), 0f, 120f);
-                _lastValveInputAngle = inputAngle;
+                float drag = grasp.hand.GripPoint.x - _valveGrabStartX;
+                float target = Mathf.Clamp(_valveGrabStartAngle + drag * ValveDragDegreesPerUnit, 0f, 120f);
+                _valveAngle = Mathf.Lerp(_valveAngle, target, 0.35f);
             }
         }
         else
@@ -387,8 +386,12 @@ public class FreeMoveTask : MonoBehaviour
             _rotatingValve = false;
         }
 
-        if (Mathf.Abs(_valveAngle - TargetValveAngle) <= ValveTolerance && ready)
+        if (!_valveComplete && Mathf.Abs(_valveAngle - TargetValveAngle) <= ValveTolerance && ready)
+        {
+            _valveAngle = TargetValveAngle;
             _valveComplete = true;
+            _rotatingValve = false;
+        }
 
         _valveRoot.transform.rotation = Quaternion.Euler(0f, 0f, _valveAngle);
 
@@ -460,7 +463,8 @@ public class FreeMoveTask : MonoBehaviour
 
     string ValveStateText()
     {
-        if (_rotatingValve) return "转动中";
+        if (_valveComplete) return "完成";
+        if (_rotatingValve) return "调节中";
         if (_valveNear) return "靠近";
         return "";
     }
