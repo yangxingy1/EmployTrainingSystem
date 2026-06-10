@@ -38,10 +38,14 @@ public class FreeMoveTask : MonoBehaviour
     Vector3 _valveProgressLeft;
     float _lastButtonPressTime = -99f;
     float _lastRestartPressTime = -99f;
+    float _buttonHoverStartTime = -99f;
+    float _restartHoverStartTime = -99f;
     int _dropCount;
     bool _buttonPressed;
     bool _buttonFingerInside;
     bool _restartFingerInside;
+    bool _buttonClickConsumed;
+    bool _restartClickConsumed;
     bool _rotatingValve;
     bool _valveNear;
     bool _valveComplete;
@@ -52,15 +56,17 @@ public class FreeMoveTask : MonoBehaviour
     const float ButtonCooldown = 0.45f;
     const float RestartButtonRadius = 0.44f;
     const float RestartCooldown = 0.65f;
+    const float ButtonClickHoldSeconds = 0.20f;
+    const float RestartClickHoldSeconds = 0.65f;
     const float ButtonClickMaxGripSignal = 0.30f;
-    const float ValveRadius = 0.72f;
-    const float ValveOuterInputRadius = 0.20f;
+    const float ValveRadius = 0.88f;
+    const float ValveOuterInputRadius = 0.25f;
     const float ValveGripThreshold = 0.25f;
     const float ValveDragDegreesPerUnit = 120f;
     const float ValveInputDeadZone = 0.004f;
     const float ValveAngleDeadZone = 0.25f;
     const float ValveMaxStepDegrees = 5.5f;
-    const float ValveProgressWidth = 0.86f;
+    const float ValveProgressWidth = 0.98f;
     const float TargetValveAngle = 90f;
     const float ValveTolerance = 12f;
     const float ValveMaxAngle = 360f;
@@ -137,7 +143,7 @@ public class FreeMoveTask : MonoBehaviour
     {
         BuildButton(new Vector3(2.25f, 0.83f, 0f));
         BuildRestartButton(new Vector3(2.25f, -0.05f, 0f));
-        BuildValve(new Vector3(-2.25f, 0.83f, 0f));
+        BuildValve(new Vector3(-2.05f, 0.83f, 0f));
     }
 
     void BuildButton(Vector3 center)
@@ -202,21 +208,21 @@ public class FreeMoveTask : MonoBehaviour
         wheel.transform.parent = _valveRoot.transform;
         wheel.transform.localPosition = Vector3.zero;
         wheel.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-        wheel.transform.localScale = new Vector3(0.38f, 0.032f, 0.38f);
+        wheel.transform.localScale = new Vector3(0.48f, 0.034f, 0.48f);
         _valveRenderer = wheel.GetComponent<Renderer>();
         SetRendererColor(_valveRenderer, new Color(0.96f, 0.52f, 0.16f));
 
         var valveNeedle = GameObject.CreatePrimitive(PrimitiveType.Cube);
         valveNeedle.name = "ValvePointer";
         valveNeedle.transform.parent = _valveRoot.transform;
-        valveNeedle.transform.localPosition = new Vector3(0.16f, 0f, -0.08f);
-        valveNeedle.transform.localScale = new Vector3(0.34f, 0.045f, 0.07f);
+        valveNeedle.transform.localPosition = new Vector3(0.20f, 0f, -0.08f);
+        valveNeedle.transform.localScale = new Vector3(0.44f, 0.050f, 0.07f);
         SetColor(valveNeedle, new Color(1f, 0.9f, 0.2f));
 
         var targetGo = GameObject.CreatePrimitive(PrimitiveType.Cube);
         targetGo.name = "ValveTargetMark";
-        targetGo.transform.position = center + new Vector3(0f, 0.44f, -0.08f);
-        targetGo.transform.localScale = new Vector3(0.10f, 0.20f, 0.06f);
+        targetGo.transform.position = center + new Vector3(0f, 0.55f, -0.08f);
+        targetGo.transform.localScale = new Vector3(0.11f, 0.23f, 0.06f);
         SetColor(targetGo, new Color(0.25f, 1f, 0.45f));
 
         var ringGo = new GameObject("ValveRangeRing");
@@ -232,7 +238,7 @@ public class FreeMoveTask : MonoBehaviour
         }
 
         var labelGo = new GameObject("ValveLabel");
-        labelGo.transform.position = center + new Vector3(0f, 0.68f, -0.05f);
+        labelGo.transform.position = center + new Vector3(0f, 0.80f, -0.05f);
         var label = labelGo.AddComponent<TextMesh>();
         label.text = "VALVE 360";
         label.anchor = TextAnchor.MiddleCenter;
@@ -243,11 +249,11 @@ public class FreeMoveTask : MonoBehaviour
 
         var progressRail = GameObject.CreatePrimitive(PrimitiveType.Cube);
         progressRail.name = "ValveAngleRail";
-        progressRail.transform.position = center + new Vector3(0f, -0.54f, -0.08f);
+        progressRail.transform.position = center + new Vector3(0f, -0.64f, -0.08f);
         progressRail.transform.localScale = new Vector3(ValveProgressWidth, 0.05f, 0.06f);
         SetColor(progressRail, new Color(0.24f, 0.27f, 0.31f));
 
-        _valveProgressLeft = center + new Vector3(-ValveProgressWidth * 0.5f, -0.54f, -0.095f);
+        _valveProgressLeft = center + new Vector3(-ValveProgressWidth * 0.5f, -0.64f, -0.095f);
         _valveProgressFill = GameObject.CreatePrimitive(PrimitiveType.Cube);
         _valveProgressFill.name = "ValveAngleFill";
         _valveProgressRenderer = _valveProgressFill.GetComponent<Renderer>();
@@ -392,7 +398,10 @@ public class FreeMoveTask : MonoBehaviour
             _restartButton,
             RestartButtonRadius,
             RestartCooldown,
+            RestartClickHoldSeconds,
             ref _restartFingerInside,
+            ref _restartClickConsumed,
+            ref _restartHoverStartTime,
             ref _lastRestartPressTime,
             requireFreeHand: true,
             out bool near);
@@ -401,12 +410,12 @@ public class FreeMoveTask : MonoBehaviour
             RestartTraining();
 
         Color color;
-        if (click) color = new Color(1f, 0.74f, 0.24f);
+        if (click || _restartClickConsumed) color = new Color(1f, 0.74f, 0.24f);
         else if (near) color = new Color(0.96f, 0.42f, 0.25f);
         else color = new Color(0.82f, 0.24f, 0.18f);
         SetRendererColor(_restartButtonRenderer, color);
 
-        float pressScale = click ? 0.11f : near ? 0.16f : 0.22f;
+        float pressScale = click || _restartClickConsumed ? 0.11f : near ? 0.16f : 0.22f;
         _restartButton.transform.localScale = new Vector3(0.54f, pressScale, 0.10f);
     }
 
@@ -422,6 +431,12 @@ public class FreeMoveTask : MonoBehaviour
         _trainingComplete = false;
         _valveAngle = 0f;
         _lastButtonPressTime = -99f;
+        _buttonFingerInside = false;
+        _restartFingerInside = false;
+        _buttonClickConsumed = false;
+        _restartClickConsumed = false;
+        _buttonHoverStartTime = -99f;
+        _restartHoverStartTime = -99f;
         _lastHeld = null;
 
         foreach (var goal in _goals)
@@ -458,7 +473,10 @@ public class FreeMoveTask : MonoBehaviour
             _button,
             ButtonRadius,
             ButtonCooldown,
+            ButtonClickHoldSeconds,
             ref _buttonFingerInside,
+            ref _buttonClickConsumed,
+            ref _buttonHoverStartTime,
             ref _lastButtonPressTime,
             requireFreeHand: true,
             out bool near);
@@ -475,7 +493,7 @@ public class FreeMoveTask : MonoBehaviour
         else color = new Color(0.12f, 0.44f, 0.92f);
         SetRendererColor(_buttonRenderer, color);
 
-        float pressScale = _buttonPressed ? 0.08f : click ? 0.10f : near ? 0.14f : 0.24f;
+        float pressScale = _buttonPressed ? 0.08f : click || _buttonClickConsumed ? 0.10f : near ? 0.14f : 0.24f;
         _button.transform.localScale = new Vector3(0.52f, pressScale, 0.10f);
     }
 
@@ -483,7 +501,10 @@ public class FreeMoveTask : MonoBehaviour
         GameObject target,
         float radius,
         float cooldown,
+        float holdSeconds,
         ref bool fingerInside,
+        ref bool clickConsumed,
+        ref float hoverStartTime,
         ref float lastPressTime,
         bool requireFreeHand,
         out bool near)
@@ -492,21 +513,39 @@ public class FreeMoveTask : MonoBehaviour
         if (grasp == null || grasp.hand == null || target == null || !grasp.hand.IsActive)
         {
             fingerInside = false;
+            clickConsumed = false;
+            hoverStartTime = -99f;
             return false;
         }
 
         Vector3 clickPoint = ButtonClickPoint();
         near = Vector3.Distance(clickPoint, target.transform.position) <= radius;
-        bool canClick = near
-            && !fingerInside
-            && Time.time - lastPressTime >= cooldown
-            && grasp.GripSignal <= ButtonClickMaxGripSignal
+        bool eligible = grasp.GripSignal <= ButtonClickMaxGripSignal
             && (!requireFreeHand || grasp.Held == null);
+        if (!near || !eligible)
+        {
+            fingerInside = false;
+            clickConsumed = false;
+            hoverStartTime = -99f;
+            return false;
+        }
 
-        fingerInside = near;
+        if (!fingerInside)
+        {
+            fingerInside = true;
+            hoverStartTime = Time.time;
+        }
+
+        bool canClick = near
+            && !clickConsumed
+            && Time.time - hoverStartTime >= holdSeconds
+            && Time.time - lastPressTime >= cooldown
+            && eligible;
+
         if (!canClick) return false;
 
         lastPressTime = Time.time;
+        clickConsumed = true;
         return true;
     }
 
