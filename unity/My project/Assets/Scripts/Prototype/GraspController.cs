@@ -213,9 +213,10 @@ public class GraspController : MonoBehaviour
         SnapZone z = NearestZone(g.Body.position);
         if (z != null && z.active && Vector3.Distance(g.Body.position, z.Center) < z.radius)
         {
+            g.Body.useGravity = false;
             g.Body.velocity = Vector3.zero;
             g.Body.angularVelocity = Vector3.zero;
-            g.transform.position = z.SnapPosition;
+            g.Body.position = z.SnapPosition;
             g.transform.rotation = z.SnapRotation;
         }
         else
