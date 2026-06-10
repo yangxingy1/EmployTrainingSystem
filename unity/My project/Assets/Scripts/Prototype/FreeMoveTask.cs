@@ -36,16 +36,12 @@ public class FreeMoveTask : MonoBehaviour
     float _lastValvePointerAngle;
     Vector3 _lastValveGripPoint;
     Vector3 _valveProgressLeft;
+    Vector3 _lastClickPoint;
     float _lastButtonPressTime = -99f;
     float _lastRestartPressTime = -99f;
-    float _buttonHoverStartTime = -99f;
-    float _restartHoverStartTime = -99f;
     int _dropCount;
     bool _buttonPressed;
-    bool _buttonFingerInside;
-    bool _restartFingerInside;
-    bool _buttonClickConsumed;
-    bool _restartClickConsumed;
+    bool _hasLastClickPoint;
     bool _rotatingValve;
     bool _valveNear;
     bool _valveComplete;
@@ -56,9 +52,9 @@ public class FreeMoveTask : MonoBehaviour
     const float ButtonCooldown = 0.45f;
     const float RestartButtonRadius = 0.44f;
     const float RestartCooldown = 0.65f;
-    const float ButtonClickHoldSeconds = 0.20f;
-    const float RestartClickHoldSeconds = 0.65f;
     const float ButtonClickMaxGripSignal = 0.30f;
+    const float ButtonClickMinDownSpeed = 1.15f;
+    const float ButtonClickMaxSideSpeed = 2.40f;
     const float ValveRadius = 0.88f;
     const float ValveOuterInputRadius = 0.25f;
     const float ValveGripThreshold = 0.25f;
@@ -98,6 +94,7 @@ public class FreeMoveTask : MonoBehaviour
         UpdateCursor();
         UpdateStatus();
         ClampBlocksToArea();
+        UpdateClickTracking();
     }
 
     void BuildPracticeArea()
@@ -398,10 +395,6 @@ public class FreeMoveTask : MonoBehaviour
             _restartButton,
             RestartButtonRadius,
             RestartCooldown,
-            RestartClickHoldSeconds,
-            ref _restartFingerInside,
-            ref _restartClickConsumed,
-            ref _restartHoverStartTime,
             ref _lastRestartPressTime,
             requireFreeHand: true,
             out bool near);
@@ -410,12 +403,12 @@ public class FreeMoveTask : MonoBehaviour
             RestartTraining();
 
         Color color;
-        if (click || _restartClickConsumed) color = new Color(1f, 0.74f, 0.24f);
+        if (click) color = new Color(1f, 0.74f, 0.24f);
         else if (near) color = new Color(0.96f, 0.42f, 0.25f);
         else color = new Color(0.82f, 0.24f, 0.18f);
         SetRendererColor(_restartButtonRenderer, color);
 
-        float pressScale = click || _restartClickConsumed ? 0.11f : near ? 0.16f : 0.22f;
+        float pressScale = click ? 0.11f : near ? 0.16f : 0.22f;
         _restartButton.transform.localScale = new Vector3(0.54f, pressScale, 0.10f);
     }
 
@@ -431,12 +424,8 @@ public class FreeMoveTask : MonoBehaviour
         _trainingComplete = false;
         _valveAngle = 0f;
         _lastButtonPressTime = -99f;
-        _buttonFingerInside = false;
-        _restartFingerInside = false;
-        _buttonClickConsumed = false;
-        _restartClickConsumed = false;
-        _buttonHoverStartTime = -99f;
-        _restartHoverStartTime = -99f;
+        _lastRestartPressTime = -99f;
+        _hasLastClickPoint = false;
         _lastHeld = null;
 
         foreach (var goal in _goals)
@@ -473,10 +462,6 @@ public class FreeMoveTask : MonoBehaviour
             _button,
             ButtonRadius,
             ButtonCooldown,
-            ButtonClickHoldSeconds,
-            ref _buttonFingerInside,
-            ref _buttonClickConsumed,
-            ref _buttonHoverStartTime,
             ref _lastButtonPressTime,
             requireFreeHand: true,
             out bool near);
@@ -493,7 +478,7 @@ public class FreeMoveTask : MonoBehaviour
         else color = new Color(0.12f, 0.44f, 0.92f);
         SetRendererColor(_buttonRenderer, color);
 
-        float pressScale = _buttonPressed ? 0.08f : click || _buttonClickConsumed ? 0.10f : near ? 0.14f : 0.24f;
+        float pressScale = _buttonPressed ? 0.08f : click ? 0.10f : near ? 0.14f : 0.24f;
         _button.transform.localScale = new Vector3(0.52f, pressScale, 0.10f);
     }
 
@@ -501,51 +486,34 @@ public class FreeMoveTask : MonoBehaviour
         GameObject target,
         float radius,
         float cooldown,
-        float holdSeconds,
-        ref bool fingerInside,
-        ref bool clickConsumed,
-        ref float hoverStartTime,
         ref float lastPressTime,
         bool requireFreeHand,
         out bool near)
     {
         near = false;
         if (grasp == null || grasp.hand == null || target == null || !grasp.hand.IsActive)
-        {
-            fingerInside = false;
-            clickConsumed = false;
-            hoverStartTime = -99f;
             return false;
-        }
 
         Vector3 clickPoint = ButtonClickPoint();
         near = Vector3.Distance(clickPoint, target.transform.position) <= radius;
         bool eligible = grasp.GripSignal <= ButtonClickMaxGripSignal
             && (!requireFreeHand || grasp.Held == null);
-        if (!near || !eligible)
-        {
-            fingerInside = false;
-            clickConsumed = false;
-            hoverStartTime = -99f;
-            return false;
-        }
+        if (!near || !eligible || !_hasLastClickPoint) return false;
 
-        if (!fingerInside)
-        {
-            fingerInside = true;
-            hoverStartTime = Time.time;
-        }
-
+        Vector3 delta = clickPoint - _lastClickPoint;
+        float dt = Mathf.Max(Time.deltaTime, 1e-4f);
+        float downSpeed = -delta.y / dt;
+        float sideSpeed = Mathf.Abs(delta.x) / dt;
         bool canClick = near
-            && !clickConsumed
-            && Time.time - hoverStartTime >= holdSeconds
+            && downSpeed >= ButtonClickMinDownSpeed
+            && sideSpeed <= ButtonClickMaxSideSpeed
+            && _lastClickPoint.y > target.transform.position.y + radius * 0.15f
             && Time.time - lastPressTime >= cooldown
-            && eligible;
+            && clickPoint.y >= target.transform.position.y - radius * 0.55f;
 
         if (!canClick) return false;
 
         lastPressTime = Time.time;
-        clickConsumed = true;
         return true;
     }
 
@@ -554,6 +522,18 @@ public class FreeMoveTask : MonoBehaviour
         if (grasp != null && grasp.hand != null && grasp.hand.Points != null && grasp.hand.Points.Length > 8)
             return grasp.hand.Points[8];
         return grasp != null && grasp.hand != null ? grasp.hand.GripPoint : Vector3.zero;
+    }
+
+    void UpdateClickTracking()
+    {
+        if (grasp == null || grasp.hand == null || !grasp.hand.IsActive)
+        {
+            _hasLastClickPoint = false;
+            return;
+        }
+
+        _lastClickPoint = ButtonClickPoint();
+        _hasLastClickPoint = true;
     }
 
     void UpdateValve()
