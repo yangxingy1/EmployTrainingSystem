@@ -47,9 +47,9 @@ public class FreeMoveTask : MonoBehaviour
     const float ButtonCooldown = 0.45f;
     const float ValveRadius = 1.20f;
     const float ValveGripThreshold = 0.25f;
-    const float ValveDragDegreesPerUnit = 90f;
+    const float ValveDragDegreesPerUnit = 135f;
     const float ValveInputDeadZone = 0.004f;
-    const float ValveMaxStepDegrees = 3.5f;
+    const float ValveMaxStepDegrees = 5f;
     const float ValveProgressWidth = 1.10f;
     const float TargetValveAngle = 90f;
     const float ValveTolerance = 12f;
