@@ -40,6 +40,8 @@ public class FreeMoveTask : MonoBehaviour
     float _lastRestartPressTime = -99f;
     int _dropCount;
     bool _buttonPressed;
+    bool _buttonFingerInside;
+    bool _restartFingerInside;
     bool _rotatingValve;
     bool _valveNear;
     bool _valveComplete;
@@ -50,7 +52,7 @@ public class FreeMoveTask : MonoBehaviour
     const float ButtonCooldown = 0.45f;
     const float RestartButtonRadius = 0.44f;
     const float RestartCooldown = 0.65f;
-    const float RestartGripThreshold = 0.40f;
+    const float ButtonClickMaxGripSignal = 0.30f;
     const float ValveRadius = 0.72f;
     const float ValveOuterInputRadius = 0.20f;
     const float ValveGripThreshold = 0.25f;
@@ -386,24 +388,25 @@ public class FreeMoveTask : MonoBehaviour
     {
         if (grasp == null || grasp.hand == null || _restartButton == null) return;
 
-        bool near = grasp.hand.IsActive && Vector3.Distance(grasp.hand.GripPoint, _restartButton.transform.position) <= RestartButtonRadius;
-        bool click = near
-            && grasp.GripSignal >= RestartGripThreshold
-            && Time.time - _lastRestartPressTime >= RestartCooldown;
+        bool click = UpdateButtonClick(
+            _restartButton,
+            RestartButtonRadius,
+            RestartCooldown,
+            ref _restartFingerInside,
+            ref _lastRestartPressTime,
+            requireFreeHand: true,
+            out bool near);
 
         if (click)
-        {
-            _lastRestartPressTime = Time.time;
             RestartTraining();
-        }
 
         Color color;
-        if (near && grasp.GripSignal >= RestartGripThreshold) color = new Color(1f, 0.74f, 0.24f);
+        if (click) color = new Color(1f, 0.74f, 0.24f);
         else if (near) color = new Color(0.96f, 0.42f, 0.25f);
         else color = new Color(0.82f, 0.24f, 0.18f);
         SetRendererColor(_restartButtonRenderer, color);
 
-        float pressScale = near && grasp.GripSignal >= RestartGripThreshold ? 0.11f : near ? 0.16f : 0.22f;
+        float pressScale = click ? 0.11f : near ? 0.16f : 0.22f;
         _restartButton.transform.localScale = new Vector3(0.54f, pressScale, 0.10f);
     }
 
@@ -451,12 +454,17 @@ public class FreeMoveTask : MonoBehaviour
         if (grasp == null || grasp.hand == null || _button == null) return;
 
         bool ready = PlacedCount() >= _goals.Count;
-        bool near = grasp.hand.IsActive && Vector3.Distance(grasp.hand.GripPoint, _button.transform.position) <= ButtonRadius;
-        bool click = near && grasp.Held == null && grasp.GripSignal >= grasp.grabThreshold && Time.time - _lastButtonPressTime >= ButtonCooldown;
+        bool click = UpdateButtonClick(
+            _button,
+            ButtonRadius,
+            ButtonCooldown,
+            ref _buttonFingerInside,
+            ref _lastButtonPressTime,
+            requireFreeHand: true,
+            out bool near);
 
         if (click)
         {
-            _lastButtonPressTime = Time.time;
             if (ready) _buttonPressed = true;
         }
 
@@ -467,8 +475,46 @@ public class FreeMoveTask : MonoBehaviour
         else color = new Color(0.12f, 0.44f, 0.92f);
         SetRendererColor(_buttonRenderer, color);
 
-        float pressScale = _buttonPressed ? 0.08f : near ? 0.14f : 0.24f;
+        float pressScale = _buttonPressed ? 0.08f : click ? 0.10f : near ? 0.14f : 0.24f;
         _button.transform.localScale = new Vector3(0.52f, pressScale, 0.10f);
+    }
+
+    bool UpdateButtonClick(
+        GameObject target,
+        float radius,
+        float cooldown,
+        ref bool fingerInside,
+        ref float lastPressTime,
+        bool requireFreeHand,
+        out bool near)
+    {
+        near = false;
+        if (grasp == null || grasp.hand == null || target == null || !grasp.hand.IsActive)
+        {
+            fingerInside = false;
+            return false;
+        }
+
+        Vector3 clickPoint = ButtonClickPoint();
+        near = Vector3.Distance(clickPoint, target.transform.position) <= radius;
+        bool canClick = near
+            && !fingerInside
+            && Time.time - lastPressTime >= cooldown
+            && grasp.GripSignal <= ButtonClickMaxGripSignal
+            && (!requireFreeHand || grasp.Held == null);
+
+        fingerInside = near;
+        if (!canClick) return false;
+
+        lastPressTime = Time.time;
+        return true;
+    }
+
+    Vector3 ButtonClickPoint()
+    {
+        if (grasp != null && grasp.hand != null && grasp.hand.Points != null && grasp.hand.Points.Length > 8)
+            return grasp.hand.Points[8];
+        return grasp != null && grasp.hand != null ? grasp.hand.GripPoint : Vector3.zero;
     }
 
     void UpdateValve()
