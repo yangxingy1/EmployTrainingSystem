@@ -32,20 +32,20 @@ public class FreeMoveTask : MonoBehaviour
 
     float _startTime;
     float _valveAngle;
-    float _lastValveHandleAngle;
+    float _lastValveInputAngle;
     float _lastButtonPressTime = -99f;
     int _dropCount;
-    int _valveTurnDirection;
     bool _buttonPressed;
     bool _rotatingValve;
+    bool _valveNear;
     bool _valveComplete;
     bool _trainingComplete;
 
     const float ZoneRadius = 0.42f;
     const float ButtonRadius = 0.42f;
     const float ButtonCooldown = 0.45f;
-    const float ValveRadius = 0.72f;
-    const float ValveMinHandleRadius = 0.18f;
+    const float ValveRadius = 0.95f;
+    const float ValveMinStableRadius = 0.08f;
     const float TargetValveAngle = 90f;
     const float ValveTolerance = 12f;
 
@@ -81,7 +81,7 @@ public class FreeMoveTask : MonoBehaviour
     {
         var board = GameObject.CreatePrimitive(PrimitiveType.Cube);
         board.name = "TrainingOperationPlane";
-        board.transform.position = new Vector3(0f, -1.55f, 0.08f);
+        board.transform.position = new Vector3(0f, areaMin.y - 0.04f, 0.08f);
         board.transform.localScale = new Vector3(5.9f, 0.08f, 0.75f);
         SetColor(board, new Color(0.22f, 0.25f, 0.29f));
 
@@ -319,8 +319,9 @@ public class FreeMoveTask : MonoBehaviour
             goal.block.Body.useGravity = false;
             goal.block.Body.velocity = Vector3.zero;
             goal.block.Body.angularVelocity = Vector3.zero;
-            goal.block.Body.position = goal.zoneCenter + new Vector3(0f, blockSize * 0.55f, 0f);
+            goal.block.Body.position = goal.zoneCenter;
             goal.block.transform.rotation = Quaternion.identity;
+            goal.block.CanGrab = false;
             goal.block.SetHighlight(false);
             SetRendererColor(goal.zoneRenderer, Color.Lerp(goal.color, Color.white, 0.25f));
         }
@@ -360,32 +361,30 @@ public class FreeMoveTask : MonoBehaviour
         Vector3 offset = grasp.hand.GripPoint - center;
         float handleDistance = new Vector2(offset.x, offset.y).magnitude;
         bool near = grasp.hand.IsActive && handleDistance <= ValveRadius;
-        bool onHandle = handleDistance >= ValveMinHandleRadius;
-        bool active = ready && near && onHandle && grasp.Held == null && grasp.GripSignal >= grasp.grabThreshold;
+        bool active = near && grasp.Held == null && grasp.GripSignal >= grasp.grabThreshold;
+        _valveNear = near;
 
         if (active)
         {
-            float handleAngle = Mathf.Atan2(offset.y, offset.x) * Mathf.Rad2Deg;
+            float inputAngle = handleDistance >= ValveMinStableRadius
+                ? Mathf.Atan2(offset.y, offset.x) * Mathf.Rad2Deg
+                : grasp.hand.PalmAngle;
             if (!_rotatingValve)
             {
                 _rotatingValve = true;
-                _valveTurnDirection = 0;
-                _lastValveHandleAngle = handleAngle;
+                _lastValveInputAngle = inputAngle;
             }
             else
             {
-                float delta = Mathf.DeltaAngle(_lastValveHandleAngle, handleAngle);
-                if (_valveTurnDirection == 0 && Mathf.Abs(delta) > 1.0f)
-                    _valveTurnDirection = delta >= 0f ? 1 : -1;
-                if (_valveTurnDirection != 0)
-                    _valveAngle = Mathf.Clamp(_valveAngle + delta * _valveTurnDirection, 0f, 120f);
-                _lastValveHandleAngle = handleAngle;
+                float delta = Mathf.DeltaAngle(_lastValveInputAngle, inputAngle);
+                if (Mathf.Abs(delta) > 0.35f)
+                    _valveAngle = Mathf.Clamp(_valveAngle + Mathf.Abs(delta), 0f, 120f);
+                _lastValveInputAngle = inputAngle;
             }
         }
         else
         {
             _rotatingValve = false;
-            _valveTurnDirection = 0;
         }
 
         if (Mathf.Abs(_valveAngle - TargetValveAngle) <= ValveTolerance && ready)
@@ -454,9 +453,16 @@ public class FreeMoveTask : MonoBehaviour
             "任务: " + phase +
             "\n投放 " + placed + "/" + _goals.Count +
             "\n确认 " + (_buttonPressed ? "完成" : "未完成") +
-            "\n阀门 " + _valveAngle.ToString("0") + "/" + TargetValveAngle.ToString("0") +
+            "\n阀门 " + _valveAngle.ToString("0") + "/" + TargetValveAngle.ToString("0") + " " + ValveStateText() +
             "\n失误 " + _dropCount + "  得分 " + score +
             "\n抓取 " + grasp.GripSignal.ToString("0.00");
+    }
+
+    string ValveStateText()
+    {
+        if (_rotatingValve) return "转动中";
+        if (_valveNear) return "靠近";
+        return "";
     }
 
     void ClampBlocksToArea()
