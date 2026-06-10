@@ -32,6 +32,7 @@ public class FreeMoveTask : MonoBehaviour
 
     float _startTime;
     float _valveAngle;
+    float _lastValvePointerAngle;
     Vector3 _lastValveGripPoint;
     Vector3 _valveProgressLeft;
     float _lastButtonPressTime = -99f;
@@ -45,12 +46,14 @@ public class FreeMoveTask : MonoBehaviour
     const float ZoneRadius = 0.42f;
     const float ButtonRadius = 0.42f;
     const float ButtonCooldown = 0.45f;
-    const float ValveRadius = 1.20f;
+    const float ValveRadius = 0.72f;
+    const float ValveOuterInputRadius = 0.20f;
     const float ValveGripThreshold = 0.25f;
-    const float ValveDragDegreesPerUnit = 135f;
+    const float ValveDragDegreesPerUnit = 95f;
     const float ValveInputDeadZone = 0.004f;
-    const float ValveMaxStepDegrees = 5f;
-    const float ValveProgressWidth = 1.10f;
+    const float ValveAngleDeadZone = 0.35f;
+    const float ValveMaxStepDegrees = 4.5f;
+    const float ValveProgressWidth = 0.86f;
     const float TargetValveAngle = 90f;
     const float ValveTolerance = 12f;
     const float ValveMaxAngle = 360f;
@@ -164,21 +167,21 @@ public class FreeMoveTask : MonoBehaviour
         wheel.transform.parent = _valveRoot.transform;
         wheel.transform.localPosition = Vector3.zero;
         wheel.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-        wheel.transform.localScale = new Vector3(0.54f, 0.035f, 0.54f);
+        wheel.transform.localScale = new Vector3(0.38f, 0.032f, 0.38f);
         _valveRenderer = wheel.GetComponent<Renderer>();
         SetRendererColor(_valveRenderer, new Color(0.96f, 0.52f, 0.16f));
 
         var valveNeedle = GameObject.CreatePrimitive(PrimitiveType.Cube);
         valveNeedle.name = "ValvePointer";
         valveNeedle.transform.parent = _valveRoot.transform;
-        valveNeedle.transform.localPosition = new Vector3(0.22f, 0f, -0.08f);
-        valveNeedle.transform.localScale = new Vector3(0.50f, 0.055f, 0.08f);
+        valveNeedle.transform.localPosition = new Vector3(0.16f, 0f, -0.08f);
+        valveNeedle.transform.localScale = new Vector3(0.34f, 0.045f, 0.07f);
         SetColor(valveNeedle, new Color(1f, 0.9f, 0.2f));
 
         var targetGo = GameObject.CreatePrimitive(PrimitiveType.Cube);
         targetGo.name = "ValveTargetMark";
-        targetGo.transform.position = center + new Vector3(0f, 0.62f, -0.08f);
-        targetGo.transform.localScale = new Vector3(0.12f, 0.26f, 0.06f);
+        targetGo.transform.position = center + new Vector3(0f, 0.44f, -0.08f);
+        targetGo.transform.localScale = new Vector3(0.10f, 0.20f, 0.06f);
         SetColor(targetGo, new Color(0.25f, 1f, 0.45f));
 
         var ringGo = new GameObject("ValveRangeRing");
@@ -194,7 +197,7 @@ public class FreeMoveTask : MonoBehaviour
         }
 
         var labelGo = new GameObject("ValveLabel");
-        labelGo.transform.position = center + new Vector3(0f, 0.90f, -0.05f);
+        labelGo.transform.position = center + new Vector3(0f, 0.68f, -0.05f);
         var label = labelGo.AddComponent<TextMesh>();
         label.text = "VALVE 360";
         label.anchor = TextAnchor.MiddleCenter;
@@ -205,11 +208,11 @@ public class FreeMoveTask : MonoBehaviour
 
         var progressRail = GameObject.CreatePrimitive(PrimitiveType.Cube);
         progressRail.name = "ValveAngleRail";
-        progressRail.transform.position = center + new Vector3(0f, -0.72f, -0.08f);
+        progressRail.transform.position = center + new Vector3(0f, -0.54f, -0.08f);
         progressRail.transform.localScale = new Vector3(ValveProgressWidth, 0.05f, 0.06f);
         SetColor(progressRail, new Color(0.24f, 0.27f, 0.31f));
 
-        _valveProgressLeft = center + new Vector3(-ValveProgressWidth * 0.5f, -0.72f, -0.095f);
+        _valveProgressLeft = center + new Vector3(-ValveProgressWidth * 0.5f, -0.54f, -0.095f);
         _valveProgressFill = GameObject.CreatePrimitive(PrimitiveType.Cube);
         _valveProgressFill.name = "ValveAngleFill";
         _valveProgressRenderer = _valveProgressFill.GetComponent<Renderer>();
@@ -388,16 +391,26 @@ public class FreeMoveTask : MonoBehaviour
             {
                 _rotatingValve = true;
                 _lastValveGripPoint = grasp.hand.GripPoint;
+                _lastValvePointerAngle = Mathf.Atan2(offset.y, offset.x) * Mathf.Rad2Deg;
             }
             else
             {
-                Vector3 delta = grasp.hand.GripPoint - _lastValveGripPoint;
-                float input = delta.x + delta.y;
-                if (Mathf.Abs(input) >= ValveInputDeadZone)
+                float step;
+                if (handleDistance >= ValveOuterInputRadius)
                 {
-                    float step = Mathf.Clamp(input * ValveDragDegreesPerUnit, -ValveMaxStepDegrees, ValveMaxStepDegrees);
-                    _valveAngle = Mathf.Clamp(_valveAngle + step, 0f, ValveMaxAngle);
+                    float pointerAngle = Mathf.Atan2(offset.y, offset.x) * Mathf.Rad2Deg;
+                    step = Mathf.DeltaAngle(_lastValvePointerAngle, pointerAngle);
+                    _lastValvePointerAngle = pointerAngle;
                 }
+                else
+                {
+                    Vector3 delta = grasp.hand.GripPoint - _lastValveGripPoint;
+                    float input = delta.x + delta.y;
+                    step = Mathf.Abs(input) >= ValveInputDeadZone ? input * ValveDragDegreesPerUnit : 0f;
+                }
+
+                if (Mathf.Abs(step) >= ValveAngleDeadZone)
+                    _valveAngle = Mathf.Repeat(_valveAngle + Mathf.Clamp(step, -ValveMaxStepDegrees, ValveMaxStepDegrees), ValveMaxAngle);
                 _lastValveGripPoint = grasp.hand.GripPoint;
             }
         }
@@ -413,8 +426,8 @@ public class FreeMoveTask : MonoBehaviour
         UpdateValveProgress();
 
         Color color;
-        if (_valveComplete) color = new Color(0.20f, 0.88f, 0.38f);
-        else if (_rotatingValve) color = new Color(1f, 0.86f, 0.18f);
+        if (_rotatingValve) color = new Color(1f, 0.86f, 0.18f);
+        else if (_valveComplete) color = new Color(0.20f, 0.88f, 0.38f);
         else if (near) color = new Color(0.94f, 0.58f, 0.18f);
         else if (!ready) color = new Color(0.45f, 0.38f, 0.32f);
         else color = new Color(0.96f, 0.52f, 0.16f);
