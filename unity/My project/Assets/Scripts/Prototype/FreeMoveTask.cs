@@ -32,7 +32,7 @@ public class FreeMoveTask : MonoBehaviour
 
     float _startTime;
     float _valveAngle;
-    float _valveGrabStartX;
+    Vector3 _valveGrabStartPoint;
     float _valveGrabStartAngle;
     float _lastButtonPressTime = -99f;
     int _dropCount;
@@ -45,9 +45,9 @@ public class FreeMoveTask : MonoBehaviour
     const float ZoneRadius = 0.42f;
     const float ButtonRadius = 0.42f;
     const float ButtonCooldown = 0.45f;
-    const float ValveRadius = 1.05f;
-    const float ValveGripThreshold = 0.40f;
-    const float ValveDragDegreesPerUnit = 72f;
+    const float ValveRadius = 1.20f;
+    const float ValveGripThreshold = 0.25f;
+    const float ValveDragDegreesPerUnit = 155f;
     const float TargetValveAngle = 90f;
     const float ValveTolerance = 12f;
 
@@ -371,12 +371,13 @@ public class FreeMoveTask : MonoBehaviour
             if (!_rotatingValve)
             {
                 _rotatingValve = true;
-                _valveGrabStartX = grasp.hand.GripPoint.x;
+                _valveGrabStartPoint = grasp.hand.GripPoint;
                 _valveGrabStartAngle = _valveAngle;
             }
             else
             {
-                float drag = grasp.hand.GripPoint.x - _valveGrabStartX;
+                Vector3 delta = grasp.hand.GripPoint - _valveGrabStartPoint;
+                float drag = Mathf.Abs(delta.y) >= Mathf.Abs(delta.x) ? delta.y : delta.x;
                 float target = Mathf.Clamp(_valveGrabStartAngle + drag * ValveDragDegreesPerUnit, 0f, 120f);
                 _valveAngle = Mathf.Lerp(_valveAngle, target, 0.35f);
             }
