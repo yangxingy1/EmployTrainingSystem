@@ -47,12 +47,13 @@ public class FreeMoveTask : MonoBehaviour
     const float ButtonCooldown = 0.45f;
     const float ValveRadius = 1.20f;
     const float ValveGripThreshold = 0.25f;
-    const float ValveDragDegreesPerUnit = 240f;
+    const float ValveDragDegreesPerUnit = 90f;
     const float ValveInputDeadZone = 0.004f;
-    const float ValveMaxStepDegrees = 8f;
+    const float ValveMaxStepDegrees = 3.5f;
     const float ValveProgressWidth = 1.10f;
     const float TargetValveAngle = 90f;
     const float ValveTolerance = 12f;
+    const float ValveMaxAngle = 360f;
 
     void Start()
     {
@@ -195,7 +196,7 @@ public class FreeMoveTask : MonoBehaviour
         var labelGo = new GameObject("ValveLabel");
         labelGo.transform.position = center + new Vector3(0f, 0.90f, -0.05f);
         var label = labelGo.AddComponent<TextMesh>();
-        label.text = "VALVE 90";
+        label.text = "VALVE 360";
         label.anchor = TextAnchor.MiddleCenter;
         label.alignment = TextAlignment.Center;
         label.fontSize = 34;
@@ -378,7 +379,7 @@ public class FreeMoveTask : MonoBehaviour
         Vector3 offset = grasp.hand.GripPoint - center;
         float handleDistance = new Vector2(offset.x, offset.y).magnitude;
         bool near = grasp.hand.IsActive && handleDistance <= ValveRadius;
-        bool active = !_valveComplete && near && grasp.Held == null && grasp.GripSignal >= ValveGripThreshold;
+        bool active = near && grasp.Held == null && grasp.GripSignal >= ValveGripThreshold;
         _valveNear = near;
 
         if (active)
@@ -395,7 +396,7 @@ public class FreeMoveTask : MonoBehaviour
                 if (Mathf.Abs(input) >= ValveInputDeadZone)
                 {
                     float step = Mathf.Clamp(input * ValveDragDegreesPerUnit, -ValveMaxStepDegrees, ValveMaxStepDegrees);
-                    _valveAngle = Mathf.Clamp(_valveAngle + step, 0f, 120f);
+                    _valveAngle = Mathf.Clamp(_valveAngle + step, 0f, ValveMaxAngle);
                 }
                 _lastValveGripPoint = grasp.hand.GripPoint;
             }
@@ -406,11 +407,7 @@ public class FreeMoveTask : MonoBehaviour
         }
 
         if (!_valveComplete && Mathf.Abs(_valveAngle - TargetValveAngle) <= ValveTolerance && ready)
-        {
-            _valveAngle = TargetValveAngle;
             _valveComplete = true;
-            _rotatingValve = false;
-        }
 
         _valveRoot.transform.rotation = Quaternion.Euler(0f, 0f, _valveAngle);
         UpdateValveProgress();
@@ -477,14 +474,14 @@ public class FreeMoveTask : MonoBehaviour
             "任务: " + phase +
             "\n投放 " + placed + "/" + _goals.Count +
             "\n确认 " + (_buttonPressed ? "完成" : "未完成") +
-            "\n阀门 " + _valveAngle.ToString("0.0") + "/" + TargetValveAngle.ToString("0") + " " + ValveStateText() +
+            "\n阀门 " + _valveAngle.ToString("0.0") + "/" + ValveMaxAngle.ToString("0") + " " + ValveStateText() +
             "\n失误 " + _dropCount + "  得分 " + score +
             "\n抓取 " + grasp.GripSignal.ToString("0.00");
     }
 
     string ValveStateText()
     {
-        if (_valveComplete) return "完成";
+        if (_valveComplete) return "达标";
         if (_rotatingValve) return "调节中";
         if (_valveNear) return "靠近";
         return "";
@@ -493,7 +490,7 @@ public class FreeMoveTask : MonoBehaviour
     void UpdateValveProgress()
     {
         if (_valveProgressFill == null) return;
-        float pct = Mathf.Clamp01(_valveAngle / TargetValveAngle);
+        float pct = Mathf.Clamp01(_valveAngle / ValveMaxAngle);
         float width = Mathf.Max(0.025f, ValveProgressWidth * pct);
         _valveProgressFill.transform.position = _valveProgressLeft + new Vector3(width * 0.5f, 0f, 0f);
         _valveProgressFill.transform.localScale = new Vector3(width, 0.085f, 0.07f);
