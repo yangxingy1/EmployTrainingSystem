@@ -10,6 +10,7 @@ public class FreeMoveTask : MonoBehaviour
     {
         public string label;
         public Grabbable block;
+        public Vector3 startPosition;
         public Vector3 zoneCenter;
         public Renderer zoneRenderer;
         public Color color;
@@ -24,8 +25,8 @@ public class FreeMoveTask : MonoBehaviour
 
     readonly List<BlockGoal> _goals = new List<BlockGoal>();
     TextMesh _status;
-    GameObject _cursor, _button, _valveRoot, _valveProgressFill;
-    Renderer _cursorRenderer, _buttonRenderer, _valveRenderer, _valveProgressRenderer;
+    GameObject _cursor, _button, _restartButton, _valveRoot, _valveProgressFill;
+    Renderer _cursorRenderer, _buttonRenderer, _restartButtonRenderer, _valveRenderer, _valveProgressRenderer;
     LineRenderer _line;
     PhysicMaterial _blockPhysic;
     Grabbable _lastHeld;
@@ -36,6 +37,7 @@ public class FreeMoveTask : MonoBehaviour
     Vector3 _lastValveGripPoint;
     Vector3 _valveProgressLeft;
     float _lastButtonPressTime = -99f;
+    float _lastRestartPressTime = -99f;
     int _dropCount;
     bool _buttonPressed;
     bool _rotatingValve;
@@ -46,13 +48,16 @@ public class FreeMoveTask : MonoBehaviour
     const float ZoneRadius = 0.42f;
     const float ButtonRadius = 0.42f;
     const float ButtonCooldown = 0.45f;
+    const float RestartButtonRadius = 0.44f;
+    const float RestartCooldown = 0.65f;
+    const float RestartGripThreshold = 0.40f;
     const float ValveRadius = 0.72f;
     const float ValveOuterInputRadius = 0.20f;
     const float ValveGripThreshold = 0.25f;
-    const float ValveDragDegreesPerUnit = 95f;
+    const float ValveDragDegreesPerUnit = 120f;
     const float ValveInputDeadZone = 0.004f;
-    const float ValveAngleDeadZone = 0.35f;
-    const float ValveMaxStepDegrees = 4.5f;
+    const float ValveAngleDeadZone = 0.25f;
+    const float ValveMaxStepDegrees = 5.5f;
     const float ValveProgressWidth = 0.86f;
     const float TargetValveAngle = 90f;
     const float ValveTolerance = 12f;
@@ -78,6 +83,7 @@ public class FreeMoveTask : MonoBehaviour
     void Update()
     {
         UpdateReleaseAccounting();
+        UpdateRestartButton();
         UpdatePlacement();
         UpdateButton();
         UpdateValve();
@@ -128,6 +134,7 @@ public class FreeMoveTask : MonoBehaviour
     void BuildOperationDevices()
     {
         BuildButton(new Vector3(2.25f, 0.83f, 0f));
+        BuildRestartButton(new Vector3(2.25f, -0.05f, 0f));
         BuildValve(new Vector3(-2.25f, 0.83f, 0f));
     }
 
@@ -155,6 +162,32 @@ public class FreeMoveTask : MonoBehaviour
         label.fontSize = 34;
         label.characterSize = 0.035f;
         label.color = new Color(0.82f, 0.90f, 1f);
+    }
+
+    void BuildRestartButton(Vector3 center)
+    {
+        var baseGo = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        baseGo.name = "RestartButtonBase";
+        baseGo.transform.position = center + new Vector3(0f, -0.15f, 0.06f);
+        baseGo.transform.localScale = new Vector3(0.72f, 0.11f, 0.10f);
+        SetColor(baseGo, new Color(0.20f, 0.18f, 0.17f));
+
+        _restartButton = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        _restartButton.name = "RestartButton";
+        _restartButton.transform.position = center + new Vector3(0f, 0f, -0.02f);
+        _restartButton.transform.localScale = new Vector3(0.54f, 0.22f, 0.10f);
+        _restartButtonRenderer = _restartButton.GetComponent<Renderer>();
+        SetRendererColor(_restartButtonRenderer, new Color(0.82f, 0.24f, 0.18f));
+
+        var labelGo = new GameObject("RestartButtonLabel");
+        labelGo.transform.position = center + new Vector3(0f, 0.25f, -0.05f);
+        var label = labelGo.AddComponent<TextMesh>();
+        label.text = "RESTART";
+        label.anchor = TextAnchor.MiddleCenter;
+        label.alignment = TextAlignment.Center;
+        label.fontSize = 32;
+        label.characterSize = 0.033f;
+        label.color = new Color(1f, 0.82f, 0.76f);
     }
 
     void BuildValve(Vector3 center)
@@ -252,6 +285,7 @@ public class FreeMoveTask : MonoBehaviour
         {
             label = label,
             block = block,
+            startPosition = blockPosition,
             zoneCenter = zoneCenter,
             zoneRenderer = zoneRenderer,
             color = color,
@@ -346,6 +380,70 @@ public class FreeMoveTask : MonoBehaviour
             goal.block.SetHighlight(false);
             SetRendererColor(goal.zoneRenderer, Color.Lerp(goal.color, Color.white, 0.25f));
         }
+    }
+
+    void UpdateRestartButton()
+    {
+        if (grasp == null || grasp.hand == null || _restartButton == null) return;
+
+        bool near = grasp.hand.IsActive && Vector3.Distance(grasp.hand.GripPoint, _restartButton.transform.position) <= RestartButtonRadius;
+        bool click = near
+            && grasp.GripSignal >= RestartGripThreshold
+            && Time.time - _lastRestartPressTime >= RestartCooldown;
+
+        if (click)
+        {
+            _lastRestartPressTime = Time.time;
+            RestartTraining();
+        }
+
+        Color color;
+        if (near && grasp.GripSignal >= RestartGripThreshold) color = new Color(1f, 0.74f, 0.24f);
+        else if (near) color = new Color(0.96f, 0.42f, 0.25f);
+        else color = new Color(0.82f, 0.24f, 0.18f);
+        SetRendererColor(_restartButtonRenderer, color);
+
+        float pressScale = near && grasp.GripSignal >= RestartGripThreshold ? 0.11f : near ? 0.16f : 0.22f;
+        _restartButton.transform.localScale = new Vector3(0.54f, pressScale, 0.10f);
+    }
+
+    void RestartTraining()
+    {
+        grasp?.CancelInteraction();
+        _startTime = Time.time;
+        _dropCount = 0;
+        _buttonPressed = false;
+        _rotatingValve = false;
+        _valveNear = false;
+        _valveComplete = false;
+        _trainingComplete = false;
+        _valveAngle = 0f;
+        _lastButtonPressTime = -99f;
+        _lastHeld = null;
+
+        foreach (var goal in _goals)
+        {
+            goal.placed = false;
+            if (goal.block == null || goal.block.Body == null) continue;
+
+            goal.block.CanGrab = true;
+            goal.block.SetHighlight(false);
+            goal.block.Body.useGravity = false;
+            goal.block.Body.velocity = Vector3.zero;
+            goal.block.Body.angularVelocity = Vector3.zero;
+            goal.block.Body.position = goal.startPosition;
+            goal.block.transform.rotation = Quaternion.identity;
+            SetRendererColor(goal.zoneRenderer, Color.Lerp(goal.color, Color.black, 0.20f));
+        }
+
+        if (_button != null) _button.transform.localScale = new Vector3(0.52f, 0.24f, 0.10f);
+        SetRendererColor(_buttonRenderer, new Color(0.12f, 0.44f, 0.92f));
+        if (_restartButton != null) _restartButton.transform.localScale = new Vector3(0.54f, 0.22f, 0.10f);
+        SetRendererColor(_restartButtonRenderer, new Color(0.82f, 0.24f, 0.18f));
+
+        if (_valveRoot != null) _valveRoot.transform.rotation = Quaternion.identity;
+        SetRendererColor(_valveRenderer, new Color(0.96f, 0.52f, 0.16f));
+        UpdateValveProgress();
     }
 
     void UpdateButton()
