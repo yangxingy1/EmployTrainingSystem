@@ -95,13 +95,13 @@ public class FreeMoveTask : MonoBehaviour
         SetColor(sourceShelf, new Color(0.33f, 0.36f, 0.41f));
 
         var titleGo = new GameObject("TrainingTitle");
-        titleGo.transform.position = new Vector3(0f, 1.95f, -0.05f);
+        titleGo.transform.position = new Vector3(0f, 2.08f, -0.05f);
         var title = titleGo.AddComponent<TextMesh>();
-        title.text = "Training: sort blocks, press button, rotate valve";
+        title.text = "Station Training";
         title.anchor = TextAnchor.MiddleCenter;
         title.alignment = TextAlignment.Center;
-        title.fontSize = 56;
-        title.characterSize = 0.05f;
+        title.fontSize = 44;
+        title.characterSize = 0.044f;
         title.color = Color.white;
     }
 
@@ -280,12 +280,12 @@ public class FreeMoveTask : MonoBehaviour
     void BuildStatus()
     {
         var statusGo = new GameObject("TrainingStatus");
-        statusGo.transform.position = new Vector3(-2.8f, 1.45f, -0.05f);
+        statusGo.transform.position = new Vector3(2.62f, -1.72f, -0.05f);
         _status = statusGo.AddComponent<TextMesh>();
-        _status.anchor = TextAnchor.UpperLeft;
-        _status.alignment = TextAlignment.Left;
-        _status.fontSize = 38;
-        _status.characterSize = 0.038f;
+        _status.anchor = TextAnchor.LowerRight;
+        _status.alignment = TextAlignment.Right;
+        _status.fontSize = 30;
+        _status.characterSize = 0.031f;
         _status.color = new Color(0.76f, 0.88f, 1f);
     }
 
@@ -429,24 +429,21 @@ public class FreeMoveTask : MonoBehaviour
 
         int placed = PlacedCount();
         string phase;
-        if (!grasp.hand.IsActive) phase = "等待摄像头识别手";
-        else if (placed < _goals.Count) phase = "步骤1: 抓取方块并投放到同色目标区";
-        else if (!_buttonPressed) phase = "步骤2: 在 CONFIRM 按钮上捏合确认";
-        else if (!_valveComplete) phase = "步骤3: 捏合阀门并旋转到绿色 90 度标记";
+        if (!grasp.hand.IsActive) phase = "等待手势";
+        else if (placed < _goals.Count) phase = "同色投放";
+        else if (!_buttonPressed) phase = "捏合确认";
+        else if (!_valveComplete) phase = "旋转阀门";
         else phase = "训练完成";
 
         float elapsed = Time.time - _startTime;
         int score = Mathf.Clamp(100 - _dropCount * 5 - Mathf.FloorToInt(elapsed / 20f), 0, 100);
 
         _status.text =
-            "状态: " + phase +
-            "\n投放进度: " + placed + " / " + _goals.Count +
-            "\n按钮确认: " + (_buttonPressed ? "已完成" : "未完成") +
-            "\n阀门角度: " + _valveAngle.ToString("0") + " / " + TargetValveAngle.ToString("0") +
-            "\n掉落/误放次数: " + _dropCount +
-            "\n预计得分: " + score +
-            "\n抓取判定: " + grasp.GripSignal.ToString("0.00") + " / " + grasp.grabThreshold.ToString("0.00") +
-            "\n当前对象: " + (grasp.Held != null ? grasp.Held.name : grasp.Hover != null ? grasp.Hover.name : "-");
+            "任务: " + phase +
+            "\n投放: " + placed + "/" + _goals.Count +
+            "\n确认: " + (_buttonPressed ? "完成" : "未完成") + "  阀门: " + _valveAngle.ToString("0") + "/" + TargetValveAngle.ToString("0") +
+            "\n失误: " + _dropCount + "  得分: " + score +
+            "\n抓取: " + grasp.GripSignal.ToString("0.00") + "/" + grasp.grabThreshold.ToString("0.00");
     }
 
     void ClampBlocksToArea()
