@@ -1,0 +1,6 @@
+{"kind":"raw","payload":{"present":true,"x":[0.45,0.44,0.43,0.42,0.41,0.47,0.47,0.47,0.47,0.50,0.50,0.50,0.50,0.53,0.53,0.53,0.53,0.56,0.56,0.56,0.56],"y":[0.60,0.57,0.54,0.51,0.48,0.55,0.51,0.47,0.43,0.55,0.51,0.47,0.43,0.56,0.53,0.50,0.47,0.58,0.55,0.52,0.49],"z":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}}
+{"kind":"event","payload":{"type":"gesture","seq":1,"timestamp":1710000000.0,"hand":"right","gesture":"grab","state":"start","confidence":0.92,"params":{"x":0.50,"y":0.55,"pinchStrength":0.92}}}
+{"kind":"event","payload":{"type":"gesture","seq":2,"timestamp":1710000000.1,"hand":"right","gesture":"rotate","state":"update","confidence":0.90,"params":{"x":0.50,"y":0.55,"angleDelta":8.0,"totalAngle":8.0}}}
+{"kind":"event","payload":{"type":"gesture","seq":3,"timestamp":1710000000.2,"hand":"right","gesture":"click","state":"trigger","confidence":0.95,"params":{"x":0.47,"y":0.43,"pinchStrength":0.95}}}
+{"kind":"event","payload":{"type":"gesture","seq":4,"timestamp":1710000000.3,"hand":"right","gesture":"grab","state":"end","confidence":0.85,"params":{"x":0.50,"y":0.55,"pinchStrength":0.10}}}
+

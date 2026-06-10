@@ -1,0 +1,108 @@
+# -----------------------------
+# OS / editor noise
+# -----------------------------
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.tmp
+*.temp
+*.log
+
+.vscode/
+.idea/
+.vs/
+*.user
+*.userprefs
+*.suo
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+
+# -----------------------------
+# Python / Conda
+# -----------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local Python environments. The project now uses Conda outside the repo.
+.venv/
+venv/
+env/
+ENV/
+gesture-service/.venv/
+gesture-service/venv/
+gesture-service/env/
+
+# Runtime recordings and local test output.
+gesture-service/recordings/
+gesture-service/*.jsonl
+!gesture-service/samples/*.jsonl
+
+# -----------------------------
+# Unity generated files
+# Keep Assets/, Packages/, ProjectSettings/, and *.meta files.
+# -----------------------------
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+[Mm]emoryCaptures/
+
+unity/My project/[Ll]ibrary/
+unity/My project/[Tt]emp/
+unity/My project/[Oo]bj/
+unity/My project/[Bb]uild/
+unity/My project/[Bb]uilds/
+unity/My project/[Ll]ogs/
+unity/My project/[Uu]ser[Ss]ettings/
+unity/My project/[Mm]emoryCaptures/
+unity/My project/.vs/
+
+# Unity generated IDE/project files.
+*.csproj
+*.sln
+*.sln.DotSettings.user
+*.unityproj
+*.pidb
+*.booproj
+
+# Unity cache/crash/build artifacts.
+*.apk
+*.aab
+*.unitypackage
+*.app
+*.exe
+*.ilk
+*.meta~*
+sysinfo.txt
+
+# -----------------------------
+# Optional legacy Unity client
+# -----------------------------
+unity-client/[Ll]ibrary/
+unity-client/[Tt]emp/
+unity-client/[Oo]bj/
+unity-client/[Bb]uild/
+unity-client/[Bb]uilds/
+unity-client/[Ll]ogs/
+unity-client/[Uu]ser[Ss]ettings/
+unity-client/.vs/
+unity-client/Recordings/
+
+# -----------------------------
+# Local environment files
+# -----------------------------
+.env
+.env.*
+!.env.example
