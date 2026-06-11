@@ -1,7 +1,15 @@
 using UnityEngine;
 
+public enum TrainingSceneKind
+{
+    ElectricSwitch,
+    RotaryValve
+}
+
 public class SceneBootstrap : MonoBehaviour
 {
+    public TrainingSceneKind sceneKind = TrainingSceneKind.RotaryValve;
+
     void Start()
     {
         SetupCamera();
@@ -9,7 +17,10 @@ public class SceneBootstrap : MonoBehaviour
         SetupWorkbench();
 
         var handInput = CreateVirtualHand(out _);
-        CreateElectricSwitchPractice(handInput);
+        if (sceneKind == TrainingSceneKind.RotaryValve)
+            CreateRotaryValvePractice(handInput);
+        else
+            CreateElectricSwitchPractice(handInput);
     }
 
     static HandInput CreateVirtualHand(out HandVisual visual)
@@ -61,6 +72,13 @@ public class SceneBootstrap : MonoBehaviour
     {
         var interactionGo = new GameObject("ElectricSwitchPractice");
         var task = interactionGo.AddComponent<ElectricSwitchTask>();
+        task.hand = handInput;
+    }
+
+    static void CreateRotaryValvePractice(HandInput handInput)
+    {
+        var interactionGo = new GameObject("RotaryValvePractice");
+        var task = interactionGo.AddComponent<RotaryValveTask>();
         task.hand = handInput;
     }
 
