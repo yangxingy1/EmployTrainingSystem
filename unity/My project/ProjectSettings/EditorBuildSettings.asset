@@ -4,5 +4,20 @@
 EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
-  m_Scenes: []
+  m_Scenes:
+  - enabled: 1
+    path: Assets/HubWorld/Scenes/Bootstrap.unity
+    guid: 49d5616c8a4022d3ef0ab384cd456789
+  - enabled: 1
+    path: Assets/HubWorld/Scenes/HubWorld.unity
+    guid: 5ae6727d9b5133e4f01bc495de567890
+  - enabled: 1
+    path: Assets/Scenes/RotaryValve/RotaryValve.unity
+    guid: d3ea4c5d6e7f8091a2b3c4d5e6f70819
+  - enabled: 1
+    path: Assets/Scenes/ElectricSwitch/ElectricSwitch.unity
+    guid: e4fb5d6e7f8091a2b3c4d5e6f708192a
+  - enabled: 1
+    path: Assets/Scenes/SampleScene.unity
+    guid: 9fc0d4010bbf28b4594072e72b8655ab
   m_configObjects: {}
