@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// 传送带分拣训练场景:移动物料、同色分拣箱、点击确认、速度阀校准。
+/// 传送带分拣训练场景:移动物料、同色分拣箱、点击确认。
 /// </summary>
 public class FreeMoveTask : MonoBehaviour
 {
@@ -40,17 +40,13 @@ public class FreeMoveTask : MonoBehaviour
     readonly List<SortBin> _bins = new List<SortBin>();
     readonly List<Transform> _beltStripes = new List<Transform>();
     TextMesh _status;
-    GameObject _cursor, _button, _restartButton, _valveRoot, _valveProgressFill;
-    Renderer _cursorRenderer, _buttonRenderer, _restartButtonRenderer, _valveRenderer, _valveProgressRenderer;
+    GameObject _cursor, _button, _restartButton;
+    Renderer _cursorRenderer, _buttonRenderer, _restartButtonRenderer;
     LineRenderer _line;
     PhysicMaterial _blockPhysic;
     Grabbable _lastHeld;
 
     float _startTime;
-    float _valveAngle;
-    float _lastValvePointerAngle;
-    Vector3 _lastValveGripPoint;
-    Vector3 _valveProgressLeft;
     Vector3 _buttonLastClickPoint;
     Vector3 _restartLastClickPoint;
     float _lastButtonPressTime = -99f;
@@ -61,28 +57,29 @@ public class FreeMoveTask : MonoBehaviour
     bool _buttonPressed;
     bool _buttonHasLastClickPoint;
     bool _buttonPressArmed;
+    bool _buttonTapReady;
     bool _buttonPressedByFinger;
     bool _restartHasLastClickPoint;
     bool _restartPressArmed;
+    bool _restartTapReady;
     bool _restartPressedByFinger;
-    bool _rotatingValve;
-    bool _valveNear;
-    bool _valveComplete;
-    bool _trainingComplete;
+    bool _buttonGuideActive;
+    Vector3 _buttonGuideTarget;
 
     const float ZoneRadius = 0.62f;
     const float ButtonRadius = 0.42f;
     const float ButtonCooldown = 0.45f;
     const float RestartButtonRadius = 0.44f;
     const float RestartCooldown = 0.65f;
-    const float ButtonHoverWidthFactor = 1.28f;
-    const float ButtonHoverHeightFactor = 1.08f;
-    const float ButtonClickWidthFactor = 1.08f;
-    const float ButtonClickHeightFactor = 0.82f;
-    const float ButtonTapReadySeconds = 0.12f;
-    const float ButtonTapMinDownDelta = 0.026f;
-    const float ButtonTapMinDownSpeed = 0.22f;
-    const float ButtonTapMaxSideOffsetFactor = 0.75f;
+    const float ButtonHoverWidthFactor = 1.12f;
+    const float ButtonHoverHeightFactor = 1.18f;
+    const float ButtonClickWidthFactor = 0.90f;
+    const float ButtonClickHeightFactor = 0.88f;
+    const float ButtonTapReadySeconds = 0.11f;
+    const float ButtonTapMinDownDelta = 0.028f;
+    const float ButtonTapMinDownSpeed = 0.18f;
+    const float ButtonTapMaxSideOffsetFactor = 0.62f;
+    const float ButtonTapStabilizeMaxDrift = 0.060f;
     const float ConveyorY = 0.58f;
     const float ConveyorStartX = -2.05f;
     const float ConveyorEndX = 1.62f;
@@ -94,17 +91,6 @@ public class FreeMoveTask : MonoBehaviour
     const float PackageSpawnSpacing = 0.54f;
     const float PackageRespawnDelay = 0.55f;
     const float ConveyorEntryClearDistance = 0.46f;
-    const float ValveRadius = 0.88f;
-    const float ValveOuterInputRadius = 0.25f;
-    const float ValveGripThreshold = 0.25f;
-    const float ValveDragDegreesPerUnit = 120f;
-    const float ValveInputDeadZone = 0.004f;
-    const float ValveAngleDeadZone = 0.25f;
-    const float ValveMaxStepDegrees = 5.5f;
-    const float ValveProgressWidth = 0.98f;
-    const float TargetValveAngle = 90f;
-    const float ValveTolerance = 12f;
-    const float ValveMaxAngle = 360f;
 
     void Start()
     {
@@ -127,10 +113,10 @@ public class FreeMoveTask : MonoBehaviour
     {
         UpdateReleaseAccounting();
         UpdateConveyor();
+        _buttonGuideActive = false;
         UpdateRestartButton();
         UpdatePlacement();
         UpdateButton();
-        UpdateValve();
         UpdateCursor();
         UpdateStatus();
         ClampBlocksToArea();
@@ -241,7 +227,6 @@ public class FreeMoveTask : MonoBehaviour
     {
         BuildButton(new Vector3(2.25f, 0.83f, 0f));
         BuildRestartButton(new Vector3(2.25f, -0.05f, 0f));
-        BuildValve(new Vector3(-2.68f, -0.72f, 0f));
     }
 
     void BuildButton(Vector3 center)
@@ -294,68 +279,6 @@ public class FreeMoveTask : MonoBehaviour
         label.fontSize = 32;
         label.characterSize = 0.033f;
         label.color = new Color(1f, 0.82f, 0.76f);
-    }
-
-    void BuildValve(Vector3 center)
-    {
-        _valveRoot = new GameObject("SafetyValve");
-        _valveRoot.transform.position = center;
-
-        var wheel = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-        wheel.name = "ValveWheel";
-        wheel.transform.parent = _valveRoot.transform;
-        wheel.transform.localPosition = Vector3.zero;
-        wheel.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-        wheel.transform.localScale = new Vector3(0.48f, 0.034f, 0.48f);
-        _valveRenderer = wheel.GetComponent<Renderer>();
-        SetRendererColor(_valveRenderer, new Color(0.96f, 0.52f, 0.16f));
-
-        var valveNeedle = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        valveNeedle.name = "ValvePointer";
-        valveNeedle.transform.parent = _valveRoot.transform;
-        valveNeedle.transform.localPosition = new Vector3(0.20f, 0f, -0.08f);
-        valveNeedle.transform.localScale = new Vector3(0.44f, 0.050f, 0.07f);
-        SetColor(valveNeedle, new Color(1f, 0.9f, 0.2f));
-
-        var targetGo = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        targetGo.name = "ValveTargetMark";
-        targetGo.transform.position = center + new Vector3(0f, 0.55f, -0.08f);
-        targetGo.transform.localScale = new Vector3(0.11f, 0.23f, 0.06f);
-        SetColor(targetGo, new Color(0.25f, 1f, 0.45f));
-
-        var ringGo = new GameObject("ValveRangeRing");
-        var valveRing = ringGo.AddComponent<LineRenderer>();
-        valveRing.positionCount = 65;
-        valveRing.startWidth = 0.018f;
-        valveRing.endWidth = 0.018f;
-        valveRing.material = MakeMaterial(new Color(1f, 0.82f, 0.35f));
-        for (int i = 0; i < valveRing.positionCount; i++)
-        {
-            float a = i / 64f * Mathf.PI * 2f;
-            valveRing.SetPosition(i, center + new Vector3(Mathf.Cos(a) * ValveRadius, Mathf.Sin(a) * ValveRadius, -0.09f));
-        }
-
-        var labelGo = new GameObject("ValveLabel");
-        labelGo.transform.position = center + new Vector3(0f, 0.80f, -0.05f);
-        var label = labelGo.AddComponent<TextMesh>();
-        label.text = "SPEED DIAL";
-        label.anchor = TextAnchor.MiddleCenter;
-        label.alignment = TextAlignment.Center;
-        label.fontSize = 34;
-        label.characterSize = 0.035f;
-        label.color = new Color(1f, 0.86f, 0.54f);
-
-        var progressRail = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        progressRail.name = "ValveAngleRail";
-        progressRail.transform.position = center + new Vector3(0f, -0.64f, -0.08f);
-        progressRail.transform.localScale = new Vector3(ValveProgressWidth, 0.05f, 0.06f);
-        SetColor(progressRail, new Color(0.24f, 0.27f, 0.31f));
-
-        _valveProgressLeft = center + new Vector3(-ValveProgressWidth * 0.5f, -0.64f, -0.095f);
-        _valveProgressFill = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        _valveProgressFill.name = "ValveAngleFill";
-        _valveProgressRenderer = _valveProgressFill.GetComponent<Renderer>();
-        UpdateValveProgress();
     }
 
     void SpawnBlocksAndZones()
@@ -619,8 +542,7 @@ public class FreeMoveTask : MonoBehaviour
 
     float ConveyorCurrentSpeed()
     {
-        float calibratedBoost = _buttonPressed ? Mathf.Lerp(1f, 1.35f, _valveAngle / ValveMaxAngle) : 1f;
-        return ConveyorSpeed * calibratedBoost;
+        return ConveyorSpeed;
     }
 
     void SchedulePackageRespawn(BlockGoal goal)
@@ -717,6 +639,7 @@ public class FreeMoveTask : MonoBehaviour
             RestartButtonRadius,
             RestartCooldown,
             ref _restartPressArmed,
+            ref _restartTapReady,
             ref _restartPressedByFinger,
             ref _restartLastClickPoint,
             ref _restartHasLastClickPoint,
@@ -728,6 +651,8 @@ public class FreeMoveTask : MonoBehaviour
 
         if (click)
             RestartTraining();
+        if (near)
+            SetButtonGuide(_restartButton.transform.position);
 
         bool pressing = pressAmount > 0.01f;
         Color color;
@@ -746,19 +671,16 @@ public class FreeMoveTask : MonoBehaviour
         _startTime = Time.time;
         _dropCount = 0;
         _buttonPressed = false;
-        _rotatingValve = false;
-        _valveNear = false;
-        _valveComplete = false;
-        _trainingComplete = false;
-        _valveAngle = 0f;
         _lastButtonPressTime = -99f;
         _buttonHoverStartTime = -99f;
         _buttonHasLastClickPoint = false;
         _buttonPressArmed = false;
+        _buttonTapReady = false;
         _buttonPressedByFinger = false;
         _restartHoverStartTime = Time.time;
         _restartHasLastClickPoint = false;
         _restartPressArmed = true;
+        _restartTapReady = false;
         _restartPressedByFinger = true;
         _lastHeld = null;
 
@@ -795,10 +717,6 @@ public class FreeMoveTask : MonoBehaviour
         SetRendererColor(_buttonRenderer, new Color(0.12f, 0.44f, 0.92f));
         if (_restartButton != null) _restartButton.transform.localScale = new Vector3(0.54f, 0.22f, 0.10f);
         SetRendererColor(_restartButtonRenderer, new Color(0.82f, 0.24f, 0.18f));
-
-        if (_valveRoot != null) _valveRoot.transform.rotation = Quaternion.identity;
-        SetRendererColor(_valveRenderer, new Color(0.96f, 0.52f, 0.16f));
-        UpdateValveProgress();
     }
 
     void UpdateButton()
@@ -811,6 +729,7 @@ public class FreeMoveTask : MonoBehaviour
             ButtonRadius,
             ButtonCooldown,
             ref _buttonPressArmed,
+            ref _buttonTapReady,
             ref _buttonPressedByFinger,
             ref _buttonLastClickPoint,
             ref _buttonHasLastClickPoint,
@@ -824,6 +743,8 @@ public class FreeMoveTask : MonoBehaviour
         {
             if (ready) _buttonPressed = true;
         }
+        if (near)
+            SetButtonGuide(_button.transform.position);
 
         Color color;
         if (_buttonPressed) color = new Color(0.12f, 0.82f, 0.34f);
@@ -843,6 +764,7 @@ public class FreeMoveTask : MonoBehaviour
         float radius,
         float cooldown,
         ref bool armed,
+        ref bool readyToTap,
         ref bool pressed,
         ref Vector3 lastPoint,
         ref bool hasLastPoint,
@@ -857,6 +779,7 @@ public class FreeMoveTask : MonoBehaviour
         if (grasp == null || grasp.hand == null || target == null || !grasp.hand.IsActive)
         {
             armed = false;
+            readyToTap = false;
             pressed = false;
             hasLastPoint = false;
             hoverStartTime = -99f;
@@ -877,6 +800,7 @@ public class FreeMoveTask : MonoBehaviour
         if (!eligible)
         {
             armed = false;
+            readyToTap = false;
             pressed = false;
             hasLastPoint = false;
             hoverStartTime = -99f;
@@ -886,6 +810,7 @@ public class FreeMoveTask : MonoBehaviour
         if (!inHoverArea)
         {
             armed = false;
+            readyToTap = false;
             pressed = false;
             hasLastPoint = false;
             hoverStartTime = -99f;
@@ -895,6 +820,7 @@ public class FreeMoveTask : MonoBehaviour
         if (!armed)
         {
             armed = true;
+            readyToTap = false;
             pressed = false;
             hasLastPoint = true;
             lastPoint = clickPoint;
@@ -905,6 +831,7 @@ public class FreeMoveTask : MonoBehaviour
 
         if (!inClickArea)
         {
+            readyToTap = false;
             pressed = false;
             hasLastPoint = true;
             pressAmount = 0.28f;
@@ -922,8 +849,21 @@ public class FreeMoveTask : MonoBehaviour
             return false;
         }
 
-        if (Time.time - hoverStartTime < ButtonTapReadySeconds)
+        if (!readyToTap)
         {
+            if (Time.time - hoverStartTime < ButtonTapReadySeconds)
+            {
+                Vector3 settleDelta = clickPoint - lastPoint;
+                if (Mathf.Abs(settleDelta.x) > ButtonTapStabilizeMaxDrift || Mathf.Abs(settleDelta.y) > ButtonTapStabilizeMaxDrift)
+                {
+                    hoverStartTime = Time.time;
+                    lastPoint = clickPoint;
+                }
+                pressAmount = 0.18f;
+                return false;
+            }
+
+            readyToTap = true;
             lastPoint = clickPoint;
             pressAmount = 0.18f;
             return false;
@@ -938,6 +878,14 @@ public class FreeMoveTask : MonoBehaviour
         float downSpeed = Mathf.Max(0f, -frameDelta.y / dt);
         float sideOffset = Mathf.Abs(clickPoint.x - lastPoint.x);
         pressAmount = Mathf.Clamp01(downDistance / Mathf.Max(ButtonTapMinDownDelta, 1e-4f));
+
+        if (pressed)
+        {
+            if (downDistance <= ButtonTapMinDownDelta * 0.25f)
+                pressed = false;
+            else
+                return false;
+        }
 
         bool tapDown = (downDistance >= ButtonTapMinDownDelta && downSpeed >= ButtonTapMinDownSpeed)
             || downDistance >= ButtonTapMinDownDelta * 1.6f;
@@ -961,67 +909,10 @@ public class FreeMoveTask : MonoBehaviour
         return grasp != null && grasp.hand != null ? grasp.hand.GripPoint : Vector3.zero;
     }
 
-    void UpdateValve()
+    void SetButtonGuide(Vector3 target)
     {
-        if (grasp == null || grasp.hand == null || _valveRoot == null) return;
-
-        bool ready = _buttonPressed;
-        Vector3 center = _valveRoot.transform.position;
-        Vector3 offset = grasp.hand.GripPoint - center;
-        float handleDistance = new Vector2(offset.x, offset.y).magnitude;
-        bool near = grasp.hand.IsActive && handleDistance <= ValveRadius;
-        bool active = near && grasp.Held == null && grasp.GripSignal >= ValveGripThreshold;
-        _valveNear = near;
-
-        if (active)
-        {
-            if (!_rotatingValve)
-            {
-                _rotatingValve = true;
-                _lastValveGripPoint = grasp.hand.GripPoint;
-                _lastValvePointerAngle = Mathf.Atan2(offset.y, offset.x) * Mathf.Rad2Deg;
-            }
-            else
-            {
-                float step;
-                if (handleDistance >= ValveOuterInputRadius)
-                {
-                    float pointerAngle = Mathf.Atan2(offset.y, offset.x) * Mathf.Rad2Deg;
-                    step = Mathf.DeltaAngle(_lastValvePointerAngle, pointerAngle);
-                    _lastValvePointerAngle = pointerAngle;
-                }
-                else
-                {
-                    Vector3 delta = grasp.hand.GripPoint - _lastValveGripPoint;
-                    float input = delta.x + delta.y;
-                    step = Mathf.Abs(input) >= ValveInputDeadZone ? input * ValveDragDegreesPerUnit : 0f;
-                }
-
-                if (Mathf.Abs(step) >= ValveAngleDeadZone)
-                    _valveAngle = Mathf.Repeat(_valveAngle + Mathf.Clamp(step, -ValveMaxStepDegrees, ValveMaxStepDegrees), ValveMaxAngle);
-                _lastValveGripPoint = grasp.hand.GripPoint;
-            }
-        }
-        else
-        {
-            _rotatingValve = false;
-        }
-
-        if (!_valveComplete && Mathf.Abs(_valveAngle - TargetValveAngle) <= ValveTolerance && ready)
-            _valveComplete = true;
-
-        _valveRoot.transform.rotation = Quaternion.Euler(0f, 0f, _valveAngle);
-        UpdateValveProgress();
-
-        Color color;
-        if (_rotatingValve) color = new Color(1f, 0.86f, 0.18f);
-        else if (_valveComplete) color = new Color(0.20f, 0.88f, 0.38f);
-        else if (near) color = new Color(0.94f, 0.58f, 0.18f);
-        else if (!ready) color = new Color(0.45f, 0.38f, 0.32f);
-        else color = new Color(0.96f, 0.52f, 0.16f);
-        SetRendererColor(_valveRenderer, color);
-
-        if (!_trainingComplete && _valveComplete) _trainingComplete = true;
+        _buttonGuideActive = true;
+        _buttonGuideTarget = target;
     }
 
     void UpdateCursor()
@@ -1046,12 +937,21 @@ public class FreeMoveTask : MonoBehaviour
             : grasp.Hover != null ? new Color(1f, 0.82f, 0.18f) : new Color(0.18f, 0.68f, 1f);
         SetRendererColor(_cursorRenderer, color);
 
-        bool showLine = grasp.Held != null || grasp.Hover != null;
+        bool showLine = grasp.Held == null && (grasp.Hover != null || _buttonGuideActive);
         _line.enabled = showLine;
         if (!showLine) return;
 
-        Vector3 target = (grasp.Held != null ? grasp.Held.transform.position : grasp.Hover.transform.position)
-            + new Vector3(0f, 0f, -0.16f);
+        Vector3 target;
+        if (grasp.Hover != null)
+        {
+            target = grasp.Hover.transform.position;
+        }
+        else
+        {
+            target = _buttonGuideTarget;
+        }
+
+        target += new Vector3(0f, 0f, -0.16f);
         _line.SetPosition(0, grip);
         _line.SetPosition(1, target);
     }
@@ -1065,10 +965,8 @@ public class FreeMoveTask : MonoBehaviour
         if (!grasp.hand.IsActive) phase = "等待手势";
         else if (sorted < CheckpointTargetCount) phase = "连续分拣";
         else if (!_buttonPressed) phase = "点击班次确认";
-        else if (!_valveComplete) phase = "校准速度阀";
-        else phase = "连续分拣";
+        else phase = "班次确认完成";
 
-        float elapsed = Time.time - _startTime;
         int handled = sorted + _dropCount;
         int score = handled == 0 ? 100 : Mathf.RoundToInt(sorted * 100f / handled);
         float beltSpeed = ConveyorCurrentSpeed();
@@ -1079,31 +977,8 @@ public class FreeMoveTask : MonoBehaviour
             "\n箱数 " + BinCountSummary() +
             "\n皮带 " + beltSpeed.ToString("0.00") + " m/s" +
             "\n确认 " + (_buttonPressed ? "完成" : "未完成") +
-            "\n速度阀 " + _valveAngle.ToString("0.0") + "/" + ValveMaxAngle.ToString("0") + " " + ValveStateText() +
             "\n误投/漏拣 " + _dropCount + "  正确率 " + score +
             "\n抓取 " + grasp.GripSignal.ToString("0.00");
-    }
-
-    string ValveStateText()
-    {
-        if (_valveComplete) return "达标";
-        if (_rotatingValve) return "调节中";
-        if (_valveNear) return "靠近";
-        return "";
-    }
-
-    void UpdateValveProgress()
-    {
-        if (_valveProgressFill == null) return;
-        float pct = Mathf.Clamp01(_valveAngle / ValveMaxAngle);
-        float width = Mathf.Max(0.025f, ValveProgressWidth * pct);
-        _valveProgressFill.transform.position = _valveProgressLeft + new Vector3(width * 0.5f, 0f, 0f);
-        _valveProgressFill.transform.localScale = new Vector3(width, 0.085f, 0.07f);
-
-        Color fill = _valveComplete
-            ? new Color(0.20f, 0.88f, 0.38f)
-            : Color.Lerp(new Color(0.98f, 0.45f, 0.16f), new Color(1f, 0.86f, 0.18f), pct);
-        SetRendererColor(_valveProgressRenderer, fill);
     }
 
     void ClampBlocksToArea()

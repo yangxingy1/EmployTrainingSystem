@@ -38,6 +38,8 @@ public class PickPlaceTask : MonoBehaviour
 
     void Start()
     {
+        ConfigureFlatPickPlacePhysics();
+
         _physMat = new PhysicMaterial("TrainingPartSurface")
         {
             dynamicFriction = 0.65f,
@@ -54,6 +56,17 @@ public class PickPlaceTask : MonoBehaviour
         BuildCursor();
         BuildLabels();
         SpawnBlock();
+    }
+
+    void ConfigureFlatPickPlacePhysics()
+    {
+        if (grasp == null) return;
+        grasp.useGravityOnRelease = false;
+        grasp.lockZToPlane = true;
+        grasp.planeZ = 0f;
+        grasp.throwScale = 0f;
+        grasp.maxThrowSpeed = 0f;
+        grasp.carryMagnetism = 1f;
     }
 
     void Update()
@@ -202,7 +215,8 @@ public class PickPlaceTask : MonoBehaviour
     {
         var block = GameObject.CreatePrimitive(PrimitiveType.Cube);
         block.name = "TrainingPart";
-        block.transform.position = sourcePos + new Vector3(0f, 0.55f, 0f);
+        block.transform.position = sourcePos + new Vector3(0f, 0.05f, 0f);
+        block.transform.rotation = Quaternion.identity;
         block.transform.localScale = Vector3.one * blockSize;
         block.GetComponent<Collider>().material = _physMat;
 
@@ -210,6 +224,8 @@ public class PickPlaceTask : MonoBehaviour
         rb.mass = 0.35f;
         rb.drag = 1.1f;
         rb.angularDrag = 1.8f;
+        rb.useGravity = false;
+        rb.constraints = RigidbodyConstraints.FreezePositionZ | RigidbodyConstraints.FreezeRotation;
         rb.collisionDetectionMode = CollisionDetectionMode.Continuous;
         rb.interpolation = RigidbodyInterpolation.Interpolate;
 

@@ -1,7 +1,24 @@
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public class SceneBootstrap : MonoBehaviour
 {
+    public enum TrainingTaskType
+    {
+        Menu,
+        ConveyorSorting,
+        PickPlace,
+        ButtonPress,
+        ValveRotate,
+        ElectricSwitch,
+        LinearSlider,
+        EmergencyStop,
+        ModeSelector,
+        BoltTightening
+    }
+
+    static TrainingTaskType _startupTask = TrainingTaskType.Menu;
+
     void Start()
     {
         SetupCamera();
@@ -9,7 +26,10 @@ public class SceneBootstrap : MonoBehaviour
         SetupWorkbench();
 
         var handInput = CreateVirtualHand(out var handVisual);
-        CreateFreeMovePractice(handInput, handVisual);
+        if (_startupTask == TrainingTaskType.Menu)
+            CreateTrainingMenu(handInput);
+        else
+            CreateTrainingTask(_startupTask, handInput, handVisual);
     }
 
     static HandInput CreateVirtualHand(out HandVisual visual)
@@ -32,9 +52,54 @@ public class SceneBootstrap : MonoBehaviour
         return input;
     }
 
-    static void CreateFreeMovePractice(HandInput handInput, HandVisual handVisual)
+    static void CreateTrainingMenu(HandInput handInput)
     {
-        var interactionGo = new GameObject("FreeMovePractice");
+        var menuGo = new GameObject("TrainingMenu");
+        var menu = menuGo.AddComponent<TrainingMenu>();
+        menu.hand = handInput;
+        menu.Selected += SwitchTo;
+    }
+
+    static void CreateTrainingTask(TrainingTaskType taskType, HandInput handInput, HandVisual handVisual)
+    {
+        var grasp = CreateGraspController(handInput, handVisual);
+        switch (taskType)
+        {
+            case TrainingTaskType.ConveyorSorting:
+                CreateConveyorSortingTask(grasp);
+                break;
+            case TrainingTaskType.PickPlace:
+                CreatePickPlaceTask(grasp);
+                break;
+            case TrainingTaskType.ButtonPress:
+                CreateButtonPressTask(handInput, grasp);
+                break;
+            case TrainingTaskType.ValveRotate:
+                CreateValveRotateTask(grasp);
+                break;
+            case TrainingTaskType.ElectricSwitch:
+                CreateElectricSwitchTask(handInput);
+                break;
+            case TrainingTaskType.LinearSlider:
+                CreateLinearSliderTask(handInput);
+                break;
+            case TrainingTaskType.EmergencyStop:
+                CreateEmergencyStopTask(handInput);
+                break;
+            case TrainingTaskType.ModeSelector:
+                CreateModeSelectorTask(handInput);
+                break;
+            case TrainingTaskType.BoltTightening:
+                CreateBoltTighteningTask(handInput);
+                break;
+        }
+
+        CreateTaskNavigation(handInput, grasp);
+    }
+
+    static GraspController CreateGraspController(HandInput handInput, HandVisual handVisual)
+    {
+        var interactionGo = new GameObject("InteractionRig");
 
         var grasp = interactionGo.AddComponent<GraspController>();
         grasp.hand = handInput;
@@ -52,9 +117,86 @@ public class SceneBootstrap : MonoBehaviour
         grasp.lockZToPlane = true;
         grasp.planeZ = 0f;
         grasp.carryMagnetism = 0.0f;
+        return grasp;
+    }
 
-        var task = interactionGo.AddComponent<FreeMoveTask>();
+    static void CreateConveyorSortingTask(GraspController grasp)
+    {
+        var taskGo = new GameObject("Task_ConveyorSorting");
+        var task = taskGo.AddComponent<FreeMoveTask>();
         task.grasp = grasp;
+    }
+
+    static void CreatePickPlaceTask(GraspController grasp)
+    {
+        var taskGo = new GameObject("Task_PickPlace");
+        var task = taskGo.AddComponent<PickPlaceTask>();
+        task.grasp = grasp;
+    }
+
+    static void CreateButtonPressTask(HandInput handInput, GraspController grasp)
+    {
+        var taskGo = new GameObject("Task_ButtonPress");
+        var task = taskGo.AddComponent<ButtonPressTrainingTask>();
+        task.hand = handInput;
+        task.grasp = grasp;
+    }
+
+    static void CreateValveRotateTask(GraspController grasp)
+    {
+        var taskGo = new GameObject("Task_ValveRotate");
+        var task = taskGo.AddComponent<ValveRotateTrainingTask>();
+        task.grasp = grasp;
+    }
+
+    static void CreateElectricSwitchTask(HandInput handInput)
+    {
+        var taskGo = new GameObject("Task_ElectricSwitch");
+        var task = taskGo.AddComponent<ElectricSwitchTask>();
+        task.hand = handInput;
+    }
+
+    static void CreateLinearSliderTask(HandInput handInput)
+    {
+        var taskGo = new GameObject("Task_LinearSlider");
+        var task = taskGo.AddComponent<LinearSliderTrainingTask>();
+        task.hand = handInput;
+    }
+
+    static void CreateEmergencyStopTask(HandInput handInput)
+    {
+        var taskGo = new GameObject("Task_EmergencyStop");
+        var task = taskGo.AddComponent<EmergencyStopTrainingTask>();
+        task.hand = handInput;
+    }
+
+    static void CreateModeSelectorTask(HandInput handInput)
+    {
+        var taskGo = new GameObject("Task_ModeSelector");
+        var task = taskGo.AddComponent<ModeSelectorTrainingTask>();
+        task.hand = handInput;
+    }
+
+    static void CreateBoltTighteningTask(HandInput handInput)
+    {
+        var taskGo = new GameObject("Task_BoltTightening");
+        var task = taskGo.AddComponent<BoltTighteningTrainingTask>();
+        task.hand = handInput;
+    }
+
+    static void CreateTaskNavigation(HandInput handInput, GraspController grasp)
+    {
+        var navGo = new GameObject("TaskNavigationBar");
+        var nav = navGo.AddComponent<TaskNavigationBar>();
+        nav.hand = handInput;
+        nav.grasp = grasp;
+        nav.BackToMenu += () => SwitchTo(TrainingTaskType.Menu);
+    }
+
+    static void SwitchTo(TrainingTaskType taskType)
+    {
+        _startupTask = taskType;
+        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
     }
 
     static void SetupCamera()

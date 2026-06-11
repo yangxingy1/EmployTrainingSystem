@@ -17,10 +17,12 @@ HuiDongShou-MVP/
 │     │  ├─ Scenes/         Unity 场景文件
 │     │  └─ Scripts/
 │     │     ├─ Core/        WebSocket 接收、消息模型、系统核心能力
+│     │     ├─ Common/      手部输入、虚拟手、抓取、吸附等通用操作能力
 │     │     ├─ Interaction/ 阀门、按钮、零件等可交互对象
 │     │     ├─ Training/    训练流程、评分、日志
+│     │     ├─ Scenes/      各个基础训练场景，每个场景独立一个子目录
 │     │     ├─ Demo/        快速搭建演示场景的脚本
-│     │     └─ Prototype/   从根目录“源码”复制来的旧原型
+│     │     └─ README.md    Unity 脚本目录说明
 │     ├─ Packages/
 │     └─ ProjectSettings/
 ├─ unity-client/            早期 Unity 脚本骨架备份，后续不作为主工程
@@ -43,10 +45,11 @@ HuiDongShou-MVP/
 | `gesture-service/samples/` | 演示样例数据 | 放少量可提交的样例，不放大文件 |
 | `gesture-service/recordings/` | 运行时录制数据 | 仅本地调试用，默认不提交 |
 | `unity/My project/Assets/Scripts/Core/` | Unity 核心通信层 | 只放通用接收器、消息结构、系统基础能力 |
+| `unity/My project/Assets/Scripts/Common/` | Unity 通用交互基础 | 放手部输入、虚拟手、抓取控制、可抓取物、吸附区等通用脚本 |
 | `unity/My project/Assets/Scripts/Interaction/` | 场景交互对象 | 阀门、按钮、工具、工件等脚本放这里 |
 | `unity/My project/Assets/Scripts/Training/` | 训练业务逻辑 | 任务步骤、评分、日志、报告生成放这里 |
+| `unity/My project/Assets/Scripts/Scenes/` | 基础训练场景 | 每个操作场景单独建子目录，例如 `ConveyorSorting/`、`ValveRotation/` |
 | `unity/My project/Assets/Scripts/Demo/` | 演示和快速验证 | 放自动搭建场景的脚本，方便答辩展示 |
-| `unity/My project/Assets/Scripts/Prototype/` | 旧原型备份 | 暂时保留，不作为主要开发位置 |
 | `docs/` | 技术文档 | 架构、接口协议、运行说明、目录规范都放这里 |
 | `scripts/` | 常用脚本 | 安装依赖、启动服务、回放测试等命令入口 |
 
@@ -56,7 +59,8 @@ HuiDongShou-MVP/
 2. Python 新功能必须放在 `gesture-service/src/`，不要把实验脚本散落在桌面。
 3. 运行产生的日志、录制数据、Unity 临时文件不提交到 Git。
 4. 课程报告、PPT、团队文档保留在根目录或课程资料文件夹中，不参与程序运行。
-5. 根目录 `源码/` 只作为旧版参考，正式修改请在 `unity/My project/Assets/Scripts/Prototype/` 或新目录中完成。
+5. 根目录 `源码/` 只作为旧版参考，正式修改请在 `unity/My project/Assets/Scripts/Common/`、`Interaction/`、`Training/` 或 `Scenes/` 中完成。
+6. 新增基础训练时，在 `Scenes/` 下新建独立子目录，并将该模块的入口脚本、辅助脚本和 README 说明放在同一目录。
 
 ## 推荐命名
 
