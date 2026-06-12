@@ -1,145 +1,92 @@
-﻿<template>
-  <div class="login-container">
+<template>
+  <div class="login-page">
+    <section class="product-panel" aria-label="平台概览">
+      <div class="brand-row">
+        <div class="brand-mark">慧</div>
+        <div>
+          <strong>慧动手</strong>
+          <span>工业手势仿真培训平台</span>
+        </div>
+      </div>
 
-    <!-- 左侧介绍区域 -->
-    <div class="left-panel">
-      <div class="left-content">
-        <h1>慧动手</h1>
-
-        <h2>
-          基于手势识别的工厂员工手部作业虚拟仿真培训平台
-        </h2>
-
-        <p class="subtitle">
-          面向工业场景的手部作业技能培训系统，
-          结合虚拟仿真与手势识别技术，
-          提升培训效率与操作规范性。
+      <div class="product-copy">
+        <p class="eyebrow">Training Operations</p>
+        <h1>把手部作业训练、任务分配和完成进度放到一个控制台里。</h1>
+        <p>
+          面向工厂员工的虚拟仿真训练系统，支持管理员派发训练、学员启动 Unity 训练任务，并沉淀训练记录。
         </p>
       </div>
-    </div>
 
-    <!-- 右侧表单区域 -->
-    <div class="right-panel">
+      <div class="capability-grid">
+        <div>
+          <span>01</span>
+          <strong>角色登录</strong>
+          <p>管理员与学员分流进入不同工作台。</p>
+        </div>
+        <div>
+          <span>02</span>
+          <strong>训练分配</strong>
+          <p>按学员派发电闸、阀门等工业操作任务。</p>
+        </div>
+        <div>
+          <span>03</span>
+          <strong>本地启动</strong>
+          <p>连接 launcher 后直接启动虚拟仿真训练。</p>
+        </div>
+      </div>
+    </section>
 
-      <div class="form-container">
-
-        <h2>
-          {{ isRegister ? "创建账号" : "登录" }}
-        </h2>
-
-        <!-- 身份 -->
-        <div class="form-item">
-          <label>身份</label>
-
-          <select v-model="role">
-            <option value="student">学员</option>
-            <option value="admin">管理员</option>
-          </select>
+    <section class="login-panel" aria-label="登录表单">
+      <div class="form-card">
+        <div class="form-heading">
+          <p class="eyebrow">{{ isRegister ? "Create Account" : "Sign In" }}</p>
+          <h2>{{ isRegister ? "创建账号" : "欢迎回来" }}</h2>
+          <span>{{ isRegister ? "创建后可返回登录进入对应工作台" : "请选择身份后登录系统" }}</span>
         </div>
 
-        <!-- 用户名 -->
-        <div class="form-item">
-          <label>用户名</label>
-
-          <input
-              type="text"
-              v-model="username"
-              placeholder="请输入用户名"
-          />
+        <div class="role-switch">
+          <button :class="{ active: role === 'student' }" @click="role = 'student'">学员</button>
+          <button :class="{ active: role === 'admin' }" @click="role = 'admin'">管理员</button>
         </div>
 
-        <!-- 密码 -->
-        <div class="form-item">
-          <label>密码</label>
+        <label class="form-item">
+          <span>用户名</span>
+          <input type="text" v-model="username" placeholder="请输入用户名" />
+        </label>
 
-          <input
-              type="password"
-              v-model="password"
-              placeholder="请输入密码"
-          />
-        </div>
+        <label class="form-item">
+          <span>密码</span>
+          <input type="password" v-model="password" placeholder="请输入密码" />
+        </label>
 
-        <!-- 注册模式 -->
-        <div
-            v-if="isRegister"
-            class="form-item"
-        >
-          <label>确认密码</label>
+        <label v-if="isRegister" class="form-item">
+          <span>确认密码</span>
+          <input type="password" v-model="confirmPassword" placeholder="请再次输入密码" />
+        </label>
 
-          <input
-              type="password"
-              v-model="confirmPassword"
-              placeholder="请再次输入密码"
-          />
-        </div>
+        <div v-if="errorMsg" class="message error">{{ errorMsg }}</div>
+        <div v-if="successMsg" class="message success">{{ successMsg }}</div>
 
-        <!-- 错误提示 -->
-        <div
-            v-if="errorMsg"
-            class="error-text"
-        >
-          {{ errorMsg }}
-        </div>
-
-        <div
-            v-if="successMsg"
-            class="success-text"
-        >
-          {{ successMsg }}
-        </div>
-
-        <!-- 登录/注册按钮 -->
-        <button
-            class="submit-btn"
-            @click="handleSubmit"
-        >
-          {{ isRegister ? "创建账号" : "登录" }}
+        <button class="submit-btn" @click="handleSubmit">
+          {{ isRegister ? "创建账号" : "登录工作台" }}
         </button>
 
-        <!-- 底部切换 -->
         <div class="switch-area">
-
-          <span v-if="!isRegister">
-
-            没有账号？
-
-            <button
-                class="text-btn"
-                @click="switchToRegister"
-            >
-              创建账号
-            </button>
-
-          </span>
-
-          <span v-else>
-
-            已有账号？
-
-            <button
-                class="text-btn"
-                @click="switchToLogin"
-            >
-              返回登录
-            </button>
-
-          </span>
-
+          <span>{{ isRegister ? "已有账号？" : "没有账号？" }}</span>
+          <button class="text-btn" @click="isRegister ? switchToLogin() : switchToRegister()">
+            {{ isRegister ? "返回登录" : "创建账号" }}
+          </button>
         </div>
-
       </div>
-
-    </div>
-
+    </section>
   </div>
 </template>
 
 <script setup>
 import { ref } from "vue";
 import axios from "axios";
-import {useRouter} from 'vue-router'
+import { useRouter } from "vue-router";
 
-// 当前是登录模式还是注册模式
 const isRegister = ref(false);
 const role = ref("student");
 const username = ref("");
@@ -147,7 +94,7 @@ const password = ref("");
 const confirmPassword = ref("");
 const errorMsg = ref("");
 const successMsg = ref("");
-const router = useRouter()
+const router = useRouter();
 
 function switchToRegister() {
   clearForm();
@@ -167,331 +114,309 @@ function clearForm() {
   successMsg.value = "";
 }
 
-// 登录/注册提交：先校验 -> 调接口 -> 存 token -> 跳转
 async function handleSubmit() {
-  errorMsg.value = ''
-  successMsg.value = ''
+  errorMsg.value = "";
+  successMsg.value = "";
 
   if (!username.value || !password.value) {
-    errorMsg.value = '用户名和密码不能为空'
-    return
+    errorMsg.value = "用户名和密码不能为空";
+    return;
   }
 
   if (isRegister.value && password.value !== confirmPassword.value) {
-    errorMsg.value = '两次输入的密码不一致'
-    return
+    errorMsg.value = "两次输入的密码不一致";
+    return;
   }
 
   try {
     if (isRegister.value) {
-      await axios.post('http://127.0.0.1:8000/register', {
+      await axios.post("http://127.0.0.1:8000/register", {
         username: username.value,
         password: password.value,
         role: role.value
-      })
+      });
 
-      isRegister.value = false
-      password.value = ''
-      confirmPassword.value = ''
-      successMsg.value = '账号创建成功，请登录'
-      return
+      isRegister.value = false;
+      password.value = "";
+      confirmPassword.value = "";
+      successMsg.value = "账号创建成功，请登录";
+      return;
     }
 
-    const res = await axios.post('http://127.0.0.1:8000/login', {
+    const res = await axios.post("http://127.0.0.1:8000/login", {
       username: username.value,
       password: password.value,
       role: role.value
-    })
+    });
 
     if (res.data.success) {
-
-    localStorage.setItem(
-        "token",
-        res.data.token
-    );
-
-    localStorage.setItem(
-        "username",
-        res.data.username
-    );
-
-    localStorage.setItem(
-        "role",
-        res.data.role
-    );
-
-    localStorage.setItem(
-        "user_id",
-        res.data.user_id
-    );
-
-
-    if (res.data.role === "admin") {
-
-        router.replace("/admin");
-
-    } else {
-
-        router.replace("/student");
-
+      localStorage.setItem("token", res.data.token);
+      localStorage.setItem("username", res.data.username);
+      localStorage.setItem("role", res.data.role);
+      localStorage.setItem("user_id", res.data.user_id);
+      router.replace(res.data.role === "admin" ? "/admin" : "/student");
     }
-}
-
   } catch (err) {
-
-    if (
-        err.response &&
-        err.response.data &&
-        err.response.data.detail
-    ) {
-
-        errorMsg.value =
-            err.response.data.detail;
-
-    } else {
-
-        if (err.response && err.response.data && err.response.data.detail) {
-            errorMsg.value = err.response.data.detail
-        } else {
-              errorMsg.value = err.message || "未知错误"
-        }
-
-    }
-
-}
+    errorMsg.value = err.response?.data?.detail || err.message || "未知错误";
+  }
 }
 </script>
 
 <style scoped>
-
-.login-container {
-  display: flex;
-  width: 100%;
-  height: 100vh;
-  overflow: hidden;
+.login-page {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(420px, 0.85fr);
 }
 
-/* 左侧 */
-
-.left-panel {
-  flex: 1.2;
-  background: linear-gradient(135deg, #1a3a4a 0%, #2f4f6f 50%, #3e6b89 100%);
-  color: white;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  padding: 60px;
-}
-
-.left-content {
-  max-width: 650px;
-}
-
-.left-content h1 {
-  color: white;
-  font-size: 72px;
-  font-weight: 700;
-  margin-bottom: 20px;
-  letter-spacing: 4px;
-}
-
-.left-content h2 {
-  color: white;
-  font-size: 32px;
-  line-height: 1.5;
-  font-weight: 500;
-  margin-bottom: 30px;
-}
-
-.subtitle {
-  font-size: 18px;
-  line-height: 1.8;
-  color: #d9e2ec;
-}
-
-/* 右侧 */
-
-.right-panel {
-  flex: 0.8;
-
-  background: linear-gradient(180deg, #f0f4f8 0%, #f5f7fa 100%);
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.form-container {
-
-  width: 420px;
-
-  background: white;
-
-  padding: 44px 40px;
-
-  border-radius: var(--radius-lg);
-
-  box-shadow: var(--shadow-lg);
-  transition: box-shadow var(--transition);
-}
-
-.form-container:hover {
-  box-shadow: 0 20px 56px rgba(31, 41, 55, 0.15);
-}
-
-/* 登录标题 */
-
-.form-container h2 {
-  font-size: 40px;
-  font-weight: 700;
-  color: #2f4f6f;
-
-  margin-bottom: 30px;
-}
-
-/* 表单项 */
-
-.form-item {
+.product-panel {
   display: flex;
   flex-direction: column;
-  margin-bottom: 18px;
+  justify-content: space-between;
+  gap: 44px;
+  padding: 48px clamp(34px, 6vw, 86px);
+  color: #d9e7ea;
+  background:
+    linear-gradient(140deg, rgba(20, 112, 111, 0.84), rgba(21, 33, 43, 0.96)),
+    linear-gradient(90deg, transparent 0 48px, rgba(255, 255, 255, 0.05) 48px 49px, transparent 49px 96px);
 }
 
-.form-item label {
-  margin-bottom: 8px;
-  font-size: 15px;
-  font-weight: 600;
-  color: #444;
+.brand-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
 }
 
-.form-item input,
-.form-item select {
+.brand-mark {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius);
+  color: #0d3636;
+  background: #dff5f1;
+  font-size: 22px;
+  font-weight: 900;
+}
 
-  height: 48px;
+.brand-row strong,
+.brand-row span {
+  display: block;
+}
 
-  border: 1px solid #d0d7de;
+.brand-row strong {
+  color: #ffffff;
+  font-size: 20px;
+}
 
+.brand-row span {
+  margin-top: 2px;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 13px;
+}
+
+.eyebrow {
+  color: #f2b173;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.product-copy {
+  max-width: 680px;
+}
+
+.product-copy h1 {
+  margin: 14px 0 18px;
+  color: #ffffff;
+  font-size: clamp(34px, 5vw, 58px);
+  line-height: 1.12;
+}
+
+.product-copy p:last-child {
+  max-width: 600px;
+  color: rgba(255, 255, 255, 0.74);
+  font-size: 17px;
+  line-height: 1.8;
+}
+
+.capability-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.capability-grid div {
+  min-height: 132px;
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.capability-grid span {
+  color: #f2b173;
+  font-weight: 900;
+  font-size: 12px;
+}
+
+.capability-grid strong {
+  display: block;
+  margin: 10px 0 8px;
+  color: #ffffff;
+}
+
+.capability-grid p {
+  color: rgba(255, 255, 255, 0.66);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.login-panel {
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  background: var(--page-bg);
+}
+
+.form-card {
+  width: min(100%, 430px);
+  padding: 32px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.form-heading h2 {
+  margin: 8px 0 6px;
+  font-size: 32px;
+}
+
+.form-heading span {
+  color: var(--text-muted);
+}
+
+.role-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin: 24px 0 20px;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+}
+
+.role-switch button {
+  height: 38px;
   border-radius: var(--radius-sm);
-
-  padding: 0 14px;
-
-  font-size: 15px;
-
-  outline: none;
-
-  transition: all var(--transition);
+  color: var(--text-muted);
+  background: transparent;
+  font-weight: 800;
+  transition: color var(--transition), background var(--transition), box-shadow var(--transition);
 }
 
-.form-item input:focus,
-.form-item select:focus {
-
-  border-color: #3e6b89;
-
-  box-shadow: 0 0 0 3px rgba(62, 107, 137, 0.15);
+.role-switch button.active {
+  color: #ffffff;
+  background: var(--primary);
+  box-shadow: 0 8px 18px rgba(20, 112, 111, 0.20);
 }
 
-/* 错误提示 */
+.form-item {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 16px;
+}
 
-.error-text {
-
-  color: #d9534f;
-
+.form-item span {
+  color: var(--heading);
   font-size: 14px;
-
-  margin-bottom: 15px;
+  font-weight: 800;
 }
 
-.success-text {
+.form-item input {
+  height: 46px;
+}
 
-  color: #27845f;
-
+.message {
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
   font-size: 14px;
-
-  margin-bottom: 15px;
+  font-weight: 700;
 }
 
-/* 主按钮 */
+.message.error {
+  color: var(--danger);
+  background: var(--danger-soft);
+  border: 1px solid #ffd1cc;
+}
+
+.message.success {
+  color: var(--success);
+  background: var(--success-soft);
+  border: 1px solid #bfdfcf;
+}
 
 .submit-btn {
-
   width: 100%;
-
-  height: 50px;
-
-  border: none;
-
+  height: 48px;
   border-radius: var(--radius-sm);
-
-  background: linear-gradient(135deg, #3e6b89, #2f4f6f);
-
-  color: white;
-
-  font-size: 17px;
-
-  font-weight: 600;
-
-  cursor: pointer;
-
-  transition: all var(--transition);
-  box-shadow: 0 4px 14px rgba(47, 79, 111, 0.25);
+  color: #ffffff;
+  background: var(--primary);
+  font-size: 16px;
+  font-weight: 900;
+  transition: background var(--transition), box-shadow var(--transition), transform var(--transition);
 }
 
 .submit-btn:hover {
-  background: linear-gradient(135deg, #355b75, #1a3a4a);
-  box-shadow: 0 6px 20px rgba(47, 79, 111, 0.35);
-  transform: translateY(-2px);
+  background: var(--primary-strong);
+  box-shadow: 0 12px 22px rgba(20, 112, 111, 0.24);
+  transform: translateY(-1px);
 }
-
-.submit-btn:active {
-  transform: translateY(0);
-}
-
-/* 底部切换 */
 
 .switch-area {
-
-  margin-top: 20px;
-
-  text-align: center;
-
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 18px;
+  color: var(--text-muted);
   font-size: 14px;
-
-  color: #666;
 }
 
 .text-btn {
-
-  border: none;
-
+  color: var(--primary-strong);
   background: transparent;
-
-  color: #3e6b89;
-
-  cursor: pointer;
-
-  font-size: 14px;
-
-  margin-left: 4px;
+  font-weight: 800;
 }
 
-.text-btn:hover {
-  text-decoration: underline;
-  transform: none;
+@media (max-width: 980px) {
+  .login-page {
+    grid-template-columns: 1fr;
+  }
+
+  .product-panel {
+    min-height: auto;
+  }
 }
 
-/* 小屏适配 */
-
-@media (max-width: 900px) {
-
-  .left-panel {
-    display: none;
+@media (max-width: 680px) {
+  .product-panel {
+    padding: 28px 20px;
   }
 
-  .right-panel {
-    flex: 1;
+  .capability-grid {
+    grid-template-columns: 1fr;
   }
 
+  .login-panel {
+    padding: 20px;
+  }
+
+  .form-card {
+    padding: 24px;
+  }
 }
 </style>

@@ -1,10 +1,10 @@
-﻿<template>
+<template>
   <section class="assign-workbench">
     <div class="summary-strip">
       <div>
-        <p class="section-kicker">训练分配</p>
-        <h3>学员训练派发看板</h3>
-        <span>按学员选择训练项目，系统会自动过滤已分配内容并保留记录。</span>
+        <p class="section-kicker">Assignment</p>
+        <h2>学员训练派发</h2>
+        <span>选择学员后勾选训练项目，系统会自动过滤已分配内容。</span>
       </div>
 
       <div class="summary-metrics">
@@ -31,64 +31,50 @@
       <section class="panel student-panel">
         <div class="panel-heading">
           <div>
-            <h4>选择学员</h4>
+            <h3>选择学员</h3>
             <p>共 {{ students.length }} 名学员</p>
           </div>
 
-          <input
-            v-model.trim="searchTerm"
-            class="search-input"
-            type="text"
-            placeholder="搜索学员"
-          />
+          <input v-model.trim="searchTerm" class="search-input" type="text" placeholder="搜索学员" />
         </div>
 
         <div class="student-list">
-          <div
+          <article
             v-for="student in filteredStudents"
             :key="student.id"
             class="student-item"
             :class="{ selected: selectedStudent === student.id }"
           >
-            <button
-              class="student-row"
-              @click="selectStudent(student.id)"
-            >
+            <button class="student-row" @click="selectStudent(student.id)">
+              <span class="avatar">{{ student.username.slice(0, 1).toUpperCase() }}</span>
               <span class="student-info">
                 <strong>{{ student.username }}</strong>
-                <small>ID: {{ student.id }}</small>
-              </span>
-              <span class="student-count">
-                {{ studentAssignedCount(student.id) }} 项训练
+                <small>ID: {{ student.id }} · {{ studentAssignedCount(student.id) }} 项训练</small>
               </span>
               <span
                 class="expand-arrow"
                 :class="{ expanded: expandedStudent === student.id }"
                 @click.stop="toggleExpand(student.id)"
-              >▼</span>
+              >
+                ^
+              </span>
             </button>
 
             <div v-if="expandedStudent === student.id" class="student-detail">
-              <p v-if="studentAssignedCount(student.id) === 0" class="detail-empty">
-                暂无分配记录
-              </p>
+              <p v-if="studentAssignedCount(student.id) === 0" class="detail-empty">暂无分配记录</p>
               <ul v-else class="detail-list">
-                <li
-                  v-for="record in getStudentAssignments(student.id)"
-                  :key="record.id"
-                  class="detail-item"
-                >
-                  <span class="detail-title">{{ record.task_title }}</span>
-                  <span :class="['status-sm', record.status]">
+                <li v-for="record in getStudentAssignments(student.id)" :key="record.id">
+                  <span>{{ record.task_title }}</span>
+                  <strong :class="['status-sm', statusClass(record.status)]">
                     {{ statusLabel(record.status) }}
-                  </span>
+                  </strong>
                 </li>
               </ul>
             </div>
-          </div>
+          </article>
 
           <div v-if="!filteredStudents.length" class="empty-block">
-            {{ students.length ? '未找到匹配学员' : '暂未注册学员，请先在登录页注册学员账号' }}
+            {{ students.length ? "未找到匹配学员" : "暂未注册学员，请先在登录页注册学员账号" }}
           </div>
         </div>
       </section>
@@ -96,10 +82,8 @@
       <section class="panel task-panel">
         <div class="panel-heading">
           <div>
-            <h4>训练项目</h4>
-            <p v-if="selectedStudentInfo">
-              当前学员：{{ selectedStudentInfo.username }}
-            </p>
+            <h3>训练项目</h3>
+            <p v-if="selectedStudentInfo">当前学员：{{ selectedStudentInfo.username }}</p>
             <p v-else>请先选择一名学员</p>
           </div>
 
@@ -136,9 +120,7 @@
                     @click.stop
                   />
                 </td>
-                <td>
-                  <strong>{{ task.title }}</strong>
-                </td>
+                <td><strong>{{ task.title }}</strong></td>
                 <td>{{ task.description || "暂无说明" }}</td>
                 <td>
                   <span v-if="isAssigned(task.id)" class="status-tag done">已分配</span>
@@ -153,9 +135,7 @@
         </div>
 
         <div class="assign-actions">
-          <span>
-            {{ selectedStudentInfo ? `将分配给 ${selectedStudentInfo.username}` : "未选择学员" }}
-          </span>
+          <span>{{ selectedStudentInfo ? `将分配给 ${selectedStudentInfo.username}` : "未选择学员" }}</span>
           <button class="assign-btn" :disabled="!canAssign" @click="assignSelectedTasks">
             {{ assigning ? "分配中..." : "确认分配" }}
           </button>
@@ -166,7 +146,7 @@
     <section class="panel records-panel">
       <div class="panel-heading">
         <div>
-          <h4>近期分配记录</h4>
+          <h3>近期分配记录</h3>
           <p>展示最新训练派发与完成状态</p>
         </div>
       </div>
@@ -182,12 +162,10 @@
           </thead>
           <tbody>
             <tr v-for="record in recentAssignments" :key="record.id">
-              <td>
-                <strong>{{ record.username }}</strong>
-              </td>
+              <td><strong>{{ record.username }}</strong></td>
               <td>{{ record.task_title }}</td>
               <td>
-                <span :class="['status-tag', record.status]">
+                <span :class="['status-tag', statusClass(record.status)]">
                   {{ statusLabel(record.status) }}
                 </span>
               </td>
@@ -215,14 +193,13 @@ const props = defineProps({
 });
 
 const searchTerm = ref("");
-const selectedStudent = ref(null);  // 当前选中的学员 ID
+const selectedStudent = ref(null);
 const selectedTasks = ref([]);
 const assigning = ref(false);
 const notice = ref("");
 const noticeType = ref("");
-const expandedStudent = ref(null);  // 展开详情的学员 ID
+const expandedStudent = ref(null);
 
-// 搜索过滤：按用户名模糊匹配
 const filteredStudents = computed(() => {
   if (!searchTerm.value) return props.students;
   const term = searchTerm.value.toLowerCase();
@@ -234,7 +211,7 @@ const selectedStudentInfo = computed(() => {
 });
 
 const pendingCount = computed(() => {
-  return props.assignments.filter((a) => a.status === "pending" || a.status === "未开始").length;
+  return props.assignments.filter((a) => statusClass(a.status) === "pending").length;
 });
 
 const recentAssignments = computed(() => {
@@ -244,6 +221,12 @@ const recentAssignments = computed(() => {
 const canAssign = computed(() => {
   return selectedStudent.value && selectedTasks.value.length > 0 && !assigning.value;
 });
+
+function statusClass(status) {
+  if (["done", "completed", "已完成"].includes(status)) return "done";
+  if (["running", "进行中"].includes(status)) return "running";
+  return "pending";
+}
 
 function studentAssignedCount(studentId) {
   return props.assignments.filter((a) => a.user_id === studentId).length;
@@ -255,7 +238,6 @@ function getStudentAssignments(studentId) {
     .sort((a, b) => b.id - a.id);
 }
 
-// 判断该任务是否已分配给当前选中的学员
 function isAssigned(taskId) {
   if (!selectedStudent.value) return false;
   return props.assignments.some(
@@ -263,7 +245,6 @@ function isAssigned(taskId) {
   );
 }
 
-// 切换学员详情展开/收起
 function toggleExpand(studentId) {
   expandedStudent.value = expandedStudent.value === studentId ? null : studentId;
 }
@@ -288,7 +269,6 @@ function statusLabel(status) {
   return map[status] || status;
 }
 
-// 批量分配选中任务给当前学员
 async function assignSelectedTasks() {
   if (!canAssign.value) return;
   assigning.value = true;
@@ -328,32 +308,33 @@ watch(filteredStudents, (newVal) => {
 
 <style scoped>
 .assign-workbench {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
+  display: grid;
+  gap: 16px;
 }
 
 .summary-strip {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 24px;
-  padding: 22px 24px;
+  gap: 18px;
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
   border-radius: var(--radius);
-  background: linear-gradient(135deg, #f0f8f7, #e9f4f3);
-  border: 1px solid #d4e8e6;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
 
 .section-kicker {
-  color: var(--primary-strong);
+  color: var(--accent);
   font-size: 12px;
-  font-weight: 800;
-  margin-bottom: 4px;
+  font-weight: 900;
+  text-transform: uppercase;
 }
 
-.summary-strip h3 {
+.summary-strip h2 {
+  margin: 6px 0 4px;
   font-size: 22px;
-  margin: 2px 0 6px;
 }
 
 .summary-strip span {
@@ -362,74 +343,71 @@ watch(filteredStudents, (newVal) => {
 
 .summary-metrics {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 18px;
-  min-width: 280px;
+  grid-template-columns: repeat(3, minmax(76px, 1fr));
+  gap: 10px;
+  min-width: 278px;
+}
+
+.summary-metrics div {
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
   text-align: center;
 }
 
 .summary-metrics strong {
   display: block;
   color: var(--heading);
-  font-size: 28px;
-  margin-bottom: 4px;
+  font-size: 24px;
 }
 
 .summary-metrics span {
-  color: var(--text-muted);
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .notice {
-  padding: 12px 16px;
+  padding: 12px 14px;
   border-radius: var(--radius-sm);
-  font-weight: 700;
+  font-weight: 800;
 }
 
 .notice.success {
   color: var(--success);
-  background: #e8f6ef;
-  border: 1px solid #c3e6d6;
+  background: var(--success-soft);
+  border: 1px solid #bfdfcf;
 }
 
 .notice.error {
   color: var(--danger);
-  background: #fff1ef;
-  border: 1px solid #ffd5ce;
+  background: var(--danger-soft);
+  border: 1px solid #ffd1cc;
 }
 
 .assign-grid {
   display: grid;
-  grid-template-columns: minmax(320px, 1fr) minmax(520px, 1.8fr);
-  gap: 18px;
-  align-items: stretch;
+  grid-template-columns: minmax(300px, 0.8fr) minmax(520px, 1.4fr);
+  gap: 16px;
 }
 
 .panel {
-  padding: 20px;
+  padding: 18px;
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
-  border: 1px solid var(--border);
   box-shadow: var(--shadow-sm);
-  transition: box-shadow var(--transition);
-}
-
-.panel:hover {
-  box-shadow: var(--shadow);
 }
 
 .panel-heading {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 14px;
+  gap: 12px;
   margin-bottom: 14px;
 }
 
-.panel-heading h4 {
-  margin: 0 0 4px;
-  color: var(--heading);
-  font-size: 19px;
+.panel-heading h3 {
+  margin-bottom: 4px;
+  font-size: 18px;
 }
 
 .panel-heading p {
@@ -440,62 +418,49 @@ watch(filteredStudents, (newVal) => {
 .search-input {
   width: 160px;
   height: 38px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 0 12px;
-  outline: none;
-  transition: all var(--transition);
 }
 
-.search-input:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(47, 111, 115, 0.14);
-}
-
-/* ---- 学员列表 ---- */
 .student-list {
-  display: flex;
-  flex-direction: column;
+  display: grid;
   gap: 8px;
-  max-height: 520px;
+  max-height: 516px;
   overflow: auto;
 }
 
 .student-item {
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: #fff;
+  background: var(--surface-soft);
   overflow: hidden;
-  transition: all var(--transition);
-}
-
-.student-item:hover {
-  border-color: var(--primary);
 }
 
 .student-item.selected {
   border-color: var(--primary);
-  background: #edf7f5;
+  box-shadow: 0 0 0 3px rgba(20, 112, 111, 0.10);
 }
 
 .student-row {
   width: 100%;
   display: grid;
-  grid-template-columns: 1fr auto 32px;
+  grid-template-columns: 36px 1fr 30px;
   gap: 10px;
   align-items: center;
-  min-height: 56px;
-  padding: 10px 14px;
-  border: none;
+  min-height: 58px;
+  padding: 10px 12px;
   color: var(--text);
   background: transparent;
   text-align: left;
-  cursor: pointer;
-  transition: all var(--transition);
 }
 
-.student-row:hover {
-  transform: none;
+.avatar {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #ffffff;
+  background: var(--primary);
+  font-weight: 900;
 }
 
 .student-info strong,
@@ -509,135 +474,93 @@ watch(filteredStudents, (newVal) => {
   font-size: 12px;
 }
 
-.student-count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 72px;
-  height: 28px;
-  padding: 0 10px;
-  border-radius: var(--radius-full);
-  color: var(--primary-strong);
-  background: #e9f4f3;
-  font-size: 13px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
 .expand-arrow {
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   display: grid;
   place-items: center;
   border-radius: var(--radius-sm);
   color: var(--text-muted);
-  font-size: 12px;
-  transition: all var(--transition);
-  user-select: none;
+  transition: transform var(--transition), background var(--transition);
 }
 
 .expand-arrow:hover {
-  color: var(--primary);
-  background: rgba(47, 111, 115, 0.08);
+  background: var(--primary-soft);
 }
 
 .expand-arrow.expanded {
   transform: rotate(180deg);
-  color: var(--primary);
 }
 
-/* ---- 学员展开详情 ---- */
 .student-detail {
+  padding: 10px 12px 12px;
   border-top: 1px solid var(--border);
-  padding: 12px 14px;
-  background: #f8fbfd;
-  animation: slideDown 0.2s ease;
-}
-
-@keyframes slideDown {
-  from { opacity: 0; max-height: 0; }
-  to { opacity: 1; max-height: 300px; }
+  background: var(--surface);
 }
 
 .detail-empty {
   color: var(--text-muted);
   font-size: 13px;
-  padding: 8px 0;
 }
 
 .detail-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
+  display: grid;
   gap: 6px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
 }
 
-.detail-item {
+.detail-list li {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
   padding: 8px 10px;
   border-radius: var(--radius-sm);
-  background: white;
-  border: 1px solid var(--border);
+  background: var(--surface-soft);
   font-size: 13px;
 }
 
-.detail-title {
-  color: var(--text);
-  font-weight: 600;
-}
-
-.status-sm {
+.selection-count,
+.status-sm,
+.status-tag {
   display: inline-flex;
   align-items: center;
-  min-height: 24px;
-  padding: 2px 10px;
-  border-radius: var(--radius-full);
+  justify-content: center;
+  min-height: 26px;
+  padding: 4px 10px;
+  border-radius: 999px;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 900;
   white-space: nowrap;
 }
 
-.status-sm.pending {
-  color: var(--warning);
-  background: #fff7e6;
-}
-
+.selection-count,
+.status-tag.ready,
+.status-tag.running,
 .status-sm.running {
   color: var(--primary-strong);
-  background: #e9f4f3;
+  background: var(--primary-soft);
 }
 
+.status-tag.pending,
+.status-sm.pending {
+  color: var(--warning);
+  background: var(--warning-soft);
+}
+
+.status-tag.done,
 .status-sm.done {
   color: var(--success);
-  background: #e8f6ef;
-}
-
-/* ---- 训练项目面板 ---- */
-.selection-count {
-  padding: 7px 12px;
-  border-radius: var(--radius-full);
-  color: var(--primary-strong);
-  background: #e9f4f3;
-  font-size: 13px;
-  font-weight: 800;
+  background: var(--success-soft);
 }
 
 .table-frame {
   width: 100%;
   overflow: auto;
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-  background: white;
+  border-radius: var(--radius);
 }
 
 th,
@@ -650,9 +573,9 @@ td {
 
 th {
   color: var(--text-muted);
-  background: #f6f8fb;
+  background: var(--surface-soft);
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 900;
 }
 
 tbody tr:last-child td {
@@ -661,92 +584,51 @@ tbody tr:last-child td {
 
 tbody tr:not(.disabled) {
   cursor: pointer;
-  transition: background var(--transition);
 }
 
 tbody tr:not(.disabled):hover {
-  background: #f0f8f7;
+  background: #f8fbfb;
 }
 
 tbody tr.disabled {
   color: var(--text-muted);
-  background: #fafafa;
+  background: #f7f7f7;
 }
 
 input[type="checkbox"] {
   width: 18px;
   height: 18px;
   accent-color: var(--primary);
-  cursor: pointer;
-}
-
-.status-tag {
-  display: inline-flex;
-  align-items: center;
-  min-height: 28px;
-  padding: 4px 12px;
-  border-radius: var(--radius-full);
-  font-size: 13px;
-  font-weight: 800;
-  white-space: nowrap;
-}
-
-.status-tag.ready {
-  color: var(--primary-strong);
-  background: #e9f4f3;
-}
-
-.status-tag.pending {
-  color: var(--warning);
-  background: #fff7e6;
-}
-
-.status-tag.running {
-  color: var(--primary-strong);
-  background: #e9f4f3;
-}
-
-.status-tag.done {
-  color: var(--success);
-  background: #e8f6ef;
 }
 
 .assign-actions {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  margin-top: 16px;
+  gap: 12px;
+  margin-top: 14px;
   color: var(--text-muted);
 }
 
 .assign-btn {
-  min-width: 128px;
-  height: 44px;
-  padding: 0 22px;
+  min-width: 126px;
+  height: 40px;
+  padding: 0 18px;
   border-radius: var(--radius-sm);
-  color: #e8f5f3;
-  background: #1a5c60;
-  font-weight: 800;
-  font-size: 15px;
-  cursor: pointer;
-  box-shadow: 0 6px 18px rgba(26, 92, 96, 0.28);
-  transition: all var(--transition);
+  color: #ffffff;
+  background: var(--primary);
+  font-weight: 900;
+  transition: background var(--transition), box-shadow var(--transition), transform var(--transition);
 }
 
 .assign-btn:hover:not(:disabled) {
-  background: #14484b;
-  box-shadow: 0 10px 26px rgba(26, 92, 96, 0.38);
+  background: var(--primary-strong);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
 }
 
 .assign-btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.45;
-  box-shadow: none;
-}
-
-.records-panel {
-  padding-bottom: 20px;
+  opacity: 0.48;
 }
 
 .empty-block,
@@ -756,11 +638,10 @@ input[type="checkbox"] {
 }
 
 .empty-block {
-  padding: 32px 16px;
+  padding: 28px 16px;
   border: 1px dashed var(--border);
   border-radius: var(--radius);
-  background: #fbfcfe;
-  font-size: 14px;
+  background: var(--surface-soft);
   line-height: 1.6;
 }
 
@@ -774,7 +655,7 @@ input[type="checkbox"] {
   height: 90px;
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 1120px) {
   .summary-strip,
   .assign-grid {
     grid-template-columns: 1fr;
@@ -796,21 +677,12 @@ input[type="checkbox"] {
 
   .panel-heading,
   .assign-actions {
-    flex-direction: column;
     align-items: stretch;
+    flex-direction: column;
   }
 
   .search-input {
     width: 100%;
-  }
-
-  .student-row {
-    grid-template-columns: 1fr auto;
-  }
-
-  .expand-arrow {
-    grid-column: 1 / -1;
-    justify-self: center;
   }
 }
 </style>

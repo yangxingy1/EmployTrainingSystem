@@ -1,30 +1,37 @@
-﻿:root {
-  --page-bg: #f4f7fb;
+:root {
+  --page-bg: #eef2f5;
+  --page-bg-strong: #e5ebef;
   --surface: #ffffff;
-  --surface-soft: #f8fafc;
-  --text: #263241;
-  --text-muted: #657285;
-  --heading: #111827;
-  --border: #dfe6ee;
-  --primary: #2f6f73;
-  --primary-strong: #255c61;
-  --accent: #d97845;
-  --success: #27845f;
-  --warning: #b7791f;
-  --danger: #c2413a;
-  --shadow-sm: 0 2px 8px rgba(31, 41, 55, 0.06);
-  --shadow: 0 8px 30px rgba(31, 41, 55, 0.08);
-  --shadow-lg: 0 16px 48px rgba(31, 41, 55, 0.12);
-  --radius-sm: 8px;
-  --radius: 14px;
-  --radius-lg: 20px;
-  --radius-full: 999px;
-  --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  --sans: system-ui, "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
+  --surface-soft: #f7fafb;
+  --surface-muted: #edf3f5;
+  --text: #1f2933;
+  --text-muted: #667481;
+  --heading: #101820;
+  --border: #d7e0e5;
+  --border-strong: #bdcbd3;
+  --primary: #14706f;
+  --primary-strong: #0d5655;
+  --primary-soft: #e3f3f1;
+  --accent: #d67836;
+  --accent-soft: #fff0e4;
+  --success: #238457;
+  --success-soft: #e4f5ed;
+  --warning: #aa6b14;
+  --warning-soft: #fff5dc;
+  --danger: #ba3c3c;
+  --danger-soft: #fff0ef;
+  --ink: #15212b;
+  --shadow-sm: 0 1px 2px rgba(16, 24, 32, 0.06), 0 8px 24px rgba(16, 24, 32, 0.04);
+  --shadow: 0 14px 38px rgba(16, 24, 32, 0.10);
+  --radius-sm: 6px;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --transition: 0.18s ease;
+  --sans: Inter, ui-sans-serif, system-ui, "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
 
-  font-family: var(--sans);
   color: var(--text);
   background: var(--page-bg);
+  font-family: var(--sans);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -36,10 +43,12 @@
 }
 
 body {
-  margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background: var(--page-bg);
+  margin: 0;
+  background:
+    linear-gradient(180deg, rgba(20, 112, 111, 0.08), transparent 360px),
+    var(--page-bg);
 }
 
 button,
@@ -52,31 +61,72 @@ textarea {
 button {
   border: 0;
   cursor: pointer;
-  transition: all var(--transition);
 }
 
-button:hover {
-  transform: translateY(-1px);
-}
-
-button:active {
-  transform: translateY(0);
+button:disabled {
+  cursor: not-allowed;
 }
 
 h1,
 h2,
 h3,
+h4,
 p {
   margin: 0;
 }
 
 h1,
 h2,
-h3 {
+h3,
+h4 {
   color: var(--heading);
   letter-spacing: 0;
 }
 
+a {
+  color: inherit;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
 #app {
   min-height: 100vh;
+}
+
+.input-shell,
+input,
+select,
+textarea {
+  min-height: 42px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  background: var(--surface);
+  outline: none;
+  transition: border-color var(--transition), box-shadow var(--transition), background var(--transition);
+}
+
+input,
+select,
+textarea {
+  padding: 0 12px;
+}
+
+textarea {
+  padding-top: 10px;
+  line-height: 1.55;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(20, 112, 111, 0.14);
+}
+
+.btn-reset {
+  background: transparent;
 }

@@ -1,23 +1,15 @@
-﻿<template>
+<template>
   <div class="admin-shell">
-    <header class="top-bar">
+    <aside class="sidebar">
       <div class="brand-area">
         <div class="brand-mark">慧</div>
         <div>
-          <h1>慧动手管理中心</h1>
-          <span>基于手势识别的工厂员工手部作业虚拟仿真培训平台</span>
+          <strong>慧动手</strong>
+          <span>管理中心</span>
         </div>
       </div>
 
-      <div class="user-area">
-        <span class="role-text">管理员</span>
-        <strong>{{ username }}</strong>
-        <button class="logout-btn" @click="logout">退出登录</button>
-      </div>
-    </header>
-
-    <div class="main-area">
-      <aside class="side-menu">
+      <nav class="side-menu" aria-label="后台导航">
         <button
           v-for="item in menus"
           :key="item.key"
@@ -25,158 +17,162 @@
           :class="{ active: currentMenu === item.key }"
           @click="currentMenu = item.key"
         >
-          <span class="menu-icon">{{ item.icon }}</span>
+          <span class="menu-icon">{{ item.mark }}</span>
           <span>
             <strong>{{ item.title }}</strong>
             <small>{{ item.desc }}</small>
           </span>
         </button>
-      </aside>
+      </nav>
+    </aside>
 
-      <main class="content-area">
-        <section class="page-heading">
-          <div>
-            <p class="eyebrow">后台管理</p>
-            <h2>{{ currentMenuMeta.title }}</h2>
-            <span>{{ currentMenuMeta.subtitle }}</span>
-          </div>
-
-          <button class="refresh-btn" @click="loadDashboard">刷新数据</button>
-        </section>
-
-        <div v-if="dashboardError" class="inline-alert error">
-          {{ dashboardError }}
+    <main class="content-area">
+      <header class="top-bar">
+        <div>
+          <p class="eyebrow">Admin Console</p>
+          <h1>{{ currentMenuMeta.title }}</h1>
+          <span>{{ currentMenuMeta.subtitle }}</span>
         </div>
 
-        <section class="stat-grid">
-          <div class="stat-card">
-            <span>学员总数</span>
-            <strong>{{ students.length }}</strong>
-            <small>可分配训练对象</small>
+        <div class="user-area">
+          <div>
+            <span>管理员</span>
+            <strong>{{ username }}</strong>
           </div>
+          <button class="ghost-btn" @click="loadDashboard">刷新</button>
+          <button class="logout-btn" @click="logout">退出</button>
+        </div>
+      </header>
 
-          <div class="stat-card accent">
-            <span>训练项目</span>
-            <strong>{{ tasks.length }}</strong>
-            <small>已建训练内容</small>
+      <div v-if="dashboardError" class="inline-alert error">
+        {{ dashboardError }}
+      </div>
+
+      <section class="stat-grid">
+        <div class="stat-card">
+          <span>学员总数</span>
+          <strong>{{ students.length }}</strong>
+          <small>可分配训练对象</small>
+        </div>
+        <div class="stat-card accent">
+          <span>训练项目</span>
+          <strong>{{ tasks.length }}</strong>
+          <small>可派发内容</small>
+        </div>
+        <div class="stat-card">
+          <span>分配记录</span>
+          <strong>{{ assignments.length }}</strong>
+          <small>累计派发任务</small>
+        </div>
+        <div class="stat-card success">
+          <span>完成率</span>
+          <strong>{{ completionRate }}%</strong>
+          <small>已完成 / 已分配</small>
+        </div>
+      </section>
+
+      <AssignTraining
+        v-if="currentMenu === 'assign'"
+        :students="students"
+        :tasks="tasks"
+        :assignments="assignments"
+        @assigned="loadDashboard"
+      />
+
+      <section v-else-if="currentMenu === 'task'" class="workspace-panel">
+        <div class="panel-header">
+          <div>
+            <h2>创建训练项目</h2>
+            <p>维护训练名称、训练目标和操作说明，创建后可直接进入分配流程。</p>
           </div>
+        </div>
 
-          <div class="stat-card">
-            <span>分配记录</span>
-            <strong>{{ assignments.length }}</strong>
-            <small>累计训练派发</small>
+        <div class="task-editor">
+          <label>
+            <span>训练名称</span>
+            <input v-model.trim="taskForm.title" type="text" placeholder="例如：旋转阀门操作训练" />
+          </label>
+
+          <label>
+            <span>训练说明</span>
+            <textarea
+              v-model.trim="taskForm.description"
+              rows="5"
+              placeholder="填写训练目标、标准动作、注意事项等"
+            />
+          </label>
+
+          <div class="editor-actions">
+            <span :class="['form-message', taskMessageType]">{{ taskMessage }}</span>
+            <button class="primary-btn" :disabled="creatingTask" @click="createTraining">
+              {{ creatingTask ? "创建中..." : "创建训练" }}
+            </button>
           </div>
+        </div>
 
-          <div class="stat-card success">
-            <span>完成率</span>
-            <strong>{{ completionRate }}%</strong>
-            <small>已完成 / 已分配</small>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>训练项目</th>
+                <th>说明</th>
+                <th>分配次数</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="task in tasks" :key="task.id">
+                <td><strong>{{ task.title }}</strong></td>
+                <td>{{ task.description || "暂无说明" }}</td>
+                <td>{{ taskAssignedCount(task.id) }}</td>
+              </tr>
+              <tr v-if="!tasks.length">
+                <td colspan="3" class="empty-cell">暂无训练项目</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section v-else-if="currentMenu === 'student'" class="workspace-panel">
+        <div class="panel-header">
+          <div>
+            <h2>学员概览</h2>
+            <p>通过分配功能将训练项目分发给学员，实时掌握完成进度。</p>
           </div>
-        </section>
+        </div>
 
-        <AssignTraining v-if="currentMenu === 'assign'" :students="students" :tasks="tasks" :assignments="assignments" @assigned="loadDashboard" />
-
-        <section v-else-if="currentMenu === 'task'" class="workspace-panel">
-          <div class="panel-header">
-            <div>
-              <h3>创建训练项目</h3>
-              <p>维护训练名称、训练目标和操作说明，创建后可直接进入分配流程。</p>
-            </div>
-          </div>
-
-          <div class="task-editor">
-            <label>
-              训练名称
-              <input
-                v-model.trim="taskForm.title"
-                type="text"
-                placeholder="例如：装配工位手势校准"
-              />
-            </label>
-
-            <label>
-              训练说明
-              <textarea
-                v-model.trim="taskForm.description"
-                rows="5"
-                placeholder="填写训练目标、标准动作、注意事项等"
-              />
-            </label>
-
-            <div class="editor-actions">
-              <span :class="['form-message', taskMessageType]">{{ taskMessage }}</span>
-              <button class="primary-btn" :disabled="creatingTask" @click="createTraining">
-                {{ creatingTask ? "创建中..." : "创建训练" }}
-              </button>
-            </div>
-          </div>
-
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>训练项目</th>
-                  <th>说明</th>
-                  <th>分配次数</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="task in tasks" :key="task.id">
-                  <td>
-                    <strong>{{ task.title }}</strong>
-                  </td>
-                  <td>{{ task.description || "暂无说明" }}</td>
-                  <td>{{ taskAssignedCount(task.id) }}</td>
-                </tr>
-                <tr v-if="!tasks.length">
-                  <td colspan="3" class="empty-cell">暂无训练项目</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <section v-else-if="currentMenu === 'student'" class="workspace-panel">
-          <div class="panel-header">
-            <div>
-              <h3>学员概览</h3>
-              <p>通过分配功能将训练项目分发给学员，实时掌握完成进度。</p>
-            </div>
-          </div>
-
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>学员</th>
-                  <th>已完成</th>
-                  <th>完成率</th>
-                  <th>近期任务</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="student in students" :key="student.id">
-                  <td>
-                    <strong>{{ student.username }}</strong>
-                  </td>
-                  <td>{{ studentCompleted(student.id) }} / {{ studentAssigned(student.id) }}</td>
-                  <td>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>学员</th>
+                <th>已完成</th>
+                <th>完成率</th>
+                <th>近期任务</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="student in students" :key="student.id">
+                <td><strong>{{ student.username }}</strong></td>
+                <td>{{ studentCompleted(student.id) }} / {{ studentAssigned(student.id) }}</td>
+                <td>
+                  <div class="progress-cell">
                     <div class="progress-line">
                       <span :style="{ width: `${studentRate(student.id)}%` }"></span>
                     </div>
-                    {{ studentRate(student.id) }}%
-                  </td>
-                  <td>{{ studentLatestStatus(student.id) }}</td>
-                </tr>
-                <tr v-if="!students.length">
-                  <td colspan="4" class="empty-cell">暂无学员</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-      </main>
-    </div>
+                    <strong>{{ studentRate(student.id) }}%</strong>
+                  </div>
+                </td>
+                <td>{{ studentLatestStatus(student.id) }}</td>
+              </tr>
+              <tr v-if="!students.length">
+                <td colspan="4" class="empty-cell">暂无学员</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
   </div>
 </template>
 
@@ -188,7 +184,7 @@ import { getTasks, getUsers, getAssignments } from "../api/task";
 
 const router = useRouter();
 const username = localStorage.getItem("username") || "管理员";
-const currentMenu = ref("assign");  // 当前激活的菜单页签
+const currentMenu = ref("assign");
 
 const students = ref([]);
 const tasks = ref([]);
@@ -204,9 +200,9 @@ const taskForm = ref({
 });
 
 const menus = [
-  { key: "assign", icon: "📋", title: "训练分配", desc: "批量为学员派发训练任务" },
-  { key: "task", icon: "📚", title: "训练维护", desc: "新建/管理训练项目库" },
-  { key: "student", icon: "👥", title: "学员概览", desc: "查看学员进度与统计" }
+  { key: "assign", mark: "A", title: "训练分配", desc: "为学员派发任务" },
+  { key: "task", mark: "T", title: "训练维护", desc: "管理训练项目库" },
+  { key: "student", mark: "S", title: "学员概览", desc: "查看训练进度" }
 ];
 
 const currentMenuMeta = computed(() => {
@@ -222,14 +218,12 @@ const currentMenuMeta = computed(() => {
   };
 });
 
-// 计算全局任务完成率
 const completionRate = computed(() => {
   const assigned = assignments.value.length;
   const done = assignments.value.filter((a) => a.status === "done").length;
   return assigned ? Math.round((done / assigned) * 100) : 0;
 });
 
-// 加载所有数据：任务、学员、分配记录
 async function loadDashboard() {
   dashboardError.value = "";
   try {
@@ -272,7 +266,6 @@ function studentLatestStatus(studentId) {
   return statusMap[record.status] || record.status;
 }
 
-// 创建新训练项目
 async function createTraining() {
   if (!taskForm.value.title) {
     taskMessage.value = "请输入训练名称";
@@ -295,15 +288,13 @@ async function createTraining() {
     taskMessageType.value = "success";
     await loadDashboard();
   } catch (error) {
-    const detail = error.response?.data?.detail;
-    taskMessage.value = detail || "创建失败，请重试";
+    taskMessage.value = error.response?.data?.detail || "创建失败，请重试";
     taskMessageType.value = "error";
   } finally {
     creatingTask.value = false;
   }
 }
 
-// 退出登录：清空本地存储并跳转
 function logout() {
   localStorage.removeItem("token");
   localStorage.removeItem("username");
@@ -320,203 +311,196 @@ onMounted(() => {
 <style scoped>
 .admin-shell {
   min-height: 100vh;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 264px minmax(0, 1fr);
+  background: var(--page-bg);
 }
 
-.top-bar {
-  min-height: 80px;
-  padding: 18px 34px;
-  color: white;
-  background: linear-gradient(135deg, #1a3a4a, #2f4f6f);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
+.sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  padding: 22px 16px;
+  border-right: 1px solid var(--border);
+  background: var(--ink);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .brand-area {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
+  margin-bottom: 28px;
+  padding: 0 8px;
 }
 
 .brand-mark {
-  width: 52px;
-  height: 52px;
-  border-radius: var(--radius);
+  width: 42px;
+  height: 42px;
   display: grid;
   place-items: center;
-  color: white;
-  background: linear-gradient(135deg, #3e8e91, #2a6b6f);
-  font-weight: 800;
-  font-size: 24px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+  border-radius: var(--radius);
+  color: var(--ink);
+  background: #dff5f1;
+  font-size: 22px;
+  font-weight: 900;
 }
 
-.eyebrow {
-  color: #ffd9bf;
+.brand-area strong,
+.brand-area span {
+  display: block;
+}
+
+.brand-area strong {
+  color: #ffffff;
+  font-size: 18px;
+}
+
+.brand-area span {
+  margin-top: 2px;
   font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0;
-}
-
-.top-bar h1 {
-  color: white;
-  font-size: 22px;
-  margin: 3px 0 6px;
-}
-
-.top-bar span { color: #b8d4f0;
-  font-size: 22px;
-}
-
-.user-area {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.role-text {
-  color: #ffd9bf;
-  font-size: 17px;
-  font-weight: 800;
-}
-
-.logout-btn,
-.refresh-btn {
-  height: 38px;
-  padding: 0 18px;
-  border-radius: var(--radius-sm);
-  font-weight: 700;
-  cursor: pointer;
-  transition: all var(--transition);
-}
-
-.logout-btn {
-  color: white;
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-}
-
-.logout-btn:hover {
-  background: rgba(255, 255, 255, 0.22);
-}
-
-.refresh-btn {
-  min-width: 100px;
-  color: var(--primary);
-  background: #eaf4f3;
-}
-
-.refresh-btn:hover {
-  background: #d6ece9;
-}
-
-.primary-btn {
-  min-width: 120px;
-  height: 42px;
-  padding: 0 20px;
-  border-radius: var(--radius-sm);
-  color: #e8f5f3;
-  background: #1a5c60;
-  font-weight: 800;
-  cursor: pointer;
-  box-shadow: 0 6px 16px rgba(26, 92, 96, 0.28);
-  transition: all var(--transition);
-}
-
-.primary-btn:hover {
-  background: #14484b;
-  box-shadow: 0 10px 24px rgba(26, 92, 96, 0.38);
-}
-
-.primary-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.main-area {
-  flex: 1;
-  display: flex;
 }
 
 .side-menu {
-  width: 260px;
-  padding: 24px 14px;
-  background: var(--surface);
-  border-right: 1px solid var(--border);
+  display: grid;
+  gap: 8px;
 }
 
 .menu-button {
   width: 100%;
   display: grid;
-  grid-template-columns: 44px 1fr;
-  gap: 12px;
+  grid-template-columns: 38px 1fr;
+  gap: 10px;
   align-items: center;
-  min-height: 68px;
-  padding: 12px 14px;
-  margin-bottom: 8px;
-  border: 1px solid transparent;
+  min-height: 62px;
+  padding: 10px;
   border-radius: var(--radius);
-  color: var(--text);
+  color: rgba(255, 255, 255, 0.74);
   background: transparent;
   text-align: left;
-  cursor: pointer;
-  transition: all var(--transition);
+  transition: background var(--transition), color var(--transition);
 }
 
-.menu-button:hover {
-  border-color: var(--border);
-  background: var(--surface-soft);
-  transform: translateX(2px);
+.menu-button:hover,
+.menu-button.active {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.09);
 }
 
 .menu-button.active {
-  border-color: var(--primary);
-  background: #eef8f7;
+  box-shadow: inset 3px 0 0 #f2b173;
 }
 
 .menu-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: var(--radius-sm);
+  width: 38px;
+  height: 38px;
   display: grid;
   place-items: center;
-  color: white;
-  background: var(--primary);
-  font-weight: 800;
-  font-size: 18px;
+  border-radius: var(--radius-sm);
+  color: #dff5f1;
+  background: rgba(20, 112, 111, 0.38);
+  font-weight: 900;
+}
+
+.menu-button strong,
+.menu-button small {
+  display: block;
 }
 
 .menu-button small {
-  display: block;
   margin-top: 2px;
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.48);
   font-size: 12px;
 }
 
 .content-area {
-  flex: 1;
-  padding: 28px;
-  overflow: auto;
+  min-width: 0;
+  padding: 26px clamp(20px, 3vw, 34px);
 }
 
-.page-heading {
+.top-bar {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 18px;
-  margin-bottom: 20px;
+  margin-bottom: 22px;
 }
 
-.page-heading h2 {
+.eyebrow {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.top-bar h1 {
+  margin: 6px 0;
   font-size: 30px;
-  margin: 4px 0 6px;
 }
 
-.page-heading span {
+.top-bar span {
   color: var(--text-muted);
+}
+
+.user-area {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.user-area div {
+  min-width: 100px;
+  padding-right: 8px;
+  text-align: right;
+}
+
+.user-area span,
+.user-area strong {
+  display: block;
+}
+
+.user-area span {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.ghost-btn,
+.logout-btn,
+.primary-btn {
+  height: 38px;
+  padding: 0 16px;
+  border-radius: var(--radius-sm);
+  font-weight: 800;
+  transition: background var(--transition), color var(--transition), box-shadow var(--transition), transform var(--transition);
+}
+
+.ghost-btn {
+  color: var(--primary-strong);
+  background: var(--primary-soft);
+}
+
+.logout-btn {
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.primary-btn {
+  min-width: 118px;
+  color: #ffffff;
+  background: var(--primary);
+}
+
+.ghost-btn:hover,
+.logout-btn:hover,
+.primary-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.primary-btn:hover:not(:disabled) {
+  background: var(--primary-strong);
 }
 
 .inline-alert {
@@ -528,30 +512,33 @@ onMounted(() => {
 
 .inline-alert.error {
   color: var(--danger);
-  background: #fff1ef;
-  border: 1px solid #ffd5ce;
+  background: var(--danger-soft);
+  border: 1px solid #ffd1cc;
 }
 
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
-  margin-bottom: 22px;
+  gap: 14px;
+  margin-bottom: 20px;
 }
 
 .stat-card {
-  min-height: 128px;
-  padding: 22px;
+  min-height: 118px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--primary);
   border-radius: var(--radius);
   background: var(--surface);
-  border: 1px solid var(--border);
   box-shadow: var(--shadow-sm);
-  transition: all var(--transition);
 }
 
-.stat-card:hover {
-  box-shadow: var(--shadow);
-  transform: translateY(-2px);
+.stat-card.accent {
+  border-left-color: var(--accent);
+}
+
+.stat-card.success {
+  border-left-color: var(--success);
 }
 
 .stat-card span,
@@ -562,38 +549,27 @@ onMounted(() => {
 
 .stat-card strong {
   display: block;
-  margin: 12px 0 4px;
+  margin: 10px 0 4px;
   color: var(--heading);
-  font-size: 36px;
+  font-size: 34px;
   line-height: 1;
 }
 
-.stat-card.accent {
-  border-top: 4px solid var(--accent);
-}
-
-.stat-card.success {
-  border-top: 4px solid var(--success);
-}
-
 .workspace-panel {
-  padding: 24px;
+  padding: 20px;
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
-  border: 1px solid var(--border);
   box-shadow: var(--shadow-sm);
 }
 
 .panel-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 18px;
+  margin-bottom: 16px;
 }
 
-.panel-header h3 {
-  font-size: 22px;
+.panel-header h2 {
   margin-bottom: 6px;
+  font-size: 22px;
 }
 
 .panel-header p {
@@ -602,49 +578,25 @@ onMounted(() => {
 
 .task-editor {
   display: grid;
-  grid-template-columns: 1fr 1.5fr;
-  gap: 16px;
-  padding: 20px;
+  grid-template-columns: minmax(220px, 0.8fr) minmax(320px, 1.2fr);
+  gap: 14px;
   margin-bottom: 18px;
+  padding: 16px;
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface-soft);
-  border: 1px solid var(--border);
-  max-width: 100%;
-  overflow: hidden;
-}
-
-.task-editor label:first-child {
-  max-width: 320px;
 }
 
 .task-editor label {
-  display: flex;
-  flex-direction: column;
+  display: grid;
   gap: 8px;
   color: var(--heading);
-  font-weight: 700;
-}
-
-.task-editor input,
-.task-editor textarea {
-  width: 100%;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 11px 12px;
-  color: var(--text);
-  background: white;
-  outline: none;
-  transition: all var(--transition);
+  font-weight: 800;
 }
 
 .task-editor textarea {
-  resize: none; height: 120px;
-}
-
-.task-editor input:focus,
-.task-editor textarea:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(47, 111, 115, 0.14);
+  min-height: 112px;
+  resize: vertical;
 }
 
 .editor-actions {
@@ -652,7 +604,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 14px;
 }
 
 .form-message {
@@ -672,18 +624,12 @@ onMounted(() => {
   width: 100%;
   overflow: auto;
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-  background: white;
+  border-radius: var(--radius);
 }
 
 th,
 td {
-  padding: 14px 16px;
+  padding: 13px 14px;
   border-bottom: 1px solid var(--border);
   text-align: left;
   vertical-align: middle;
@@ -691,17 +637,13 @@ td {
 
 th {
   color: var(--text-muted);
-  background: #f6f8fb;
+  background: var(--surface-soft);
   font-size: 13px;
-  font-weight: 800;
-}
-
-tbody tr {
-  transition: background var(--transition);
+  font-weight: 900;
 }
 
 tbody tr:hover {
-  background: #f8fbfd;
+  background: #f8fbfb;
 }
 
 tr:last-child td {
@@ -714,13 +656,19 @@ tr:last-child td {
   text-align: center;
 }
 
+.progress-cell {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) 44px;
+  gap: 10px;
+  align-items: center;
+  max-width: 260px;
+}
+
 .progress-line {
-  width: min(180px, 100%);
   height: 8px;
-  margin-bottom: 6px;
-  border-radius: var(--radius-full);
+  border-radius: 999px;
   overflow: hidden;
-  background: #e6ebf1;
+  background: #e0e8ec;
 }
 
 .progress-line span {
@@ -728,50 +676,21 @@ tr:last-child td {
   height: 100%;
   border-radius: inherit;
   background: linear-gradient(90deg, var(--primary), var(--accent));
-  transition: width 0.6s ease;
+  transition: width 0.4s ease;
 }
 
-.status-pill {
-  display: inline-flex;
-  align-items: center;
-  min-height: 28px;
-  padding: 4px 12px;
-  border-radius: var(--radius-full);
-  font-size: 13px;
-  font-weight: 800;
-}
+@media (max-width: 1180px) {
+  .admin-shell {
+    grid-template-columns: 1fr;
+  }
 
-.status-pill.pending {
-  color: var(--warning);
-  background: #fff7e6;
-}
-
-.status-pill.running {
-  color: var(--primary-strong);
-  background: #e9f4f3;
-}
-
-.status-pill.done {
-  color: var(--success);
-  background: #e8f6ef;
-}
-
-@media (max-width: 1100px) {
-  .top-bar,
-  .main-area,
-  .page-heading {
-    flex-direction: column;
+  .sidebar {
+    position: static;
+    height: auto;
   }
 
   .side-menu {
-    width: 100%;
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-  }
-
-  .menu-button {
-    margin-bottom: 0;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .stat-grid {
@@ -779,24 +698,26 @@ tr:last-child td {
   }
 }
 
-@media (max-width: 720px) {
-  .top-bar,
+@media (max-width: 760px) {
   .content-area {
     padding: 18px;
   }
 
-  .brand-area,
-  .user-area {
-    width: 100%;
-    flex-wrap: wrap;
+  .top-bar,
+  .user-area,
+  .editor-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .user-area div {
+    text-align: left;
   }
 
   .side-menu,
   .stat-grid,
-  .task-editor { grid-template-columns: 1fr; } .task-editor label:first-child { max-width: 100%; }
-
-  .page-heading h2 {
-    font-size: 24px;
+  .task-editor {
+    grid-template-columns: 1fr;
   }
 }
 </style>
