@@ -1,0 +1,82 @@
+﻿:root {
+  --page-bg: #f4f7fb;
+  --surface: #ffffff;
+  --surface-soft: #f8fafc;
+  --text: #263241;
+  --text-muted: #657285;
+  --heading: #111827;
+  --border: #dfe6ee;
+  --primary: #2f6f73;
+  --primary-strong: #255c61;
+  --accent: #d97845;
+  --success: #27845f;
+  --warning: #b7791f;
+  --danger: #c2413a;
+  --shadow-sm: 0 2px 8px rgba(31, 41, 55, 0.06);
+  --shadow: 0 8px 30px rgba(31, 41, 55, 0.08);
+  --shadow-lg: 0 16px 48px rgba(31, 41, 55, 0.12);
+  --radius-sm: 8px;
+  --radius: 14px;
+  --radius-lg: 20px;
+  --radius-full: 999px;
+  --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  --sans: system-ui, "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
+
+  font-family: var(--sans);
+  color: var(--text);
+  background: var(--page-bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: var(--page-bg);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  border: 0;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+button:hover {
+  transform: translateY(-1px);
+}
+
+button:active {
+  transform: translateY(0);
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+h1,
+h2,
+h3 {
+  color: var(--heading);
+  letter-spacing: 0;
+}
+
+#app {
+  min-height: 100vh;
+}
