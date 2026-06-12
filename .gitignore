@@ -1,0 +1,32 @@
+# Unity
+unity/My project/Library/
+unity/My project/Temp/
+unity/My project/Obj/
+unity/My project/Build/
+unity/My project/Builds/
+unity/My project/Logs/
+unity/My project/UserSettings/
+unity/My project/.vs/
+unity/My project/*.csproj
+unity/My project/*.sln
+
+unity-client/Library/
+unity-client/Temp/
+unity-client/Obj/
+unity-client/Build/
+unity-client/Builds/
+unity-client/Logs/
+unity-client/UserSettings/
+unity-client/.vs/
+unity-client/*.csproj
+unity-client/*.sln
+
+# Python
+gesture-service/.venv/
+gesture-service/__pycache__/
+gesture-service/src/__pycache__/
+*.pyc
+
+# Runtime data
+gesture-service/recordings/*.jsonl
+unity-client/Recordings/
