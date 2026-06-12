@@ -406,7 +406,7 @@ public class PipelineSceneBootstrap : MonoBehaviour
         Quaternion R_EW = Quaternion.Euler(0f, 90f, 0f);         // 东西走向
         Quaternion R_FL = Quaternion.Euler(0f, 0f, 0f);          // 法兰（跟管走向）
 
-        PlacePrefab(pf09, new Vector3(-13f, 0.65f,  5f), Quaternion.Euler(0f, -90f, -90f), root);
+        // PlacePrefab(pf09, new Vector3(-13f, 0.65f,  5f), Quaternion.Euler(0f, -90f, -90f), root);
 
     }
 
