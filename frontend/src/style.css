@@ -26,6 +26,8 @@
   --radius-sm: 6px;
   --radius: 8px;
   --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 999px;
   --transition: 0.18s ease;
   --sans: Inter, ui-sans-serif, system-ui, "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
 
