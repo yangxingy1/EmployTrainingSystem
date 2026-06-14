@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="admin-shell">
     <aside class="sidebar">
       <div class="brand-area">
@@ -62,12 +62,18 @@
         </div>
       </section>
 
-      <!-- 学员总览 -->
+      <!-- 学员管理 -->
       <section v-else-if="currentMenu === 'student'" class="workspace-panel">
-        <div class="panel-header"><div><h2>学员概览</h2><p>通过分配功能将训练项目分发给学员，实时掌握完成进度。</p></div></div>
+        <div class="panel-header">
+          <div>
+            <h2>学员管理</h2>
+            <p>管理本公司学员账号，可注册新学员或移除现有学员。</p>
+          </div>
+          <button class="primary-btn" @click="showRegister=true">注册学员</button>
+        </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>学员</th><th>已完成</th><th>完成率</th><th>近期任务</th></tr></thead>
+            <thead><tr><th>学员</th><th>已完成</th><th>完成率</th><th>近期任务</th><th>操作</th></tr></thead>
             <tbody>
               <tr v-for="student in students" :key="student.id">
                 <td><strong>{{ student.username }}</strong></td>
@@ -79,15 +85,16 @@
                   </div>
                 </td>
                 <td>{{ studentLatestStatus(student.id) }}</td>
+                <td><button class="danger-btn-sm" @click="deleteStudent(student)">移除</button></td>
               </tr>
-              <tr v-if="!students.length"><td colspan="4" class="empty-cell">暂无学员</td></tr>
+              <tr v-if="!students.length"><td colspan="5" class="empty-cell">暂无学员</td></tr>
             </tbody>
           </table>
         </div>
       </section>
     </main>
 
-    <!-- 从总库添加训练项目弹窗 -->
+    <!-- 从总库添加弹窗 -->
     <div v-if="showTaskLibrary" class="dialog-mask" @click.self="showTaskLibrary=false">
       <div class="dialog wide">
         <h3>从项目总库添加</h3>
@@ -116,11 +123,29 @@
         </div>
       </div>
     </div>
+
+    <!-- 注册学员弹窗 -->
+    <div v-if="showRegister" class="dialog-mask" @click.self="closeRegister">
+      <div class="dialog">
+        <h3>注册学员</h3>
+        <p class="dialog-desc">为本公司注册新学员账号</p>
+        <div class="form-item"><span>用户名</span><input v-model="regForm.username" placeholder="请输入用户名" /></div>
+        <div class="form-item"><span>密码</span><input type="password" v-model="regForm.password" placeholder="至少3位" /></div>
+        <div class="form-item"><span>确认密码</span><input type="password" v-model="regForm.confirm" placeholder="再次输入密码" /></div>
+        <div v-if="regMsg" :class="['form-msg', regMsgType]">{{ regMsg }}</div>
+        <div class="dialog-actions">
+          <button class="cancel-btn" @click="closeRegister">取消</button>
+          <button class="confirm-btn" :disabled="registering" @click="doRegister">
+            {{ registering ? "注册中..." : "确认注册" }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, reactive } from "vue";
 import { useRouter } from "vue-router";
 import { getUsers, getAssignments } from "../api/task";
 import axios from "axios";
@@ -137,7 +162,7 @@ const adminCompanyId = Number(localStorage.getItem("company_id"));
 const menus = [
   { key: "assign", title: "训练分配", desc: "学员训练派发", mark: "分" },
   { key: "task", title: "训练项目", desc: "本公司可用训练", mark: "训" },
-  { key: "student", title: "学员总览", desc: "状态与进度", mark: "学" }
+  { key: "student", title: "学员管理", desc: "注册与移除", mark: "学" }
 ];
 const currentMenu = ref("assign");
 const currentMenuMeta = computed(() => menus.find(m => m.key === currentMenu.value) || menus[0]);
@@ -160,7 +185,6 @@ const globalTasks = ref([]);
 const selectedGlobalTasks = ref([]);
 const addingTasks = ref(false);
 
-// 过滤掉已添加的，只显示可添加的
 const availableGlobalTasks = computed(() => {
   const existingIds = companyTasks.value.map(t => t.id);
   return globalTasks.value.filter(t => !existingIds.includes(t.id));
@@ -174,10 +198,7 @@ function toggleGlobalTask(taskId) {
 
 async function openTaskLibrary() {
   selectedGlobalTasks.value = [];
-  try {
-    const r = await axios.get("http://127.0.0.1:8000/task/global/list");
-    globalTasks.value = r.data || [];
-  } catch (e) { alert("加载总库失败"); }
+  try { const r = await axios.get("http://127.0.0.1:8000/task/global/list"); globalTasks.value = r.data || []; } catch (e) { alert("加载总库失败"); }
   showTaskLibrary.value = true;
 }
 
@@ -186,14 +207,57 @@ async function addSelectedTasks() {
   addingTasks.value = true;
   let ok = 0;
   for (const tid of selectedGlobalTasks.value) {
-    try {
-      await axios.post(`http://127.0.0.1:8000/task/company/${adminCompanyId}/add`, { task_id: tid });
-      ok++;
-    } catch (e) { /* skip */ }
+    try { await axios.post(`http://127.0.0.1:8000/task/company/${adminCompanyId}/add`, { task_id: tid }); ok++; } catch (e) {}
   }
   addingTasks.value = false;
   showTaskLibrary.value = false;
   if (ok > 0) await loadDashboard();
+}
+
+// ---- 注册学员 ----
+const showRegister = ref(false);
+const regForm = reactive({ username: "", password: "", confirm: "" });
+const regMsg = ref("");
+const regMsgType = ref("");
+const registering = ref(false);
+
+function closeRegister() {
+  showRegister.value = false;
+  regForm.username = "";
+  regForm.password = "";
+  regForm.confirm = "";
+  regMsg.value = "";
+}
+
+async function doRegister() {
+  if (!regForm.username.trim()) { regMsg.value = "用户名不能为空"; regMsgType.value = "error"; return; }
+  if (!regForm.password || regForm.password.length < 3) { regMsg.value = "密码至少需要3位"; regMsgType.value = "error"; return; }
+  if (regForm.password !== regForm.confirm) { regMsg.value = "两次输入的密码不一致"; regMsgType.value = "error"; return; }
+  registering.value = true;
+  regMsg.value = "";
+  try {
+    await axios.post("http://127.0.0.1:8000/register", {
+      username: regForm.username.trim(),
+      password: regForm.password,
+      role: "student",
+      company_id: adminCompanyId
+    });
+    regMsg.value = "注册成功";
+    regMsgType.value = "success";
+    setTimeout(() => { closeRegister(); loadDashboard(); }, 800);
+  } catch (e) {
+    regMsg.value = e.response?.data?.detail || "注册失败";
+    regMsgType.value = "error";
+  } finally { registering.value = false; }
+}
+
+// ---- 删除学员 ----
+async function deleteStudent(student) {
+  if (!confirm(`确定移除学员"${student.username}"吗？其训练记录将一并删除。`)) return;
+  try {
+    await axios.delete(`http://127.0.0.1:8000/users/${student.id}`);
+    await loadDashboard();
+  } catch (e) { alert(e.response?.data?.detail || "删除失败"); }
 }
 
 // ---- 数据加载 ----
@@ -262,7 +326,7 @@ onMounted(() => { loadDashboard(); });
 .primary-btn { height: 38px; padding: 0 18px; border-radius: var(--radius); color: #ffffff; background: var(--primary); font-weight: 700; transition: all var(--transition); white-space: nowrap; }
 .primary-btn:hover { background: var(--primary-strong); box-shadow: 0 6px 18px rgba(20,112,111,0.24); transform: translateY(-1px); }
 .table-wrap { width: 100%; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius-lg); }
-th, td { padding: 13px 14px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: middle; }
+th, td { padding: 13px 14px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: middle; font-size: 14px; }
 th { color: var(--text-muted); background: var(--surface-soft); font-size: 13px; font-weight: 900; }
 tbody tr:hover { background: #f8fbfb; }
 tr:last-child td { border-bottom: 0; }
@@ -270,20 +334,28 @@ tr:last-child td { border-bottom: 0; }
 .progress-cell { display: grid; grid-template-columns: minmax(120px, 1fr) 44px; gap: 10px; align-items: center; max-width: 260px; }
 .progress-line { height: 8px; border-radius: 999px; overflow: hidden; background: #e0e8ec; }
 .progress-line span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--primary), var(--accent)); transition: width 0.4s ease; }
+.danger-btn-sm { padding: 5px 14px; border: none; border-radius: var(--radius); background: #d9534f; color: white; font-weight: 700; font-size: 12px; cursor: pointer; transition: all var(--transition); }
+.danger-btn-sm:hover { background: #c44b4b; }
 
 /* ---- 弹窗 ---- */
 .dialog-mask { position: fixed; inset: 0; background: rgba(0,0,0,0.40); display: flex; align-items: center; justify-content: center; z-index: 1000; }
-.dialog { background: white; border-radius: var(--radius-xl); padding: 28px; box-shadow: 0 20px 40px rgba(0,0,0,0.15); }
+.dialog { background: white; border-radius: var(--radius-xl); padding: 28px; box-shadow: 0 20px 40px rgba(0,0,0,0.15); min-width: 400px; }
 .dialog.wide { width: 600px; max-height: 80vh; display: flex; flex-direction: column; }
 .dialog h3 { margin: 0 0 8px; }
 .dialog-desc { color: var(--text-muted); font-size: 13px; margin-bottom: 16px; }
 .dialog-table-wrap { overflow: auto; flex: 1; border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 16px; max-height: 360px; }
-.dialog-table-wrap table { width: 100%; }
 .dialog-table-wrap th { position: sticky; top: 0; z-index: 1; }
 .dialog-table-wrap tbody tr { cursor: pointer; transition: background var(--transition-fast); }
 .dialog-table-wrap tbody tr:hover { background: #f4f9f8; }
 .dialog-table-wrap tbody tr.selected { background: var(--primary-soft); }
 .dialog-table-wrap input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--primary); cursor: pointer; }
+.form-item { display: grid; gap: 6px; margin-bottom: 14px; }
+.form-item span { font-size: 13px; font-weight: 700; color: var(--heading); }
+.form-item input { height: 44px; border: 1px solid #ddd; border-radius: var(--radius); padding: 0 12px; font-size: 14px; outline: none; width: 100%; transition: border-color var(--transition); }
+.form-item input:focus { border-color: var(--primary); }
+.form-msg { padding: 10px 12px; border-radius: var(--radius); font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+.form-msg.error { color: var(--danger); background: var(--danger-soft); border: 1px solid #ffd1cc; }
+.form-msg.success { color: var(--success); background: var(--success-soft); border: 1px solid #c3e6d6; }
 .dialog-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 4px; }
 .dialog-actions > div { display: flex; gap: 10px; }
 .pick-count { color: var(--primary-strong); font-weight: 700; font-size: 13px; }
@@ -295,5 +367,5 @@ tr:last-child td { border-bottom: 0; }
 .confirm-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
 @media (max-width: 1180px) { .admin-shell { grid-template-columns: 1fr; } .sidebar { position: static; height: auto; } .side-menu { grid-template-columns: repeat(3, minmax(0, 1fr)); } .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 760px) { .content-area { padding: 18px; } .top-bar, .user-area { align-items: stretch; flex-direction: column; } .user-area div { text-align: left; } .side-menu, .stat-grid { grid-template-columns: 1fr; } .dialog.wide { width: 95vw; } }
+@media (max-width: 760px) { .content-area { padding: 18px; } .top-bar, .user-area { align-items: stretch; flex-direction: column; } .user-area div { text-align: left; } .side-menu, .stat-grid { grid-template-columns: 1fr; } .dialog.wide { width: 95vw; } .dialog { min-width: auto; width: 90vw; } }
 </style>
