@@ -1,0 +1,30 @@
+# JWT 认证模块: Token 生成与校验
+from datetime import datetime, timedelta, timezone
+from jose import jwt, JWTError
+
+SECRET_KEY = "gesture_training_secret"
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_HOURS = 24
+
+
+def create_access_token(data: dict):
+    """
+    生成 JWT Token
+    data 必须包含 user_id, username, role, company_id
+    默认 24 小时过期
+    """
+    to_encode = data.copy()
+    expire = datetime.now(timezone.utc) + timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS)
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def verify_token(token: str):
+    """
+    校验 Token 有效性
+    成功返回 payload 字典，失败返回 None
+    """
+    try:
+        return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    except JWTError:
+        return None

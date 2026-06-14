@@ -1,16 +1,24 @@
-# Unity 脚本目录说明
+# Unity Scripts 目录说明
+
+当前脚本按“公共能力”和“具体训练场景”拆分。
 
 | Folder | Purpose |
 |---|---|
-| `Core/` | WebSocket 消息模型、接收器等核心通信代码 |
-| `Interaction/` | 阀门、按钮、工具、工件等手势驱动的交互对象 |
-| `Training/` | 训练流程、评分、操作记录、结果判定 |
-| `Demo/` | 快速测试用的场景搭建脚本 |
-| `Prototype/` | 从根目录 `源码/` 复制来的旧版抓取放置原型 |
+| `Core/` | WebSocket 消息模型和接收器。 |
+| `Demo/` | 演示入口和通用调试脚本，例如 `SceneBootstrap`。 |
+| `Interaction/` | 通用交互示例和接口，例如按钮、旧阀门接口。 |
+| `Prototype/` | 手部输入、虚拟手显示、旧抓取放置原型。 |
+| `Training/` | 训练流程、操作日志、评分等业务层脚本。 |
+| `ElectricSwitch/` | 拉杆式电闸场景专属脚本。 |
+| `RotaryValve/` | 旋转阀门场景专属脚本。 |
 
-推荐下一步：
+## 当前场景切换
 
-1. 先运行 Python 回放模式，确认 WebSocket 数据可以正常发送。
-2. 打开 Unity，把 `Demo/SceneBootstrap.cs` 挂到空物体上。
-3. 确认手势事件能触发阀门旋转和按钮点击。
-4. 再逐步把示例几何体替换成真实的工厂训练模型。
+`Demo/SceneBootstrap.cs` 负责运行时创建训练场景。
+
+在 Inspector 中修改 `sceneKind`：
+
+- `ElectricSwitch`：拉杆式电闸。
+- `RotaryValve`：旋转型阀门，红色手轮 + 黄色管道。
+
+默认值目前是 `RotaryValve`。

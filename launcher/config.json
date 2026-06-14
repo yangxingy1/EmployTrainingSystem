@@ -1,0 +1,8 @@
+{
+    "server_url": "http://127.0.0.1:8000",
+    "student_id": 2,
+    "username": "stu1",
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoyLCJ1c2VybmFtZSI6InN0dTEiLCJyb2xlIjoic3R1ZGVudCIsImNvbXBhbnlfaWQiOjEsImV4cCI6MTc4MTQ4NTYzM30.G2Tgfc_qLeZWBFteTkA2ZUmXDzevCksu6ZfIu1fN3hA",
+    "poll_interval": 5,
+    "trainer_exe": "trainer/TestTrainer.exe"
+}

@@ -41,27 +41,6 @@ public class GraspController : MonoBehaviour
     public float GripSignal => _gripSignal;
     public bool IsGripDown => _gripSignal >= grabThreshold;
 
-    public void CancelInteraction()
-    {
-        if (_held != null)
-        {
-            var g = _held;
-            if (_heldCol != null && handVisual != null)
-                foreach (var c in handVisual.Colliders) if (c) Physics.IgnoreCollision(_heldCol, c, false);
-            g.OnReleased();
-            _held = null;
-            _heldCol = null;
-        }
-
-        SetHover(null);
-        _pendingGrab = null;
-        _releaseTimer = 0f;
-        _grabTimer = 0f;
-        _grabOffset = Vector3.zero;
-        _gripVel = Vector3.zero;
-        _hasLastGrip = false;
-    }
-
     Grabbable _held, _hover, _pendingGrab;
     Collider _heldCol;
     Vector3 _lastGrip, _gripVel, _grabOffset;
@@ -213,10 +192,9 @@ public class GraspController : MonoBehaviour
         SnapZone z = NearestZone(g.Body.position);
         if (z != null && z.active && Vector3.Distance(g.Body.position, z.Center) < z.radius)
         {
-            g.Body.useGravity = false;
             g.Body.velocity = Vector3.zero;
             g.Body.angularVelocity = Vector3.zero;
-            g.Body.position = z.SnapPosition;
+            g.transform.position = z.SnapPosition;
             g.transform.rotation = z.SnapRotation;
         }
         else

@@ -1,59 +1,53 @@
 # Python 手势识别服务
 
-该目录负责摄像头采集、MediaPipe 手部关键点识别、规则式手势识别和 WebSocket 数据广播。Unity 端不直接调用摄像头，而是通过 WebSocket 接收这里发出的数据。
+本目录负责摄像头采集、MediaPipe 手部关键点识别、手势事件识别和 WebSocket 数据发送。
+
+现在不再使用项目脚本启动。请先手动激活 Conda 环境，再运行 `main.py`。
 
 ## 安装依赖
 
 ```powershell
-python -m venv .venv
-.\.venv\Scripts\activate
+conda create -n huidongshou python=3.11 pip
+conda activate huidongshou
+cd D:\project_training\gesture-service
 pip install -r requirements.txt
-```
-
-也可以在工程根目录直接运行：
-
-```powershell
-.\scripts\setup_python.ps1
 ```
 
 ## 摄像头模式
 
 ```powershell
-python -m src.main --mode camera
-```
-
-或在工程根目录运行：
-
-```powershell
-.\scripts\run_camera.ps1
+conda activate huidongshou
+cd D:\project_training\gesture-service
+python main.py --mode camera --camera 0 --backend dshow --preview
 ```
 
 ## 回放模式
 
-没有摄像头、摄像头被占用，或者只想验证 Unity 接收逻辑时，可以使用回放模式：
-
 ```powershell
-python -m src.main --mode replay --replay samples/replay_sample.jsonl
+conda activate huidongshou
+cd D:\project_training\gesture-service
+python main.py --mode replay --replay samples\replay_sample.jsonl
 ```
 
-工程根目录快捷命令：
+## 文件作用
 
-```powershell
-.\scripts\run_replay.ps1
-```
+| 文件 | 作用 |
+|---|---|
+| `main.py` | 推荐入口，调用 `src.main.main()`。 |
+| `requirements.txt` | Python 依赖列表。 |
+| `src/main.py` | 服务主逻辑：摄像头/回放、WebSocket、识别调度。 |
+| `src/config.py` | 端口、帧率和识别阈值配置。 |
+| `src/hand_tracker.py` | MediaPipe Hands 封装。 |
+| `src/recognizer.py` | 规则式手势识别。 |
+| `src/schemas.py` | JSON 消息结构。 |
+| `src/websocket_hub.py` | WebSocket 广播。 |
+| `src/recorder.py` | JSONL 数据记录。 |
+| `src/replay.py` | JSONL 数据回放。 |
+| `samples/replay_sample.jsonl` | 回放示例。 |
 
 ## 输出端口
 
-| URL | Content |
+| 地址 | 内容 |
 |---|---|
-| `ws://localhost:8765` | 原始 21 点手部关键点 |
-| `ws://localhost:8766` | 高层手势事件，如抓取、旋转、点击 |
-
-## 后续扩展方向
-
-| 文件 | 建议扩展内容 |
-|---|---|
-| `src/hand_tracker.py` | 摄像头参数、左右手判断、关键点平滑 |
-| `src/recognizer.py` | 增加拧螺丝、按压、拿取、放置等手势规则 |
-| `src/recorder.py` | 保存训练过程中的手势数据 |
-| `src/replay.py` | 回放更多典型操作样例，方便课堂演示 |
+| `ws://localhost:8765` | 原始 21 点手部关键点。 |
+| `ws://localhost:8766` | 高层手势事件，如 grab、rotate、click。 |
