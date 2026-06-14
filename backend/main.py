@@ -448,6 +448,23 @@ def reassign_task(assignment_id: int, db: Session = Depends(get_db)):
     return {"success": True, "message": "任务已重新分配"}
 
 
+
+# =================================================================
+# 管理员操作：删除本公司学员
+# =================================================================
+
+@app.delete("/users/{user_id}")
+def delete_student(user_id: int, db: Session = Depends(get_db)):
+    """管理员删除本公司学员（同时清理其任务分配记录）"""
+    student = db.query(User).filter(User.id == user_id, User.role == "student").first()
+    if not student:
+        raise HTTPException(status_code=404, detail="学员不存在")
+
+    # 清理该学员的任务分配记录
+    db.query(TaskAssignment).filter(TaskAssignment.user_id == user_id).delete()
+    db.delete(student)
+    db.commit()
+    return {"success": True, "message": f"学员 {student.username} 已删除"}
 # =================================================================
 # Unity 启动器接口（旧版兼容）
 # =================================================================
