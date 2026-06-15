@@ -1266,6 +1266,35 @@ public class BreakerSwitchRuntime : MonoBehaviour
 
     private Coroutine animationCoroutine;
 
+    private void Awake()
+    {
+        if (station == null)
+        {
+            station = GetComponentInParent<BreakerShutdownStationRuntime>();
+        }
+
+        if (leverPivot == null)
+        {
+            leverPivot = transform;
+        }
+    }
+
+    private void OnMouseDown()
+    {
+        if (station == null)
+        {
+            station = GetComponentInParent<BreakerShutdownStationRuntime>();
+        }
+
+        if (station != null)
+        {
+            station.TryToggleBreaker(breakerNumber);
+            return;
+        }
+
+        SetOff();
+    }
+
     public void SetOff()
     {
         if (isOff) return;

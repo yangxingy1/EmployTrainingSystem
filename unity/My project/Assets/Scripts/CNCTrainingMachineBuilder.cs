@@ -709,6 +709,27 @@ public class CNCInteractablePart : MonoBehaviour
 {
     public CNCTrainingMachineRuntime station;
     public CNCInteractionType interactionType;
+
+    private void Awake()
+    {
+        if (station == null)
+        {
+            station = GetComponentInParent<CNCTrainingMachineRuntime>();
+        }
+    }
+
+    private void OnMouseDown()
+    {
+        if (station == null)
+        {
+            station = GetComponentInParent<CNCTrainingMachineRuntime>();
+        }
+
+        if (station != null)
+        {
+            station.HandleInteraction(interactionType);
+        }
+    }
 }
 
 public class CNCTrainingMachineRuntime : MonoBehaviour
