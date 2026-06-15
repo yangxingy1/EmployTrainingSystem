@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 # ============================================================
 # 慧动手 GestureTrainingSystem — 服务器部署启动脚本
 # 用法: bash deploy.sh [start|stop|restart|status]
@@ -53,7 +53,7 @@ case "${1:-start}" in
     start)
         init_root
         start_backend
-        echo "[OK] 部署完成: http://your-server:$BACKEND_PORT"
+        echo "[OK] 后端已部署，通过 Nginx 域名访问"
         ;;
     stop)
         stop_backend
