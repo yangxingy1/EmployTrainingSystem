@@ -1,5 +1,6 @@
 # JWT 认证模块: Token 生成与校验
 import os
+import hashlib
 
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, timezone
@@ -38,3 +39,8 @@ def verify_token(token: str):
         return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
     except JWTError:
         return None
+
+
+def hash_password(password: str) -> str:
+    """SHA256 哈希加密"""
+    return hashlib.sha256(password.encode()).hexdigest()

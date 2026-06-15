@@ -106,3 +106,4 @@ unity-client/Recordings/
 .env
 .env.*
 !.env.example
+deploy.sh
