@@ -1,14 +1,14 @@
 ﻿from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+import os
 
-from config_manager import bind_user, load_config
+from config_manager import bind_user, load_config, BASE_DIR as CONFIG_DIR
 from launcher_service import start_training, is_training
 from task_manager import save_task
 
 app = FastAPI()
 
-# CORS：允许前端页面跨域调用 launcher API
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -31,7 +31,6 @@ class BindRequest(BaseModel):
 
 @app.post("/bind")
 def bind(data: BindRequest):
-    """绑定学员身份到 launcher"""
     bind_user(data.student_id, data.username, data.token)
     return {"success": True, "message": "绑定成功"}
 
@@ -43,10 +42,10 @@ def status():
 
 @app.post("/start")
 def start(data: StartTrainingRequest):
-    """启动训练 exe"""
     config = load_config()
     save_task(data.assignment_id, data.task_id)
-    success = start_training(config["trainer_exe"])
+    exe_abs = os.path.join(CONFIG_DIR, config["trainer_exe"])
+    success = start_training(exe_abs)
     return {"success": success}
 
 

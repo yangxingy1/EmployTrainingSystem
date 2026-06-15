@@ -1,34 +1,30 @@
-import json
+﻿import json
+import os
+import sys
 
-TASK_FILE = "current_task.json"
+if getattr(sys, "frozen", False):
+    BASE_DIR = os.path.dirname(sys.executable)
+else:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+TASK_FILE = os.path.join(BASE_DIR, "current_task.json")
 
 
 def save_task(assignment_id, task_id, status="running"):
-
     with open(TASK_FILE, "w", encoding="utf-8") as f:
-
         json.dump(
-            {
-                "assignment_id": assignment_id,
-                "task_id": task_id,
-                "status": status
-            },
+            {"assignment_id": assignment_id, "task_id": task_id, "status": status},
             f,
             indent=4
         )
 
 
 def load_task():
-    with open(
-            TASK_FILE,
-            "r",
-            encoding="utf-8"
-    ) as f:
+    with open(TASK_FILE, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
 def clear_task():
-
     with open(TASK_FILE, "w", encoding="utf-8") as f:
         json.dump({}, f)
 

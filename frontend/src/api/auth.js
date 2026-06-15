@@ -1,14 +1,23 @@
-﻿// API 封装 —— 认证相关
-import axios from 'axios'
+// API 封装 —— 认证相关请求
+import axios from "axios";
 
-const API = 'http://127.0.0.1:8000'
+const API = "http://127.0.0.1:8000";  // 后端地址，部署时需修改
 
-// 登录：返回 token + 用户信息
-export function login(username, password) {
-  return axios.post(`${API}/login`, { username, password, role: '' })
+// 登录（需传 company_id 用于公司校验）
+export function login(username, password, companyId) {
+  return axios.post(`${API}/login`, {
+    username,
+    password,
+    company_id: companyId
+  });
 }
 
-// 注册新用户
-export function register(username, password, role) {
-  return axios.post(`${API}/register`, { username, password, role })
+// 注册学员（需传 company_id 绑定所属公司）
+export function register(username, password, companyId) {
+  return axios.post(`${API}/register`, {
+    username,
+    password,
+    role: "student",
+    company_id: companyId
+  });
 }
