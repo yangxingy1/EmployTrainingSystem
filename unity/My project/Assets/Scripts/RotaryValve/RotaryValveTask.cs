@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 using System.Collections.Generic;
 
@@ -14,6 +15,9 @@ public class RotaryValveTask : MonoBehaviour
     Renderer _flowLamp;
     float _completedAt = -999f;
     bool _wasAtTarget;
+    bool _returnScheduled;
+    string _instruction = "握拳后拧动阀门，将红色手轮旋转到目标角度。";
+    string _successMessage = "成功完成训练";
 
     readonly Color _pipeYellow = new Color(0.94f, 0.62f, 0.05f);
     readonly Color _wheelRed = new Color(0.84f, 0.08f, 0.05f);
@@ -24,6 +28,7 @@ public class RotaryValveTask : MonoBehaviour
 
     void Start()
     {
+        LoadSessionPrompt();
         BuildValveScene();
         BuildCursor();
         BuildText();
@@ -39,7 +44,10 @@ public class RotaryValveTask : MonoBehaviour
         UpdateStatus();
 
         if (valve != null && valve.IsAtTarget && !_wasAtTarget)
+        {
             _completedAt = Time.time;
+            ScheduleReturnAfterSuccess();
+        }
         if (valve != null) _wasAtTarget = valve.IsAtTarget;
     }
 
@@ -208,7 +216,7 @@ public class RotaryValveTask : MonoBehaviour
         var titleGo = new GameObject("RotaryValveTitle");
         titleGo.transform.position = new Vector3(0f, 2.05f, -0.24f);
         var title = titleGo.AddComponent<TextMesh>();
-        title.text = "Rotary valve training";
+        title.text = "旋转阀门训练";
         title.anchor = TextAnchor.MiddleCenter;
         title.alignment = TextAlignment.Center;
         title.fontSize = 58;
@@ -266,19 +274,47 @@ public class RotaryValveTask : MonoBehaviour
         if (_status == null || hand == null || valve == null) return;
 
         string phase;
-        if (!hand.IsActive) phase = "Waiting for hand tracking";
-        else if (valve.IsGrabbed) phase = "Holding wheel: rotate your wrist";
-        else if (valve.IsHovering) phase = "Pinch to grip the red wheel";
-        else phase = "Move cursor to the red handwheel";
+        if (!hand.IsActive) phase = "等待手势识别服务连接";
+        else if (valve.IsGrabbed) phase = "已握住手轮：持续旋转手腕";
+        else if (valve.IsHovering) phase = "握拳抓住红色手轮";
+        else phase = "移动手部光标到红色手轮";
 
-        string done = Time.time - _completedAt < 1.2f ? "\nTarget reached" : "";
+        string done = Time.time - _completedAt < 1.8f ? "\n" + _successMessage : "";
         _status.text =
-            "Task: rotate valve to 180 deg" +
-            "\nAction: " + phase +
-            "\nGrip: " + valve.GripSignal.ToString("0.00") + " / " + valve.grabThreshold.ToString("0.00") +
-            "\nValve: " + valve.CurrentAngle.ToString("0") + " deg" +
-            "\nTarget: " + valve.targetAngle.ToString("0") + " +/- " + valve.targetTolerance.ToString("0") +
+            "目标：" + _instruction +
+            "\n动作：" + phase +
+            "\n握拳强度：" + valve.GripSignal.ToString("0.00") + " / " + valve.grabThreshold.ToString("0.00") +
+            "\n阀门角度：" + valve.CurrentAngle.ToString("0") + "°" +
+            "\n目标角度：" + valve.targetAngle.ToString("0") + "° ± " + valve.targetTolerance.ToString("0") + "°" +
             done;
+    }
+
+    void LoadSessionPrompt()
+    {
+        var session = SessionManager.Instance;
+        if (session == null) return;
+
+        if (!string.IsNullOrEmpty(session.selectedInstruction))
+            _instruction = session.selectedInstruction;
+        if (!string.IsNullOrEmpty(session.selectedSuccessMessage))
+            _successMessage = session.selectedSuccessMessage;
+    }
+
+    void ScheduleReturnAfterSuccess()
+    {
+        if (_returnScheduled) return;
+
+        var session = SessionManager.Instance;
+        if (session == null || !session.hasHubReturnPosition) return;
+
+        _returnScheduled = true;
+        StartCoroutine(ReturnAfterSuccessRoutine());
+    }
+
+    IEnumerator ReturnAfterSuccessRoutine()
+    {
+        yield return new WaitForSeconds(1.5f);
+        SceneFlow.EnsureExists().ReturnToHub();
     }
 
     GameObject CreateBox(Transform parent, string name, Vector3 position, Vector3 scale, Color color)

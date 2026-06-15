@@ -392,6 +392,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1260736276}
   - component: {fileID: 1260736275}
+  - component: {fileID: 1260736277}
   m_Layer: 0
   m_Name: FactoryController
   m_TagString: Untagged
@@ -444,6 +445,23 @@ MonoBehaviour:
   createInteriorFloorCollider: 1
   createGround: 1
   groundSize: 1200
+--- !u!114 &1260736277
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1260736274}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1f8a4a5ffb334c928fdca82a62392d15, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  targetObjectName: Image Overlay - 9g2pd_142
+  targetNameContains: 9g2pd_142
+  freshTrainSceneName: freshTrain
+  interactionDistance: 28
+  interactKey: 101
 --- !u!4 &1260736276
 Transform:
   m_ObjectHideFlags: 0

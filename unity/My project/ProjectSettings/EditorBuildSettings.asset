@@ -12,6 +12,12 @@ EditorBuildSettings:
     path: Assets/HubWorld/Scenes/HubWorld.unity
     guid: 5ae6727d9b5133e4f01bc495de567890
   - enabled: 1
+    path: Assets/HubWorld/Scenes/entry.unity
+    guid: e67d02ba92a218548be243d4c41362c9
+  - enabled: 1
+    path: Assets/HubWorld/Scenes/freshTrain.unity
+    guid: 57e42b829dff4e748b87ffad79628c30
+  - enabled: 1
     path: Assets/Scenes/RotaryValve/RotaryValve.unity
     guid: d3ea4c5d6e7f8091a2b3c4d5e6f70819
   - enabled: 1
