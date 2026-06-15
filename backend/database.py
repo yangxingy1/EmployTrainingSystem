@@ -4,7 +4,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 BASE_DIR = Path(__file__).resolve().parent
-DATABASE_PATH = BASE_DIR / "gesture.db"
+DATA_DIR = BASE_DIR / 'data'
+DATA_DIR.mkdir(exist_ok=True)
+DATABASE_PATH = DATA_DIR / "gesture.db"
 DATABASE_URL = f"sqlite:///{DATABASE_PATH}"
 
 # SQLite 需要 check_same_thread=False 以支持多线程

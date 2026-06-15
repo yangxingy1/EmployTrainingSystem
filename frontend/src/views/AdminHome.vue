@@ -150,6 +150,7 @@ import { useRouter } from "vue-router";
 import { getUsers, getAssignments } from "../api/task";
 import axios from "axios";
 import AssignTraining from "../components/admin/AssignTraining.vue";
+import { api, LAUNCHER_URL } from "../config";
 
 const router = useRouter();
 const students = ref([]);
@@ -198,7 +199,7 @@ function toggleGlobalTask(taskId) {
 
 async function openTaskLibrary() {
   selectedGlobalTasks.value = [];
-  try { const r = await axios.get("http://127.0.0.1:8000/task/global/list"); globalTasks.value = r.data || []; } catch (e) { alert("加载总库失败"); }
+  try { const r = await axios.get(api("/task/global/list")); globalTasks.value = r.data || []; } catch (e) { alert("加载总库失败"); }
   showTaskLibrary.value = true;
 }
 
@@ -207,7 +208,7 @@ async function addSelectedTasks() {
   addingTasks.value = true;
   let ok = 0;
   for (const tid of selectedGlobalTasks.value) {
-    try { await axios.post(`http://127.0.0.1:8000/task/company/${adminCompanyId}/add`, { task_id: tid }); ok++; } catch (e) {}
+    try { await axios.post(api(`/task/company/${adminCompanyId}/add`), { task_id: tid }); ok++; } catch (e) {}
   }
   addingTasks.value = false;
   showTaskLibrary.value = false;
@@ -236,7 +237,7 @@ async function doRegister() {
   registering.value = true;
   regMsg.value = "";
   try {
-    await axios.post("http://127.0.0.1:8000/register", {
+    await axios.post(api("/register"), {
       username: regForm.username.trim(),
       password: regForm.password,
       role: "student",
@@ -255,7 +256,7 @@ async function doRegister() {
 async function deleteStudent(student) {
   if (!confirm(`确定移除学员"${student.username}"吗？其训练记录将一并删除。`)) return;
   try {
-    await axios.delete(`http://127.0.0.1:8000/users/${student.id}`);
+    await axios.delete(api(`/users/${student.id}`));
     await loadDashboard();
   } catch (e) { alert(e.response?.data?.detail || "删除失败"); }
 }
@@ -268,7 +269,7 @@ async function loadDashboard() {
     students.value = (usersRes.data || []).filter(u => u.role === "student" && u.company_id === adminCompanyId);
     assignments.value = assignmentsRes.data || [];
     if (adminCompanyId) {
-      const r = await axios.get(`http://127.0.0.1:8000/task/company/${adminCompanyId}`);
+      const r = await axios.get(api(`/task/company/${adminCompanyId}`));
       companyTasks.value = r.data || [];
     }
   } catch (e) { dashboardError.value = "数据加载失败"; }

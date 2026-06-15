@@ -1,4 +1,4 @@
-﻿import json
+import json
 import os
 import sys
 
@@ -10,8 +10,11 @@ else:
 
 CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
 
+# server_url 优先从环境变量读取，否则用默认值（部署时修改环境变量或 config.json）
+DEFAULT_SERVER_URL = os.environ.get("GTS_SERVER_URL", "http://127.0.0.1:8000")
+
 DEFAULT_CONFIG = {
-    "server_url": "http://127.0.0.1:8000",
+    "server_url": DEFAULT_SERVER_URL,
     "student_id": 0,
     "username": "",
     "token": "",

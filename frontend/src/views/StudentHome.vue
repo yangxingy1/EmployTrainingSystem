@@ -3,6 +3,7 @@
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { getMyTasks } from "../api/task";
+import { api, LAUNCHER_URL } from "../config";
 
 const router = useRouter();
 const tasks = ref([]);           // 学员分配到的训练任务列表
@@ -57,7 +58,7 @@ async function startTraining(assignmentId, taskId) {
   if (!assignmentId) return;
   try {
     // 第一步: 向 launcher 绑定学员身份
-    await fetch("http://127.0.0.1:9000/bind", {
+    await fetch(`${LAUNCHER_URL}/bind`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -68,7 +69,7 @@ async function startTraining(assignmentId, taskId) {
     });
 
     // 第二步: 通知 launcher 启动 Unity 训练程序
-    const res = await fetch("http://127.0.0.1:9000/start", {
+    const res = await fetch(`${LAUNCHER_URL}/start`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ assignment_id: assignmentId, task_id: taskId })
@@ -82,7 +83,7 @@ async function startTraining(assignmentId, taskId) {
       alert("启动失败，请确认 launcher 已运行");
     }
   } catch (e) {
-    alert("无法连接 launcher (127.0.0.1:9000)，请先启动 launcher.py");
+    alert(`无法连接 launcher (${LAUNCHER_URL})，请先启动 launcher.py`);
   }
 }
 

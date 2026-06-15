@@ -161,6 +161,7 @@
 import axios from "axios";
 import { ref, computed, watch } from "vue";
 import { assignTask } from "../../api/task";
+import { api, LAUNCHER_URL } from "../../config";
 
 const emit = defineEmits(["assigned"]);
 
@@ -255,7 +256,7 @@ function statusLabel(status) {
 async function reassignTask(assignmentId) {
   if (!confirm("确定重新分配此任务？学员可再次训练。")) return;
   try {
-    await axios.post(`http://127.0.0.1:8000/task/reassign/${assignmentId}`);
+    await axios.post(api(`/task/reassign/${assignmentId}`));
     notice.value = "任务已重新分配";
     noticeType.value = "success";
     emit("assigned");   // 通知父组件刷新数据

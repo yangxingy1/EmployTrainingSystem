@@ -70,6 +70,7 @@
 import { ref, onMounted } from "vue";
 import axios from "axios";
 import { useRouter } from "vue-router";
+import { api, LAUNCHER_URL } from "../config";
 
 const isRegister = ref(false);
 const role = ref("student");
@@ -84,7 +85,7 @@ const router = useRouter();
 
 // 加载公司列表供下拉选择
 async function loadCompanies() {
-  try { const res = await axios.get("http://127.0.0.1:8000/companies"); companies.value = res.data; } catch (e) {}
+  try { const res = await axios.get(api("/companies")); companies.value = res.data; } catch (e) {}
 }
 
 function switchToRegister() { clearForm(); isRegister.value = true; role.value = "student"; }
@@ -100,12 +101,12 @@ async function handleSubmit() {
   if (!companyId.value) { errorMsg.value = "请选择所属公司"; return; }
   try {
     if (isRegister.value) {
-      await axios.post("http://127.0.0.1:8000/register", { username: username.value, password: password.value, role: "student", company_id: companyId.value });
+      await axios.post(api("/register"), { username: username.value, password: password.value, role: "student", company_id: companyId.value });
       successMsg.value = "注册成功！请登录。";
       switchToLogin();
       return;
     }
-    const res = await axios.post("http://127.0.0.1:8000/login", { username: username.value, password: password.value, company_id: companyId.value });
+    const res = await axios.post(api("/login"), { username: username.value, password: password.value, company_id: companyId.value });
     if (res.data.success) {
       localStorage.setItem("token", res.data.token); localStorage.setItem("username", res.data.username);
       localStorage.setItem("role", res.data.role); localStorage.setItem("user_id", res.data.user_id);

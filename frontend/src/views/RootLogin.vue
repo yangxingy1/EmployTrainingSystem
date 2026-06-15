@@ -70,6 +70,7 @@
 import { ref } from "vue";
 import axios from "axios";
 import { useRouter } from "vue-router";
+import { api, LAUNCHER_URL } from "../config";
 
 const router = useRouter();
 
@@ -82,7 +83,7 @@ async function login() {
   errorMsg.value = "";
   try {
     const res = await axios.post(
-      "http://127.0.0.1:8000/root/login",
+      api("/root/login"),
       {
         username: username.value,
         password: password.value

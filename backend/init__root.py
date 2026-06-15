@@ -1,12 +1,16 @@
 # Root 账号初始化脚本 —— 首次运行时自动创建 root 平台管理员
+import os
+from dotenv import load_dotenv
 from sqlalchemy.orm import Session
 from backend.database import SessionLocal
 from backend.models.user import User
 import hashlib
 
+load_dotenv()
+
 # root 默认凭证 —— 生产环境应修改
-ROOT_USERNAME = "root"
-ROOT_PASSWORD = "123456"
+ROOT_USERNAME = os.getenv("ROOT_USERNAME")
+ROOT_PASSWORD = os.getenv("ROOT_PASSWORD")
 
 
 def hash_password(password: str):

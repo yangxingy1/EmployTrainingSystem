@@ -1,8 +1,18 @@
 # JWT 认证模块: Token 生成与校验
+import os
+
+from dotenv import load_dotenv
 from datetime import datetime, timedelta, timezone
 from jose import jwt, JWTError
 
-SECRET_KEY = "gesture_training_secret"
+load_dotenv()
+
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    raise ValueError(
+        "SECRET_KEY 未设置"
+    )
+
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = 24
 

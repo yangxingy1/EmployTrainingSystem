@@ -1,4 +1,4 @@
-"""
+﻿"""
 慧动手 —— 手势训练系统后端
 FastAPI + SQLite + JWT 认证
 支持三层角色：root（平台级） / admin（公司级） / student（学员）
@@ -9,6 +9,10 @@ from sqlalchemy.orm import Session
 import hashlib
 from pydantic import BaseModel
 from datetime import datetime
+
+import os
+from dotenv import load_dotenv
+load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env'))
 
 from backend.database import Base, engine, get_db
 from backend.models.user import User
@@ -55,7 +59,7 @@ app.include_router(task.router)
 # CORS 跨域 —— 开发阶段允许所有来源
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=os.getenv("CORS_ORIGINS", "*").split(","),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
