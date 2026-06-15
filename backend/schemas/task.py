@@ -1,4 +1,5 @@
-﻿from typing import Optional
+# 训练任务创建请求体
+from typing import Optional
 from pydantic import BaseModel, Field
 
 

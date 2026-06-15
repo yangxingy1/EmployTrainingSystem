@@ -1,30 +1,32 @@
-﻿<script setup>
+<script setup>
+// 学员训练中心 —— 查看任务、启动 Unity 训练
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { getMyTasks } from "../api/task";
 
 const router = useRouter();
-const tasks = ref([]);
+const tasks = ref([]);           // 学员分配到的训练任务列表
 const loading = ref(false);
 const errorMsg = ref("");
 const username = localStorage.getItem("username") || "学员";
 const userId = Number(localStorage.getItem("user_id"));
 
-const doneCount = computed(() => {
-  return tasks.value.filter((task) => normalizeStatus(task.status) === "done").length;
+// 计算属性: 各状态任务数量
+const doneCount = computed(() => tasks.value.filter((task) => normalizeStatus(task.status) === "done").length);
+const runningCount = computed(() => tasks.value.filter((task) => normalizeStatus(task.status) === "running").length);
+const pendingCount = computed(() => tasks.value.filter((task) => normalizeStatus(task.status) === "pending").length);
+const completionRate = computed(() => {
+  return tasks.value.length ? Math.round((doneCount.value / tasks.value.length) * 100) : 0;
 });
 
-const pendingCount = computed(() => {
-  return tasks.value.filter((task) => normalizeStatus(task.status) === "pending").length;
-});
-
-// 统一状态值
+// 统一状态值: 兼容旧数据中的中文状态
 function normalizeStatus(status) {
   if (["done", "completed", "已完成"].includes(status)) return "done";
   if (["running", "进行中"].includes(status)) return "running";
   return "pending";
 }
 
+// 状态中文显示文字
 function statusText(status) {
   const normalized = normalizeStatus(status);
   if (normalized === "done") return "已完成";
@@ -32,9 +34,12 @@ function statusText(status) {
   return "未开始";
 }
 
-// 加载当前学员的训练任务
+// 从后端加载当前学员的任务列表
 async function loadTasks() {
-  if (!userId) { router.replace("/login"); return; }
+  if (!userId) {
+    router.replace("/login");
+    return;
+  }
   loading.value = true;
   errorMsg.value = "";
   try {
@@ -47,11 +52,11 @@ async function loadTasks() {
   }
 }
 
-// 点击"开始训练"：绑定 launcher + 启动训练 exe
+// 启动训练: 先 bind launcher 绑定学员信息, 再 start 启动 Unity exe
 async function startTraining(assignmentId, taskId) {
   if (!assignmentId) return;
   try {
-    // 1. 绑定学员身份
+    // 第一步: 向 launcher 绑定学员身份
     await fetch("http://127.0.0.1:9000/bind", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -62,7 +67,7 @@ async function startTraining(assignmentId, taskId) {
       })
     });
 
-    // 2. 启动训练
+    // 第二步: 通知 launcher 启动 Unity 训练程序
     const res = await fetch("http://127.0.0.1:9000/start", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -72,7 +77,7 @@ async function startTraining(assignmentId, taskId) {
     const data = await res.json();
     if (data.success) {
       alert("训练已启动！");
-      loadTasks();
+      loadTasks();   // 刷新任务状态
     } else {
       alert("启动失败，请确认 launcher 已运行");
     }
@@ -81,7 +86,7 @@ async function startTraining(assignmentId, taskId) {
   }
 }
 
-// 退出登录
+// 退出登录 —— 清除 localStorage 并跳转登录页
 function logout() {
   localStorage.removeItem("token");
   localStorage.removeItem("username");
@@ -90,7 +95,7 @@ function logout() {
   router.replace("/login");
 }
 
-// 页面加载：获取任务列表
+// 页面挂载时立即加载训练任务
 onMounted(() => {
   loadTasks();
 });
@@ -99,16 +104,41 @@ onMounted(() => {
 <template>
   <div class="student-shell">
     <header class="student-header">
-      <div>
-        <p class="eyebrow">Training Center</p>
-        <h1>我的训练任务</h1>
-        <span>你好，<strong class="role-text">学员</strong> {{ username }}，请按照分配内容完成手势训练。</span>
+      <div class="brand-area">
+        <div class="brand-mark">慧</div>
+        <div>
+          <strong>慧动手</strong>
+          <span>学员训练中心</span>
+        </div>
       </div>
 
-      <button class="logout-btn" @click="logout">退出登录</button>
+      <div class="user-area">
+        <div>
+          <span>当前学员</span>
+          <strong>{{ username }}</strong>
+        </div>
+        <button class="ghost-btn" @click="loadTasks">刷新</button>
+        <button class="logout-btn" @click="logout">退出</button>
+      </div>
     </header>
 
     <main class="student-main">
+      <section class="overview">
+        <div>
+          <p class="eyebrow">Student Workspace</p>
+          <h1>我的训练任务</h1>
+          <span>按管理员分配的内容完成训练，启动前请确认本地 launcher 已运行。</span>
+        </div>
+
+        <div class="completion-card">
+          <span>完成率</span>
+          <strong>{{ completionRate }}%</strong>
+          <div class="progress-line">
+            <span :style="{ width: `${completionRate}%` }"></span>
+          </div>
+        </div>
+      </section>
+
       <section class="stat-row">
         <div>
           <span>任务总数</span>
@@ -119,38 +149,52 @@ onMounted(() => {
           <strong>{{ pendingCount }}</strong>
         </div>
         <div>
+          <span>进行中</span>
+          <strong>{{ runningCount }}</strong>
+        </div>
+        <div>
           <span>已完成</span>
           <strong>{{ doneCount }}</strong>
         </div>
       </section>
 
-      <div v-if="errorMsg" class="error-box">
-        {{ errorMsg }}
-      </div>
+      <div v-if="errorMsg" class="error-box">{{ errorMsg }}</div>
 
-      <section class="task-grid">
-        <article v-for="task in tasks" :key="task.assignment_id || task.id" class="task-card">
-          <div class="task-card-head">
-            <span :class="['status-pill', normalizeStatus(task.status)]">
-              {{ statusText(task.status) }}
-            </span>
-            <small>#{{ task.assignment_id || task.id }}</small>
+      <section class="task-panel">
+        <div class="panel-heading">
+          <div>
+            <h2>训练列表</h2>
+            <p>{{ loading ? "正在加载任务..." : "选择未开始任务进入 Unity 训练。" }}</p>
           </div>
+        </div>
 
-          <h2>{{ task.title }}</h2>
-          <p>{{ task.description || "暂无训练说明" }}</p>
+        <div class="task-list">
+          <article v-for="task in tasks" :key="task.assignment_id || task.id" class="task-row">
+            <div class="task-title">
+              <span :class="['status-pill', normalizeStatus(task.status)]">
+                {{ statusText(task.status) }}
+              </span>
+              <div>
+                <h3>{{ task.title }}</h3>
+                <p>{{ task.description || "暂无训练说明" }}</p>
+              </div>
+            </div>
 
-          <button
-            class="start-btn"
-            @click="startTraining(task.assignment_id, task.id)"
-            :disabled="normalizeStatus(task.status) !== 'pending'"
-          >
-            {{ normalizeStatus(task.status) === 'running' ? '训练中...' : normalizeStatus(task.status) === 'done' ? '已完成' : '开始训练' }}
-          </button>
-        </article>
+            <div class="task-actions">
+              <small>#{{ task.assignment_id || task.id }}</small>
+              <button
+                class="start-btn"
+                @click="startTraining(task.assignment_id, task.id)"
+                :disabled="normalizeStatus(task.status) !== 'pending'"
+              >
+                {{ normalizeStatus(task.status) === "running" ? "训练中" : normalizeStatus(task.status) === "done" ? "已完成" : "开始训练" }}
+              </button>
+            </div>
+          </article>
 
-        <div v-if="!tasks.length && !loading" class="empty-box">
-          暂无训练任务，请等待管理员分配。
+          <div v-if="!tasks.length && !loading" class="empty-box">
+            暂无训练任务，请等待管理员分配。
+          </div>
         </div>
       </section>
     </main>
@@ -158,217 +202,167 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.student-shell {
-  min-height: 100vh;
-  background:
-    linear-gradient(180deg, rgba(47, 111, 115, 0.06), transparent 240px),
-    var(--page-bg);
-}
+/* ---- 学员训练中心 ---- */
+.student-shell { min-height: 100vh; background: var(--page-bg); }
 
+/* ---- 顶栏 ---- */
 .student-header {
-  min-height: 92px;
-  padding: 24px 34px;
-  color: white;
-  background: linear-gradient(135deg, #1a3a4a, #2c4f6e);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
+  gap: 16px;
+  padding: 18px clamp(18px, 4vw, 36px);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: 0 1px 3px rgba(16,24,32,0.06);
 }
 
-.eyebrow {
-  color: #ffd9bf;
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0;
+.student-header .brand-area { display: flex; align-items: center; gap: 12px; }
+
+.student-header .brand-mark {
+  width: 38px; height: 38px;
+  display: grid; place-items: center;
+  border-radius: var(--radius-lg);
+  color: #0d3636;
+  background: #dff5f1;
+  font-size: 20px; font-weight: 900;
 }
 
-.student-header h1 {
-  margin: 4px 0 8px;
-  color: white;
-  font-size: 28px;
-}
+.student-header strong { display: block; color: var(--heading); font-size: 17px; }
+.student-header .brand-area span { display: block; color: var(--text-muted); font-size: 12px; }
 
-.student-header span {
-  color: rgba(255, 255, 255, 0.76);
-}
-
-.student-header .role-text {
-  color: #ffd9bf;
-  font-size: 17px;
-}
-
-.logout-btn,
-.start-btn {
-  height: 40px;
-  border-radius: var(--radius-sm);
-  padding: 0 18px;
-  font-weight: 800;
-  cursor: pointer;
+/* ---- 按钮 ---- */
+.ghost-btn, .logout-btn, .start-btn {
+  height: 38px; padding: 0 16px;
+  border-radius: var(--radius);
+  font-weight: 700;
   transition: all var(--transition);
 }
 
-.logout-btn {
-  color: #263b4a;
-  background: white;
+.ghost-btn { color: var(--primary-strong); background: var(--primary-soft); }
+.ghost-btn:hover { color: #ffffff; background: var(--primary); }
+
+.logout-btn { color: var(--text); background: var(--surface); border: 1px solid var(--border); }
+.logout-btn:hover { border-color: var(--danger); color: var(--danger); }
+
+.start-btn { min-width: 102px; color: #ffffff; background: var(--primary); }
+.start-btn:hover:not(:disabled) { background: var(--primary-strong); box-shadow: 0 6px 18px rgba(20,112,111,0.24); }
+.start-btn:disabled { opacity: 0.45; }
+
+.ghost-btn:hover, .logout-btn:hover, .start-btn:hover:not(:disabled) { transform: translateY(-1px); }
+
+/* ---- 主内容 ---- */
+.student-main { max-width: 1180px; margin: 0 auto; padding: 28px clamp(18px, 4vw, 36px) 42px; }
+
+/* ---- 概览 ---- */
+.overview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 18px;
+  align-items: stretch;
+  margin-bottom: 18px;
 }
 
-.logout-btn:hover {
-  background: #f0f4f8;
+.overview > div:first-child,
+.completion-card,
+.stat-row div,
+.task-panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
 
-.start-btn {
-  width: 100%;
-  margin-top: 18px;
-  color: #e8f5f3;
-  background: #1a5c60;
-  box-shadow: 0 6px 16px rgba(26, 92, 96, 0.22);
-}
+.overview > div:first-child { padding: 24px; }
 
-.start-btn:hover:not(:disabled) {
-  background: #14484b;
-  box-shadow: 0 10px 24px rgba(26, 92, 96, 0.35);
-}
+.eyebrow { color: var(--accent); font-size: 12px; font-weight: 900; text-transform: uppercase; }
+.overview h1 { margin: 8px 0 8px; font-size: 32px; }
+.overview > div:first-child > span { color: var(--text-muted); }
 
-.start-btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-  box-shadow: none;
-}
+.completion-card { padding: 22px; }
+.completion-card > span { display: block; color: var(--text-muted); }
+.completion-card strong { display: block; margin: 10px 0 14px; color: var(--heading); font-size: 38px; line-height: 1; }
 
-.student-main {
-  max-width: 1160px;
-  margin: 0 auto;
-  padding: 28px;
-}
+.progress-line { height: 9px; border-radius: 999px; overflow: hidden; background: #e0e8ec; }
+.progress-line span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--primary), var(--accent)); transition: width 0.4s ease; }
 
+/* ---- 统计行 ---- */
 .stat-row {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-  margin-bottom: 20px;
-}
-
-.stat-row div,
-.task-card,
-.empty-box,
-.error-box {
-  border-radius: var(--radius);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-sm);
-  transition: all var(--transition);
-}
-
-.stat-row div {
-  padding: 22px;
-}
-
-.stat-row div:hover {
-  box-shadow: var(--shadow);
-  transform: translateY(-2px);
-}
-
-.stat-row span,
-.task-card p,
-.task-card small {
-  color: var(--text-muted);
-}
-
-.stat-row strong {
-  display: block;
-  margin-top: 10px;
-  color: var(--heading);
-  font-size: 32px;
-}
-
-.error-box {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
   margin-bottom: 18px;
-  padding: 14px 18px;
-  color: var(--danger);
-  background: #fff1ef;
 }
 
-.task-grid {
+.stat-row div { padding: 18px; border-left: 4px solid var(--primary); }
+.stat-row div:nth-child(2) { border-left-color: var(--warning); }
+.stat-row div:nth-child(4) { border-left-color: var(--success); }
+.stat-row span { color: var(--text-muted); }
+.stat-row strong { display: block; margin-top: 8px; color: var(--heading); font-size: 30px; }
+
+/* ---- 错误提示 ---- */
+.error-box {
+  margin-bottom: 16px; padding: 12px 14px;
+  color: var(--danger); background: var(--danger-soft);
+  border: 1px solid #ffd1cc; border-radius: var(--radius);
+  font-weight: 700;
+}
+
+/* ---- 任务面板 ---- */
+.task-panel { padding: 20px; }
+.panel-heading { margin-bottom: 14px; }
+.panel-heading h2 { margin-bottom: 4px; font-size: 22px; }
+.panel-heading p { color: var(--text-muted); }
+
+.task-list { display: grid; gap: 10px; }
+
+.task-row {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px; align-items: center;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-soft);
+  transition: border-color var(--transition);
 }
 
-.task-card {
-  padding: 22px;
-}
+.task-row:hover { border-color: var(--primary-soft); }
 
-.task-card:hover {
-  box-shadow: var(--shadow);
-  transform: translateY(-3px);
-}
+.task-title { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 14px; align-items: start; }
+.task-title h3 { margin-bottom: 6px; font-size: 18px; }
+.task-title p { color: var(--text-muted); line-height: 1.65; }
 
-.task-card-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
+.task-actions { display: flex; align-items: center; gap: 12px; }
+.task-actions small { color: var(--text-muted); }
 
-.task-card h2 {
-  margin-bottom: 10px;
-  font-size: 21px;
-}
-
-.task-card p {
-  min-height: 48px;
-  line-height: 1.7;
-}
-
+/* ---- 状态标签 ---- */
 .status-pill {
-  display: inline-flex;
-  min-height: 28px;
-  align-items: center;
-  padding: 4px 12px;
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 28px; padding: 4px 12px;
   border-radius: var(--radius-full);
-  font-size: 13px;
-  font-weight: 800;
+  font-size: 13px; font-weight: 800; white-space: nowrap;
 }
 
-.status-pill.pending {
-  color: var(--warning);
-  background: #fff7e6;
-}
-
-.status-pill.running {
-  color: var(--primary-strong);
-  background: #e9f4f3;
-}
-
-.status-pill.done {
-  color: var(--success);
-  background: #e8f6ef;
-}
+.status-pill.pending { color: var(--warning); background: var(--warning-soft); }
+.status-pill.running { color: var(--primary-strong); background: var(--primary-soft); }
+.status-pill.done { color: var(--success); background: var(--success-soft); }
 
 .empty-box {
-  grid-column: 1 / -1;
-  min-height: 180px;
-  display: grid;
-  place-items: center;
+  min-height: 160px; display: grid; place-items: center;
   color: var(--text-muted);
-  font-size: 16px;
+  border: 1px dashed var(--border); border-radius: var(--radius-lg);
+  background: var(--surface-soft);
 }
 
-@media (max-width: 720px) {
-  .student-header,
-  .stat-row {
-    grid-template-columns: 1fr;
-  }
-
-  .student-header {
-    flex-direction: column;
-    align-items: flex-start;
-    padding: 20px;
-  }
-
-  .student-main {
-    padding: 18px;
-  }
+/* ---- 响应式 ---- */
+@media (max-width: 860px) {
+  .student-header, .user-area { align-items: stretch; flex-direction: column; }
+  .user-area div { text-align: left; }
+  .overview, .stat-row, .task-row { grid-template-columns: 1fr; }
+}
+@media (max-width: 620px) {
+  .task-title { grid-template-columns: 1fr; }
+  .task-actions { align-items: stretch; flex-direction: column; }
 }
 </style>
