@@ -4,14 +4,6 @@ import argparse
 import asyncio
 from pathlib import Path
 
-from .config import ServiceConfig
-from .hand_tracker import HandTracker
-from .recognizer import RuleBasedRecognizer
-from .recorder import JsonlRecorder
-from .replay import read_replay
-from .schemas import raw_hand_message
-from .websocket_hub import WebSocketHub
-
 
 def open_camera(cv2, camera_index: int, backend_name: str, width: int, height: int):
     backend_map = {
@@ -70,6 +62,12 @@ def draw_preview(frame, present, points, hand, events) -> None:
 
 async def run_camera(args) -> None:
     import cv2
+    from .config import ServiceConfig
+    from .hand_tracker import HandTracker
+    from .recognizer import RuleBasedRecognizer
+    from .recorder import JsonlRecorder
+    from .schemas import raw_hand_message
+    from .websocket_hub import WebSocketHub
 
     config = ServiceConfig(camera_index=args.camera)
     raw_hub = WebSocketHub(config.raw_host, config.raw_port, "raw-hand")
@@ -128,6 +126,10 @@ async def run_camera(args) -> None:
 
 
 async def run_replay(args) -> None:
+    from .config import ServiceConfig
+    from .replay import read_replay
+    from .websocket_hub import WebSocketHub
+
     config = ServiceConfig()
     raw_hub = WebSocketHub(config.raw_host, config.raw_port, "raw-hand")
     event_hub = WebSocketHub(config.event_host, config.event_port, "gesture-event")
