@@ -1,6 +1,102 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem;
+#endif
+
+internal static class BreakerShutdownUiFont
+{
+    private static Font _cachedFont;
+
+    // 面板朝 +Z 建造，玩家从作业区正面（+Z 侧）观察，文字需绕 Y 轴翻转 180° 避免镜像。
+    public static readonly Quaternion PanelFaceRotation = Quaternion.Euler(0f, 180f, 0f);
+
+    public static class Sizes
+    {
+        public const float EmergencyZone = 0.036f;
+        public const float Procedure = 0.020f;
+        public const float BreakerNumber = 0.040f;
+        public const float ButtonHint = 0.018f;
+        public const float Status = 0.017f;
+        public const float GaugeTitle = 0.020f;
+        public const float GaugeHint = 0.016f;
+    }
+
+    public static class Positions
+    {
+        public const float PanelTextZ = -9.496f;
+        public static readonly Vector3 EmergencyZone = new Vector3(0f, 0.04f, -7.88f);
+        public static readonly Vector3 Procedure = new Vector3(0f, 1.89f, PanelTextZ);
+        public static readonly Vector3 AutoStart = new Vector3(-0.24f, 0.82f, PanelTextZ);
+        public static readonly Vector3 Confirm = new Vector3(0f, 0.89f, PanelTextZ);
+        public static readonly Vector3 Status = new Vector3(0f, 0.555f, PanelTextZ);
+        public static readonly Vector3 GaugeTitle = new Vector3(0f, 1.565f, PanelTextZ);
+        public static readonly Vector3 GaugeRated = new Vector3(0.055f, 1.64f, PanelTextZ);
+        public static readonly Vector3 GaugeZero = new Vector3(-0.055f, 1.64f, PanelTextZ);
+    }
+
+    public static Font Resolve()
+    {
+        if (_cachedFont != null)
+        {
+            return _cachedFont;
+        }
+
+        string[] preferredFonts =
+        {
+            "YouYuan",
+            "幼圆",
+            "STYuanti",
+            "华文圆体",
+            "FZCuYuan",
+            "Comic Sans MS",
+            "Microsoft YaHei UI",
+            "Microsoft YaHei",
+            "SimHei"
+        };
+
+        _cachedFont = Font.CreateDynamicFontFromOSFont(preferredFonts, 48);
+
+        if (_cachedFont == null)
+        {
+            try
+            {
+                _cachedFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            }
+            catch
+            {
+                // Built-in font fallback when OS fonts are unavailable.
+            }
+        }
+
+        return _cachedFont;
+    }
+
+    public static void Apply(TextMesh textMesh, float characterSize)
+    {
+        if (textMesh == null)
+        {
+            return;
+        }
+
+        Font font = Resolve();
+        if (font == null)
+        {
+            return;
+        }
+
+        textMesh.font = font;
+        textMesh.fontSize = Mathf.Clamp(Mathf.RoundToInt(characterSize * 1200f), 32, 72);
+        textMesh.fontStyle = FontStyle.Bold;
+
+        Renderer renderer = textMesh.GetComponent<Renderer>();
+        if (renderer != null)
+        {
+            renderer.sharedMaterial = font.material;
+        }
+    }
+}
 
 public class BreakerShutdownStationBuilder : MonoBehaviour
 {
@@ -161,7 +257,13 @@ public class BreakerShutdownStationBuilder : MonoBehaviour
         runtime.beaconActiveMaterial = matRed;
         runtime.beaconCompleteMaterial = matComplete;
 
-        CreateTextLabel("Emergency_Zone_Label", parent, "EMERGENCY STOP", new Vector3(0f, 0.035f, -7.85f), 0.10f, Color.red);
+        CreateTextLabel(
+            "Emergency_Zone_Label",
+            parent,
+            "紧急停机作业区",
+            BreakerShutdownUiFont.Positions.EmergencyZone,
+            BreakerShutdownUiFont.Sizes.EmergencyZone,
+            new Color(1f, 0.28f, 0.22f));
     }
 
     private void BuildCabinet(
@@ -203,7 +305,13 @@ public class BreakerShutdownStationBuilder : MonoBehaviour
 
         // 操作规程牌
         CreateCube("Procedure_Sign_Board", parent, new Vector3(0f, 1.88f, -9.53f), new Vector3(0.62f, 0.16f, 0.025f), matBlack);
-        CreateTextLabel("Procedure_Sign_Text", parent, "ORDER: ② → ④ → ① → ③\nTHEN CONFIRM", new Vector3(0f, 1.89f, -9.495f), 0.045f, new Color(1f, 0.92f, 0.55f));
+        CreateTextLabel(
+            "Procedure_Sign_Text",
+            parent,
+            "顺序 ②→④→①→③",
+            BreakerShutdownUiFont.Positions.Procedure,
+            BreakerShutdownUiFont.Sizes.Procedure,
+            new Color(1f, 0.92f, 0.55f));
 
         // 总电压表
         Transform gaugeNeedle = BuildVoltageGauge(parent, matGaugeFace, matGaugeGreen, matBlack, out Renderer gaugeZoneRenderer);
@@ -245,7 +353,13 @@ public class BreakerShutdownStationBuilder : MonoBehaviour
 
             lights.Add(lightRenderer);
 
-            CreateTextLabel("Breaker_Number_" + breakerNumber, parent, breakerNumber.ToString(), new Vector3(xs[i], 1.12f, -9.49f), 0.065f, Color.white);
+            CreateTextLabel(
+                "Breaker_Number_" + breakerNumber,
+                parent,
+                breakerNumber.ToString(),
+                new Vector3(xs[i], 1.12f, BreakerShutdownUiFont.Positions.PanelTextZ),
+                BreakerShutdownUiFont.Sizes.BreakerNumber,
+                Color.white);
         }
 
         runtime.breakers = breakers.ToArray();
@@ -262,16 +376,37 @@ public class BreakerShutdownStationBuilder : MonoBehaviour
         runtime.startButtonReadyLocalPosition = startButton.localPosition;
         runtime.startButtonPressedLocalPosition = startButton.localPosition + new Vector3(0f, 0f, -0.025f);
 
-        CreateTextLabel("Auto_Start_Label", parent, "AUTO START (J)", new Vector3(-0.24f, 0.86f, -9.49f), 0.037f, Color.white);
+        BreakerStartButtonInteractable startButtonInteractable = startButton.gameObject.AddComponent<BreakerStartButtonInteractable>();
+        startButtonInteractable.station = runtime;
+
+        CreateTextLabel(
+            "Auto_Start_Label",
+            parent,
+            "启动(J)",
+            BreakerShutdownUiFont.Positions.AutoStart,
+            BreakerShutdownUiFont.Sizes.ButtonHint,
+            new Color(0.92f, 0.92f, 0.88f));
 
         // 确认按钮
         runtime.confirmButtonRenderer = BuildConfirmButton(parent, matConfirmDisabled, matBlack);
 
-        CreateTextLabel("Confirm_Label", parent, "CONFIRM", new Vector3(0f, 0.94f, -9.49f), 0.05f, Color.white);
+        CreateTextLabel(
+            "Confirm_Label",
+            parent,
+            "确认",
+            BreakerShutdownUiFont.Positions.Confirm,
+            BreakerShutdownUiFont.Sizes.ButtonHint,
+            new Color(0.92f, 0.92f, 0.88f));
 
         // 底部小状态牌
         CreateCube("Status_Strip", parent, new Vector3(0f, 0.55f, -9.505f), new Vector3(0.62f, 0.11f, 0.018f), matFrame);
-        CreateTextLabel("Status_Text", parent, "ALL BREAKERS ON", new Vector3(0f, 0.555f, -9.485f), 0.042f, new Color(0.8f, 1f, 0.8f));
+        CreateTextLabel(
+            "Status_Text",
+            parent,
+            "电闸全部合上",
+            BreakerShutdownUiFont.Positions.Status,
+            BreakerShutdownUiFont.Sizes.Status,
+            new Color(0.75f, 0.98f, 0.82f));
 
         runtime.statusText = parent.Find("Status_Text")?.GetComponent<TextMesh>();
     }
@@ -290,9 +425,9 @@ public class BreakerShutdownStationBuilder : MonoBehaviour
 
         Transform needlePivot = CreateGaugeNeedle(parent, center + new Vector3(0f, 0f, 0.040f), 330f, matNeedle);
 
-        CreateTextLabel("Voltage_Gauge_Label", parent, "VOLTAGE", new Vector3(0f, 1.565f, -9.49f), 0.040f, Color.white);
-        CreateTextLabel("Voltage_Gauge_Zero", parent, "0", new Vector3(-0.055f, 1.64f, -9.49f), 0.028f, Color.black);
-        CreateTextLabel("Voltage_Gauge_Rated", parent, "OK", new Vector3(0.055f, 1.64f, -9.49f), 0.028f, new Color(0f, 0.55f, 0.1f));
+        CreateTextLabel("Voltage_Gauge_Label", parent, "电压", BreakerShutdownUiFont.Positions.GaugeTitle, BreakerShutdownUiFont.Sizes.GaugeTitle, Color.white);
+        CreateTextLabel("Voltage_Gauge_Zero", parent, "0", BreakerShutdownUiFont.Positions.GaugeZero, BreakerShutdownUiFont.Sizes.GaugeHint, Color.black);
+        CreateTextLabel("Voltage_Gauge_Rated", parent, "正常", BreakerShutdownUiFont.Positions.GaugeRated, BreakerShutdownUiFont.Sizes.GaugeHint, new Color(0f, 0.55f, 0.1f));
 
         return needlePivot;
     }
@@ -583,7 +718,7 @@ public class BreakerShutdownStationBuilder : MonoBehaviour
         GameObject obj = new GameObject(name);
         obj.transform.SetParent(parent, false);
         obj.transform.localPosition = localPosition;
-        obj.transform.localRotation = Quaternion.identity;
+        obj.transform.localRotation = BreakerShutdownUiFont.PanelFaceRotation;
 
         TextMesh textMesh = obj.AddComponent<TextMesh>();
         textMesh.text = text;
@@ -591,6 +726,10 @@ public class BreakerShutdownStationBuilder : MonoBehaviour
         textMesh.anchor = TextAnchor.MiddleCenter;
         textMesh.alignment = TextAlignment.Center;
         textMesh.color = color;
+        textMesh.lineSpacing = 0.82f;
+        textMesh.richText = false;
+
+        BreakerShutdownUiFont.Apply(textMesh, size);
     }
 
     private Material CreateLitMaterial(string name, Color color, float metallic, float smoothness)
@@ -662,740 +801,3 @@ public class BreakerShutdownStationBuilder : MonoBehaviour
     }
 }
 
-public class BreakerShutdownStationRuntime : MonoBehaviour
-{
-    [Header("Interaction")]
-    public KeyCode autoStartKey = KeyCode.J;
-    public float autoSequenceDelay = 0.65f;
-
-    [Header("Scene Parts")]
-    public BreakerSwitchRuntime[] breakers;
-    public Renderer[] circuitLightRenderers;
-    public Renderer startButtonRenderer;
-    public Transform startButtonTransform;
-    public Vector3 startButtonReadyLocalPosition;
-    public Vector3 startButtonPressedLocalPosition;
-    public Renderer confirmButtonRenderer;
-
-    public Transform voltageNeedlePivot;
-    public Renderer gaugeZoneRenderer;
-
-    public Transform beaconPivot;
-    public Renderer beaconLensRenderer;
-    public Light beaconLight;
-    public Light topWorkLight;
-
-    public TextMesh statusText;
-
-    [Header("Materials")]
-    public Material lightOnMaterial;
-    public Material lightOffMaterial;
-    public Material confirmDisabledMaterial;
-    public Material confirmEnabledMaterial;
-    public Material gaugeGreenMaterial;
-    public Material gaugeOffMaterial;
-    public Material beaconStandbyMaterial;
-    public Material beaconActiveMaterial;
-    public Material beaconCompleteMaterial;
-    public Material startButtonReadyMaterial;
-    public Material startButtonPressedMaterial;
-
-    [Header("Voltage Gauge")]
-    public float fullVoltageAngle = 330f;
-    public float zeroVoltageAngle = 210f;
-
-    private readonly int[] correctSequence = { 2, 4, 1, 3 };
-
-    private int sequenceProgress = 0;
-    private int errorCount = 0;
-
-    private bool stationStarted = false;
-    private bool completed = false;
-    private bool autoSequenceRunning = false;
-
-    private float startTime;
-    private Coroutine voltageCoroutine;
-    private Coroutine autoSequenceCoroutine;
-    private Coroutine startButtonCoroutine;
-
-    private enum BeaconState
-    {
-        Standby,
-        Active,
-        Complete
-    }
-
-    private void Awake()
-    {
-        MarkDynamicParts();
-    }
-
-    private void Start()
-    {
-        UpdateStatusText("Stand by. Follow order: 2 → 4 → 1 → 3.");
-        SetConfirmEnabled(false);
-        SetStartButtonPressed(false);
-        SetBeaconState(BeaconState.Standby);
-    }
-
-    private void Update()
-    {
-        if (!completed && !autoSequenceRunning && Input.GetKeyDown(autoStartKey))
-        {
-            TriggerAutomaticShutdown();
-        }
-
-        if (stationStarted && !completed && beaconPivot != null)
-        {
-            beaconPivot.Rotate(Vector3.up, 70f * Time.deltaTime, Space.Self);
-        }
-    }
-
-    private void MarkDynamicParts()
-    {
-        if (voltageNeedlePivot != null)
-        {
-            MarkTransformHierarchyDynamic(voltageNeedlePivot);
-        }
-
-        if (beaconPivot != null)
-        {
-            MarkTransformHierarchyDynamic(beaconPivot);
-        }
-
-        if (startButtonTransform != null)
-        {
-            startButtonTransform.gameObject.isStatic = false;
-        }
-
-        if (breakers == null)
-        {
-            return;
-        }
-
-        foreach (BreakerSwitchRuntime breaker in breakers)
-        {
-            if (breaker == null)
-            {
-                continue;
-            }
-
-            breaker.gameObject.isStatic = false;
-
-            if (breaker.leverPivot != null)
-            {
-                MarkTransformHierarchyDynamic(breaker.leverPivot);
-            }
-        }
-    }
-
-    private void MarkTransformHierarchyDynamic(Transform root)
-    {
-        root.gameObject.isStatic = false;
-
-        foreach (Transform child in root)
-        {
-            MarkTransformHierarchyDynamic(child);
-        }
-    }
-
-    private void StartStation()
-    {
-        if (stationStarted)
-        {
-            return;
-        }
-
-        stationStarted = true;
-        startTime = Time.time;
-
-        if (topWorkLight != null)
-            topWorkLight.enabled = true;
-
-        if (beaconLight != null)
-            beaconLight.enabled = true;
-
-        SetBeaconState(BeaconState.Active);
-        UpdateStatusText("Emergency shutdown started.");
-    }
-
-    public void TriggerAutomaticShutdown()
-    {
-        if (completed || autoSequenceRunning)
-        {
-            return;
-        }
-
-        if (autoSequenceCoroutine != null)
-        {
-            StopCoroutine(autoSequenceCoroutine);
-        }
-
-        autoSequenceCoroutine = StartCoroutine(AutomaticShutdownRoutine());
-    }
-
-    private IEnumerator AutomaticShutdownRoutine()
-    {
-        autoSequenceRunning = true;
-        completed = false;
-        sequenceProgress = 0;
-        errorCount = 0;
-        RebindBreakerReferences();
-        ResetBreakersToOn();
-        StartStation();
-        SetStartButtonPressed(true);
-        UpdateStatusText("Auto shutdown running: 2 -> 4 -> 1 -> 3.");
-        Debug.Log("自动停机流程启动：按钮已按下，按 2 -> 4 -> 1 -> 3 顺序拉下电闸。");
-
-        yield return new WaitForSeconds(0.35f);
-
-        for (int i = 0; i < correctSequence.Length; i++)
-        {
-            yield return PullBreakerInAutoSequence(correctSequence[i]);
-            yield return new WaitForSeconds(autoSequenceDelay);
-        }
-
-        autoSequenceRunning = false;
-        autoSequenceCoroutine = null;
-    }
-
-    private IEnumerator PullBreakerInAutoSequence(int breakerNumber)
-    {
-        BreakerSwitchRuntime breaker = FindBreaker(breakerNumber);
-
-        if (breaker == null)
-        {
-            Debug.LogWarning("自动停机流程找不到 " + breakerNumber + " 号电闸。");
-            yield break;
-        }
-
-        Debug.Log("J 键自动流程：开始拉下电闸 " + breakerNumber + "。");
-        yield return breaker.SetOffRoutine();
-
-        int index = breakerNumber - 1;
-
-        if (index >= 0 && index < circuitLightRenderers.Length && circuitLightRenderers[index] != null)
-        {
-            circuitLightRenderers[index].sharedMaterial = lightOffMaterial;
-            Light pointLight = circuitLightRenderers[index].GetComponent<Light>();
-            if (pointLight != null) pointLight.enabled = false;
-        }
-
-        sequenceProgress++;
-        UpdateVoltageGauge();
-        UpdateStatusText("Auto shutdown: breaker " + breakerNumber + " pulled down.");
-        Debug.Log("J 键自动流程：电闸 " + breakerNumber + " 已拉下。进度：" + sequenceProgress + "/4");
-
-        if (sequenceProgress >= correctSequence.Length)
-        {
-            OnAllBreakersOff();
-        }
-    }
-
-    public void TryToggleBreaker(int breakerNumber)
-    {
-        if (completed) return;
-
-        if (!stationStarted)
-        {
-            StartStation();
-        }
-
-        BreakerSwitchRuntime breaker = FindBreaker(breakerNumber);
-
-        if (breaker == null || breaker.isOff)
-            return;
-
-        int expected = correctSequence[sequenceProgress];
-
-        if (breakerNumber != expected)
-        {
-            errorCount++;
-
-            UpdateStatusText("Wrong order. Next should be breaker " + expected + ".");
-            Debug.LogWarning("错序拨动：当前应先断开 " + expected + " 号。错误数 = " + errorCount);
-
-            breaker.BounceBack();
-            return;
-        }
-
-        breaker.SetOff();
-
-        int index = breakerNumber - 1;
-
-        if (index >= 0 && index < circuitLightRenderers.Length && circuitLightRenderers[index] != null)
-        {
-            circuitLightRenderers[index].sharedMaterial = lightOffMaterial;
-            Light pointLight = circuitLightRenderers[index].GetComponent<Light>();
-            if (pointLight != null) pointLight.enabled = false;
-        }
-
-        sequenceProgress++;
-
-        UpdateVoltageGauge();
-
-        Debug.Log("断路器 " + breakerNumber + " 已断开。进度：" + sequenceProgress + "/4");
-
-        if (sequenceProgress >= 4)
-        {
-            OnAllBreakersOff();
-        }
-        else
-        {
-            UpdateStatusText("Correct. Next: breaker " + correctSequence[sequenceProgress] + ".");
-        }
-    }
-
-    private BreakerSwitchRuntime FindBreaker(int breakerNumber)
-    {
-        if (breakers != null)
-        {
-            foreach (BreakerSwitchRuntime breaker in breakers)
-            {
-                if (breaker != null && breaker.breakerNumber == breakerNumber)
-                    return breaker;
-            }
-        }
-
-        Transform pivot = FindBreakerPivotByName(breakerNumber);
-        if (pivot == null)
-        {
-            return null;
-        }
-
-        BreakerSwitchRuntime fallbackBreaker = pivot.GetComponent<BreakerSwitchRuntime>();
-        if (fallbackBreaker == null)
-        {
-            fallbackBreaker = pivot.gameObject.AddComponent<BreakerSwitchRuntime>();
-        }
-
-        ConfigureBreakerRuntime(fallbackBreaker, breakerNumber, pivot);
-        return fallbackBreaker;
-    }
-
-    private void RebindBreakerReferences()
-    {
-        BreakerSwitchRuntime[] reboundBreakers = new BreakerSwitchRuntime[4];
-
-        for (int breakerNumber = 1; breakerNumber <= 4; breakerNumber++)
-        {
-            Transform pivot = FindBreakerPivotByName(breakerNumber);
-            if (pivot == null)
-            {
-                Debug.LogWarning("自动停机流程绑定失败：找不到 Breaker_" + breakerNumber + "_Lever_Pivot。");
-                continue;
-            }
-
-            BreakerSwitchRuntime breaker = pivot.GetComponent<BreakerSwitchRuntime>();
-            if (breaker == null)
-            {
-                breaker = pivot.gameObject.AddComponent<BreakerSwitchRuntime>();
-            }
-
-            ConfigureBreakerRuntime(breaker, breakerNumber, pivot);
-            reboundBreakers[breakerNumber - 1] = breaker;
-        }
-
-        breakers = reboundBreakers;
-        Debug.Log("J 键自动流程：已绑定 " + CountBoundBreakers() + " 个电闸。");
-    }
-
-    private int CountBoundBreakers()
-    {
-        int count = 0;
-
-        if (breakers == null)
-        {
-            return count;
-        }
-
-        foreach (BreakerSwitchRuntime breaker in breakers)
-        {
-            if (breaker != null)
-            {
-                count++;
-            }
-        }
-
-        return count;
-    }
-
-    private Transform FindBreakerPivotByName(int breakerNumber)
-    {
-        string targetName = "Breaker_" + breakerNumber + "_Lever_Pivot";
-        Transform found = FindChildRecursive(transform, targetName);
-
-        if (found != null)
-        {
-            return found;
-        }
-
-        GameObject globalFound = GameObject.Find(targetName);
-        return globalFound != null ? globalFound.transform : null;
-    }
-
-    private Transform FindChildRecursive(Transform root, string targetName)
-    {
-        if (root.name == targetName)
-        {
-            return root;
-        }
-
-        foreach (Transform child in root)
-        {
-            Transform found = FindChildRecursive(child, targetName);
-            if (found != null)
-            {
-                return found;
-            }
-        }
-
-        return null;
-    }
-
-    private void ConfigureBreakerRuntime(BreakerSwitchRuntime breaker, int breakerNumber, Transform pivot)
-    {
-        breaker.station = this;
-        breaker.breakerNumber = breakerNumber;
-        breaker.leverPivot = pivot;
-        breaker.onRotation = Quaternion.Euler(0f, 0f, 0f);
-        breaker.offRotation = Quaternion.Euler(68f, 0f, 0f);
-        breaker.pullDuration = 0.75f;
-        breaker.gameObject.isStatic = false;
-
-        if (pivot != null)
-        {
-            MarkTransformHierarchyDynamic(breaker.leverPivot);
-        }
-    }
-
-    private void ResetBreakersToOn()
-    {
-        if (breakers == null)
-        {
-            return;
-        }
-
-        foreach (BreakerSwitchRuntime breaker in breakers)
-        {
-            if (breaker != null)
-            {
-                breaker.ResetToOn();
-            }
-        }
-
-        if (circuitLightRenderers != null)
-        {
-            for (int i = 0; i < circuitLightRenderers.Length; i++)
-            {
-                if (circuitLightRenderers[i] == null)
-                {
-                    continue;
-                }
-
-                circuitLightRenderers[i].sharedMaterial = lightOnMaterial;
-                Light pointLight = circuitLightRenderers[i].GetComponent<Light>();
-                if (pointLight != null) pointLight.enabled = true;
-            }
-        }
-
-        if (voltageNeedlePivot != null)
-        {
-            voltageNeedlePivot.localRotation = Quaternion.Euler(0f, 0f, fullVoltageAngle);
-        }
-
-        if (gaugeZoneRenderer != null && gaugeGreenMaterial != null)
-        {
-            gaugeZoneRenderer.sharedMaterial = gaugeGreenMaterial;
-        }
-    }
-
-    private void UpdateVoltageGauge()
-    {
-        if (voltageNeedlePivot == null) return;
-
-        int remainingOn = 4 - sequenceProgress;
-        float ratio = Mathf.Clamp01(remainingOn / 4f);
-        float targetAngle = Mathf.Lerp(zeroVoltageAngle, fullVoltageAngle, ratio);
-
-        if (voltageCoroutine != null)
-        {
-            StopCoroutine(voltageCoroutine);
-        }
-
-        voltageCoroutine = StartCoroutine(RotateVoltageNeedle(targetAngle));
-    }
-
-    private IEnumerator RotateVoltageNeedle(float targetAngle)
-    {
-        Quaternion startRot = voltageNeedlePivot.localRotation;
-        Quaternion targetRot = Quaternion.Euler(0f, 0f, targetAngle);
-
-        float t = 0f;
-        float duration = 0.45f;
-
-        while (t < duration)
-        {
-            t += Time.deltaTime;
-            float k = Mathf.Clamp01(t / duration);
-            float smooth = k * k * (3f - 2f * k);
-
-            voltageNeedlePivot.localRotation = Quaternion.Slerp(startRot, targetRot, smooth);
-            yield return null;
-        }
-
-        voltageNeedlePivot.localRotation = targetRot;
-    }
-
-    private void OnAllBreakersOff()
-    {
-        completed = true;
-        autoSequenceRunning = false;
-        SetBeaconState(BeaconState.Complete);
-
-        if (gaugeZoneRenderer != null && gaugeOffMaterial != null)
-        {
-            gaugeZoneRenderer.sharedMaterial = gaugeOffMaterial;
-        }
-
-        float elapsed = Time.time - startTime;
-        UpdateStatusText("Auto shutdown complete. Power isolated.");
-        Debug.Log("J 键自动停机流程完成。4 个电闸已按 2 -> 4 -> 1 -> 3 拉下，用时：" + elapsed.ToString("F1") + " 秒。");
-    }
-
-    private void SetConfirmEnabled(bool enabled)
-    {
-        if (confirmButtonRenderer != null)
-        {
-            confirmButtonRenderer.sharedMaterial = enabled ? confirmEnabledMaterial : confirmDisabledMaterial;
-        }
-    }
-
-    private void SetStartButtonPressed(bool pressed)
-    {
-        if (startButtonTransform != null)
-        {
-            Vector3 target = pressed ? startButtonPressedLocalPosition : startButtonReadyLocalPosition;
-
-            if (startButtonCoroutine != null)
-            {
-                StopCoroutine(startButtonCoroutine);
-            }
-
-            startButtonCoroutine = StartCoroutine(AnimateStartButton(target));
-        }
-
-        if (startButtonRenderer != null)
-        {
-            startButtonRenderer.sharedMaterial = pressed ? startButtonPressedMaterial : startButtonReadyMaterial;
-        }
-    }
-
-    private IEnumerator AnimateStartButton(Vector3 target)
-    {
-        Vector3 start = startButtonTransform.localPosition;
-        float elapsed = 0f;
-        float duration = 0.18f;
-
-        while (elapsed < duration)
-        {
-            elapsed += Time.deltaTime;
-            float t = Mathf.Clamp01(elapsed / duration);
-            float smooth = t * t * (3f - 2f * t);
-            startButtonTransform.localPosition = Vector3.Lerp(start, target, smooth);
-            yield return null;
-        }
-
-        startButtonTransform.localPosition = target;
-        startButtonCoroutine = null;
-    }
-
-    private void SetBeaconState(BeaconState state)
-    {
-        Material targetMaterial = beaconStandbyMaterial;
-        Color targetColor = new Color(1f, 0.72f, 0.02f);
-        float targetIntensity = 0.75f;
-
-        if (state == BeaconState.Active)
-        {
-            targetMaterial = beaconActiveMaterial;
-            targetColor = Color.red;
-            targetIntensity = 2.2f;
-        }
-        else if (state == BeaconState.Complete)
-        {
-            targetMaterial = beaconCompleteMaterial;
-            targetColor = new Color(0.05f, 1f, 0.22f);
-            targetIntensity = 1.6f;
-        }
-
-        if (beaconLensRenderer != null && targetMaterial != null)
-        {
-            beaconLensRenderer.sharedMaterial = targetMaterial;
-        }
-
-        if (beaconLight != null)
-        {
-            beaconLight.enabled = true;
-            beaconLight.color = targetColor;
-            beaconLight.intensity = targetIntensity;
-        }
-    }
-
-    private void UpdateStatusText(string message)
-    {
-        if (statusText != null)
-        {
-            statusText.text = message;
-        }
-    }
-}
-
-public class BreakerSwitchRuntime : MonoBehaviour
-{
-    public BreakerShutdownStationRuntime station;
-    public int breakerNumber;
-
-    public Transform leverPivot;
-
-    public Quaternion onRotation;
-    public Quaternion offRotation;
-    public float pullDuration = 0.42f;
-
-    public bool isOff = false;
-
-    private Coroutine animationCoroutine;
-
-    private void Awake()
-    {
-        if (station == null)
-        {
-            station = GetComponentInParent<BreakerShutdownStationRuntime>();
-        }
-
-        if (leverPivot == null)
-        {
-            leverPivot = transform;
-        }
-    }
-
-    private void OnMouseDown()
-    {
-        if (station == null)
-        {
-            station = GetComponentInParent<BreakerShutdownStationRuntime>();
-        }
-
-        if (station != null)
-        {
-            station.TryToggleBreaker(breakerNumber);
-            return;
-        }
-
-        SetOff();
-    }
-
-    public void SetOff()
-    {
-        if (isOff) return;
-
-        if (animationCoroutine != null)
-        {
-            StopCoroutine(animationCoroutine);
-        }
-
-        animationCoroutine = StartCoroutine(SetOffRoutine());
-    }
-
-    public IEnumerator SetOffRoutine()
-    {
-        if (isOff) yield break;
-
-        isOff = true;
-        yield return AnimateTo(offRotation, pullDuration);
-        animationCoroutine = null;
-    }
-
-    public void ResetToOn()
-    {
-        if (animationCoroutine != null)
-        {
-            StopCoroutine(animationCoroutine);
-            animationCoroutine = null;
-        }
-
-        isOff = false;
-
-        if (leverPivot == null)
-        {
-            leverPivot = transform;
-        }
-
-        leverPivot.localRotation = onRotation;
-    }
-
-    public void BounceBack()
-    {
-        if (animationCoroutine != null)
-        {
-            StopCoroutine(animationCoroutine);
-        }
-
-        animationCoroutine = StartCoroutine(BounceRoutine());
-    }
-
-    private IEnumerator BounceRoutine()
-    {
-        Quaternion start = leverPivot.localRotation;
-        Quaternion wrongPull = Quaternion.Slerp(onRotation, offRotation, 0.45f);
-
-        yield return AnimateToInternal(start, wrongPull, 0.08f);
-        yield return AnimateToInternal(wrongPull, onRotation, 0.14f);
-
-        leverPivot.localRotation = onRotation;
-    }
-
-    private IEnumerator AnimateTo(Quaternion target, float duration)
-    {
-        Quaternion start = leverPivot.localRotation;
-        yield return AnimateToInternal(start, target, duration);
-        leverPivot.localRotation = target;
-    }
-
-    private IEnumerator AnimateToInternal(Quaternion start, Quaternion target, float duration)
-    {
-        float t = 0f;
-
-        while (t < duration)
-        {
-            t += Time.deltaTime;
-            float k = Mathf.Clamp01(t / duration);
-            float smooth = k * k * (3f - 2f * k);
-
-            leverPivot.localRotation = Quaternion.Slerp(start, target, smooth);
-            yield return null;
-        }
-
-        leverPivot.localRotation = target;
-    }
-}
-
-#if UNITY_EDITOR
-[UnityEditor.CustomEditor(typeof(BreakerShutdownStationBuilder))]
-public class BreakerShutdownStationBuilderEditor : UnityEditor.Editor
-{
-    public override void OnInspectorGUI()
-    {
-        DrawDefaultInspector();
-
-        BreakerShutdownStationBuilder builder = (BreakerShutdownStationBuilder)target;
-
-        GUILayout.Space(12);
-
-        if (GUILayout.Button("Build / Rebuild Breaker Shutdown Station", GUILayout.Height(38)))
-        {
-            builder.BuildStation();
-        }
-    }
-}
-#endif

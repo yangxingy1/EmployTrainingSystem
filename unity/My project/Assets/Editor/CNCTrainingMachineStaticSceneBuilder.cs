@@ -71,7 +71,7 @@ public static class CNCTrainingMachineStaticSceneBuilder
 
         EditorUtility.SetDirty(builder);
         EditorSceneManager.MarkSceneDirty(machine.scene);
-        EditorSceneManager.SaveScene(machine.scene);
+        SaveSceneWithoutDialog(machine.scene);
         Selection.activeGameObject = machine;
 
         Debug.Log($"Created static CNC training machine scene object: {machine.name}");
@@ -101,6 +101,17 @@ public static class CNCTrainingMachineStaticSceneBuilder
             || obj.name == "Emergency_Stop_Button_Clickable"
             || obj.name == "Reset_Button_Clickable"
             || obj.name.StartsWith("Stack_Light_");
+    }
+
+    private static void SaveSceneWithoutDialog(UnityEngine.SceneManagement.Scene scene)
+    {
+        if (!string.IsNullOrEmpty(scene.path))
+        {
+            EditorSceneManager.SaveScene(scene, scene.path, false);
+            return;
+        }
+
+        EditorSceneManager.SaveScene(scene);
     }
 
     private static bool IsOldDefaultTransform(Transform target)

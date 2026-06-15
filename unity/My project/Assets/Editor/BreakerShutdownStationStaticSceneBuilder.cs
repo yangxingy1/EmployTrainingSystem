@@ -66,7 +66,7 @@ public static class BreakerShutdownStationStaticSceneBuilder
 
         EditorUtility.SetDirty(builder);
         EditorSceneManager.MarkSceneDirty(station.scene);
-        EditorSceneManager.SaveScene(station.scene);
+        SaveSceneWithoutDialog(station.scene);
         Selection.activeGameObject = station;
 
         Debug.Log($"Created static breaker shutdown station scene object: {station.name}");
@@ -99,6 +99,17 @@ public static class BreakerShutdownStationStaticSceneBuilder
             || obj.name.EndsWith("_Lever_End_Right")
             || obj.name.EndsWith("_Red_Handle")
             || obj.name.EndsWith("_Red_Grip_Tab");
+    }
+
+    private static void SaveSceneWithoutDialog(UnityEngine.SceneManagement.Scene scene)
+    {
+        if (!string.IsNullOrEmpty(scene.path))
+        {
+            EditorSceneManager.SaveScene(scene, scene.path, false);
+            return;
+        }
+
+        EditorSceneManager.SaveScene(scene);
     }
 
     private static bool IsOldDefaultTransform(Transform target)
