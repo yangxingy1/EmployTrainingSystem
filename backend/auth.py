@@ -1,4 +1,4 @@
-# JWT 认证模块: Token 生成与校验
+# JWT 认证模块 —— Token 生成与校验
 import os
 import hashlib
 
@@ -6,13 +6,12 @@ from dotenv import load_dotenv
 from datetime import datetime, timedelta, timezone
 from jose import jwt, JWTError
 
-load_dotenv()
+# 指定路径，兼容服务器部署时 CWD 不在 backend/ 的情况
+load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 if not SECRET_KEY:
-    raise ValueError(
-        "SECRET_KEY 未设置"
-    )
+    raise ValueError("SECRET_KEY 未在 .env 中设置")
 
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = 24
@@ -42,5 +41,5 @@ def verify_token(token: str):
 
 
 def hash_password(password: str) -> str:
-    """SHA256 哈希加密"""
+    """SHA256 哈希加密 —— 所有密码入库前均由此函数处理"""
     return hashlib.sha256(password.encode()).hexdigest()
