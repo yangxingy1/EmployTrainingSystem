@@ -5,6 +5,10 @@ using UnityEngine.SceneManagement;
 [DisallowMultipleComponent]
 public class FreshTrainBootstrap : MonoBehaviour
 {
+    const float DefaultTrainingCameraWorldY = FactoryOneSceneController.KnownGoodStartCameraWorldHeight;
+    const float DefaultTrainingEyeHeight = 1.7f;
+    const float CubeGroundSink = 12.0f;
+
     [System.Serializable]
     class FreshTrainingTile
     {
@@ -48,6 +52,8 @@ public class FreshTrainBootstrap : MonoBehaviour
     Transform _player;
     FreshTrainingTile _nearestTile;
     Transform _nearestTileTransform;
+    float _trainingFloorY;
+    bool _hasTrainingFloor;
     string _statusMessage = "靠近训练立方体，按 E 开始新手训练。";
     float _statusUntil;
     bool _enteringTraining;
@@ -60,7 +66,7 @@ public class FreshTrainBootstrap : MonoBehaviour
         yield return null;
 
         _player = ResolvePlayerTransform();
-        NormalizePlayerCameraHeight();
+        NormalizePlayerPoseForFreshTraining();
         BuildTrainingTiles();
         RestoreReturnPositionIfNeeded();
         _player = ResolvePlayerTransform();
@@ -100,7 +106,7 @@ public class FreshTrainBootstrap : MonoBehaviour
             var position = center
                 + right * ((col - 1) * HorizontalSpacing)
                 + forward * ((zLayer - 1) * ZStackSpacing)
-                + Vector3.up * (CubeSize * 0.5f);
+                + Vector3.up * (CubeSize * 0.5f - CubeGroundSink);
             CreateTrainingCube(root.transform, _tiles[i], i, position);
         }
     }
@@ -110,14 +116,15 @@ public class FreshTrainBootstrap : MonoBehaviour
         var player = ResolvePlayerTransform();
         right = Vector3.right;
         forward = Vector3.forward;
+        var floorY = ResolveTrainingFloorY(player);
 
         if (player != null)
         {
-            center = new Vector3(player.position.x, player.position.y, player.position.z + 10.0f) + GridWorldOffset;
+            center = new Vector3(player.position.x, floorY, player.position.z + 10.0f) + GridWorldOffset;
             return;
         }
 
-        center = new Vector3(0f, 0f, 10f) + GridWorldOffset;
+        center = new Vector3(0f, floorY, 10f) + GridWorldOffset;
     }
 
     void CreateTrainingCube(Transform parent, FreshTrainingTile tile, int index, Vector3 position)
@@ -222,11 +229,13 @@ public class FreshTrainBootstrap : MonoBehaviour
 
         var controller = player.GetComponent<CharacterController>();
         if (controller != null) controller.enabled = false;
-        player.position = session.hubReturnPosition;
+        var returnPosition = session.hubReturnPosition;
+        returnPosition.y = ResolveTrainingFloorY(player);
+        player.position = returnPosition;
         if (controller != null) controller.enabled = true;
         session.hasHubReturnPosition = false;
 
-        Debug.Log($"[FreshTrain] Restored player position: {session.hubReturnPosition}");
+        Debug.Log($"[FreshTrain] Restored player position: {returnPosition}");
     }
 
     Transform ResolvePlayerTransform()
@@ -240,19 +249,60 @@ public class FreshTrainBootstrap : MonoBehaviour
         return Camera.main != null ? Camera.main.transform : transform;
     }
 
-    void NormalizePlayerCameraHeight()
+    void NormalizePlayerPoseForFreshTraining()
     {
+        var player = ResolvePlayerTransform();
         var camera = Camera.main;
-        if (camera == null) return;
-        if (camera.transform.parent == null) return;
+        var floorY = ResolveTrainingFloorY(player);
+
+        if (player != null)
+        {
+            var controller = player.GetComponent<CharacterController>();
+            if (controller != null) controller.enabled = false;
+
+            var position = player.position;
+            position.y = floorY;
+            player.position = position;
+
+            if (controller != null) controller.enabled = true;
+        }
+
+        if (camera == null || camera.transform.parent == null) return;
 
         var local = camera.transform.localPosition;
-        if (local.y > 6f || local.y < 0.5f)
+        local.y = ResolveTrainingEyeHeight();
+        camera.transform.localPosition = local;
+
+        Debug.Log($"[FreshTrain] Player floor normalized to {floorY:F3}, camera local height={local.y:F3}.");
+    }
+
+    float ResolveTrainingFloorY(Transform player)
+    {
+        if (_hasTrainingFloor) return _trainingFloorY;
+
+        _trainingFloorY = DefaultTrainingCameraWorldY - ResolveTrainingEyeHeight();
+
+        var factoryController = FindObjectOfType<FactoryOneSceneController>();
+        if (factoryController != null)
         {
-            local.y = 1.7f;
-            camera.transform.localPosition = local;
-            Debug.Log("[FreshTrain] Normalized camera local height to 1.7m.");
+            _trainingFloorY = factoryController.startCameraWorldHeight
+                - Mathf.Max(0.1f, factoryController.eyeHeight + factoryController.cameraHeightOffset);
         }
+
+        if (float.IsNaN(_trainingFloorY) || float.IsInfinity(_trainingFloorY))
+            _trainingFloorY = player != null ? player.position.y : 0f;
+
+        _hasTrainingFloor = true;
+        return _trainingFloorY;
+    }
+
+    float ResolveTrainingEyeHeight()
+    {
+        var factoryController = FindObjectOfType<FactoryOneSceneController>();
+        if (factoryController != null)
+            return Mathf.Max(0.1f, factoryController.eyeHeight + factoryController.cameraHeightOffset);
+
+        return DefaultTrainingEyeHeight;
     }
 
     string BuildPromptText()
