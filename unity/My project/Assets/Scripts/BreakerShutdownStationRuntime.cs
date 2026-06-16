@@ -79,6 +79,8 @@ public class BreakerShutdownStationRuntime : MonoBehaviour
 
     private StationPhase phase = StationPhase.Standby;
 
+    private bool suppressGuidedInput;
+
     private void Awake()
     {
         EnsureSceneBindings();
@@ -234,7 +236,7 @@ public class BreakerShutdownStationRuntime : MonoBehaviour
 
     private void Update()
     {
-        if (phase != StationPhase.ShuttingDown && WasAutoStartPressed())
+        if (!suppressGuidedInput && phase != StationPhase.ShuttingDown && WasAutoStartPressed())
         {
             PressStartButton();
         }
@@ -897,6 +899,28 @@ public class BreakerShutdownStationRuntime : MonoBehaviour
             statusText.transform.localRotation = BreakerShutdownUiFont.PanelFaceRotation;
             BreakerShutdownUiFont.Apply(statusText, BreakerShutdownUiFont.Sizes.Status);
         }
+    }
+
+    public IEnumerator PlayGuidedSequence()
+    {
+        suppressGuidedInput = true;
+
+        if (phase == StationPhase.Complete)
+        {
+            InitializeStandby();
+            yield return new WaitForSeconds(0.3f);
+        }
+
+        UpdateStatusText("引导：自动断电 ②→④→①→③");
+        TriggerAutomaticShutdown();
+
+        while (phase != StationPhase.Complete)
+        {
+            yield return null;
+        }
+
+        yield return new WaitForSeconds(1.2f);
+        suppressGuidedInput = false;
     }
 }
 

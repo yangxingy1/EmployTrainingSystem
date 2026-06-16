@@ -93,6 +93,8 @@ public class CNCTrainingMachineRuntime : MonoBehaviour
     private Coroutine emergencyStopButtonCoroutine;
     private Coroutine resetButtonCoroutine;
 
+    private bool suppressGuidedInput;
+
     private void Awake()
     {
         RefreshSurfaceLabels();
@@ -256,6 +258,11 @@ public class CNCTrainingMachineRuntime : MonoBehaviour
 
     private void HandleKeyboardInput()
     {
+        if (suppressGuidedInput)
+        {
+            return;
+        }
+
         if (WasPressed(powerKey, KeyCode.Keypad1)) HandleKeyInteraction("1", CNCInteractionType.TogglePower);
         else if (WasPressed(doorKey, KeyCode.Keypad2)) HandleKeyInteraction("2", CNCInteractionType.ToggleDoor);
         else if (WasPressed(clampKey, KeyCode.Keypad3)) HandleKeyInteraction("3", CNCInteractionType.ToggleClamp);
@@ -649,5 +656,41 @@ public class CNCTrainingMachineRuntime : MonoBehaviour
         }
 
         Debug.Log("[CNC] " + message);
+    }
+
+    public IEnumerator PlayGuidedSequence()
+    {
+        suppressGuidedInput = true;
+        ApplyInitialState();
+
+        UpdateStatus("引导：1 上电");
+        HandleInteraction(CNCInteractionType.TogglePower);
+        yield return new WaitForSeconds(0.8f);
+
+        if (doorClosed)
+        {
+            UpdateStatus("引导：2 打开安全门");
+            HandleInteraction(CNCInteractionType.ToggleDoor);
+            yield return new WaitForSeconds(0.5f);
+        }
+
+        UpdateStatus("引导：3 夹紧工件");
+        HandleInteraction(CNCInteractionType.ToggleClamp);
+        yield return new WaitForSeconds(0.5f);
+
+        UpdateStatus("引导：4 启动加工");
+        HandleInteraction(CNCInteractionType.CycleStart);
+        yield return new WaitForSeconds(2.5f);
+
+        UpdateStatus("引导：5 急停");
+        HandleInteraction(CNCInteractionType.EmergencyStop);
+        yield return new WaitForSeconds(0.8f);
+
+        UpdateStatus("引导：6 复位");
+        HandleInteraction(CNCInteractionType.Reset);
+        yield return new WaitForSeconds(0.8f);
+
+        UpdateStatus("引导演示完成");
+        suppressGuidedInput = false;
     }
 }

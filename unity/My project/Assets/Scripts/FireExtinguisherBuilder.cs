@@ -545,6 +545,8 @@ public class FireExtinguisherGaugeInteraction : MonoBehaviour
     private Vector3[] originalGaugePositions;
     private bool hasOriginalGaugeState;
 
+    private bool suppressGuidedInput;
+
     private void Awake()
     {
         EnsureGaugeParts();
@@ -557,10 +559,12 @@ public class FireExtinguisherGaugeInteraction : MonoBehaviour
 
     private void Update()
     {
-        if (Input.GetKeyDown(interactKey))
+        if (suppressGuidedInput || !Input.GetKeyDown(interactKey))
         {
-            InspectGauge();
+            return;
         }
+
+        InspectGauge();
     }
 
     private void OnMouseDown()
@@ -749,6 +753,14 @@ public class FireExtinguisherGaugeInteraction : MonoBehaviour
                 runtimeGaugeParts[i].gameObject.isStatic = false;
             }
         }
+    }
+
+    public IEnumerator PlayGuidedSequence()
+    {
+        suppressGuidedInput = true;
+        InspectGauge();
+        yield return new WaitForSeconds(enlargedSeconds + transitionSeconds * 2f + 0.6f);
+        suppressGuidedInput = false;
     }
 }
 
