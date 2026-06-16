@@ -41,6 +41,8 @@ public class ElectricalCabinetEInteraction : MonoBehaviour
     private Coroutine rotateCoroutine;
     private MaterialPropertyBlock propertyBlock;
 
+    private bool suppressGuidedInput;
+
     private void Awake()
     {
         AutoFindCabinetParts();
@@ -74,7 +76,7 @@ public class ElectricalCabinetEInteraction : MonoBehaviour
 
     private void Update()
     {
-        if (!Input.GetKeyDown(interactKey))
+        if (suppressGuidedInput || !Input.GetKeyDown(interactKey))
         {
             return;
         }
@@ -246,5 +248,26 @@ public class ElectricalCabinetEInteraction : MonoBehaviour
 
         Gizmos.color = Color.yellow;
         Gizmos.DrawWireSphere(transform.position, interactionDistance);
+    }
+
+    public IEnumerator PlayGuidedSequence()
+    {
+        suppressGuidedInput = true;
+
+        if (isOn)
+        {
+            SetSwitchState(false);
+            yield return new WaitForSeconds(rotateDuration + 0.4f);
+        }
+
+        Debug.Log("引导：配电柜合闸送电");
+        SetSwitchState(true);
+        yield return new WaitForSeconds(rotateDuration + 0.8f);
+
+        Debug.Log("引导：配电柜分闸断电");
+        SetSwitchState(false);
+        yield return new WaitForSeconds(rotateDuration + 0.4f);
+
+        suppressGuidedInput = false;
     }
 }
