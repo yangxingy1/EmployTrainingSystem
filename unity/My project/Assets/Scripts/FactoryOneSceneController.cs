@@ -28,6 +28,8 @@ public sealed class FactoryOneSceneController : MonoBehaviour
     public float startGroundClearance = 0.15f;
 
     [Header("Movement")]
+    [Tooltip("为 false 时 E 键不再用于上升，便于引导场景用 E 与设备交互。仍可用 PageUp/Q 调整高度。")]
+    public bool allowInteractFly = true;
     public float moveSpeed = 12f;
     public float verticalMoveSpeed = 1f;
     public float fastMoveMultiplier = 4f;
@@ -236,7 +238,7 @@ public sealed class FactoryOneSceneController : MonoBehaviour
         float z = Input.GetAxisRaw("Vertical");
         float y = 0f;
 
-        if (Input.GetKey(KeyCode.E) || Input.GetKey(KeyCode.PageUp))
+        if (Input.GetKey(KeyCode.PageUp) || (allowInteractFly && Input.GetKey(KeyCode.E)))
         {
             y += 1f;
         }

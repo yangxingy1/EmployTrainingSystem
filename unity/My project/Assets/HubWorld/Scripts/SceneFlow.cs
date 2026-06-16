@@ -46,6 +46,7 @@ public class SceneFlow : MonoBehaviour
         session.selectedTaskId = task.taskId;
         session.hubReturnPosition = hubReturnPosition;
         session.hasHubReturnPosition = true;
+        session.returnSceneName = SceneManager.GetActiveScene().name;
 
         Debug.Log($"[SceneFlow] Enter training: task={task.taskId}, scene={task.sceneName}, return={hubReturnPosition}");
         LoadScene(task.sceneName);
@@ -53,8 +54,10 @@ public class SceneFlow : MonoBehaviour
 
     public void ReturnToHub()
     {
-        Debug.Log("[SceneFlow] Return to HubWorld");
-        LoadScene("HubWorld");
+        var session = SessionManager.EnsureExists();
+        var targetScene = string.IsNullOrEmpty(session.returnSceneName) ? "HubWorld" : session.returnSceneName;
+        Debug.Log($"[SceneFlow] Return to {targetScene}");
+        LoadScene(targetScene);
     }
 
     IEnumerator LoadSceneRoutine(string sceneName)

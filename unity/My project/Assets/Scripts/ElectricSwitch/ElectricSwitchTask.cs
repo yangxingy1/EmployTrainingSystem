@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 
 public class ElectricSwitchTask : MonoBehaviour
@@ -14,6 +15,9 @@ public class ElectricSwitchTask : MonoBehaviour
     Renderer _panelRenderer;
     float _completedAt = -999f;
     bool _lastUp;
+    bool _returnScheduled;
+    string _instruction = "握拳后拉动电闸，推动或拉下竖杆完成训练。";
+    string _successMessage = "成功完成训练";
 
     readonly Color _panelColor = new Color(0.18f, 0.20f, 0.23f);
     readonly Color _edgeColor = new Color(0.42f, 0.46f, 0.50f);
@@ -24,6 +28,7 @@ public class ElectricSwitchTask : MonoBehaviour
 
     void Start()
     {
+        LoadSessionPrompt();
         BuildSwitch();
         BuildCursor();
         BuildText();
@@ -42,6 +47,7 @@ public class ElectricSwitchTask : MonoBehaviour
         {
             _lastUp = switchInteractable.IsUp;
             _completedAt = Time.time;
+            ScheduleReturnAfterSuccess();
         }
     }
 
@@ -180,7 +186,7 @@ public class ElectricSwitchTask : MonoBehaviour
         var titleGo = new GameObject("SwitchTaskTitle");
         titleGo.transform.position = new Vector3(0f, 2.05f, -0.18f);
         var title = titleGo.AddComponent<TextMesh>();
-        title.text = "Pull-rod breaker training";
+        title.text = "电闸拉动训练";
         title.anchor = TextAnchor.MiddleCenter;
         title.alignment = TextAlignment.Center;
         title.fontSize = 58;
@@ -241,18 +247,47 @@ public class ElectricSwitchTask : MonoBehaviour
         if (_status == null || hand == null || switchInteractable == null) return;
 
         string phase;
-        if (!hand.IsActive) phase = "Waiting for hand tracking";
-        else if (switchInteractable.IsGrabbed) phase = "Holding grip bar: move up or down";
-        else if (switchInteractable.IsHovering) phase = "Pinch to grip the horizontal bar";
-        else phase = "Move cursor to the horizontal grip bar";
+        if (!hand.IsActive) phase = "等待手势识别服务连接";
+        else if (switchInteractable.IsGrabbed) phase = "已握住横杆：向上推或向下拉";
+        else if (switchInteractable.IsHovering) phase = "握拳抓住横杆";
+        else phase = "移动手部光标到横杆位置";
 
-        string done = Time.time - _completedAt < 1.2f ? "\nSwitch moved" : "";
+        string done = Time.time - _completedAt < 1.8f ? "\n" + _successMessage : "";
         _status.text =
-            "State: " + (switchInteractable.IsUp ? "ON / pushed up" : "OFF / pulled down") +
-            "\nAction: " + phase +
-            "\nGrip: " + switchInteractable.GripSignal.ToString("0.00") + " / " + switchInteractable.grabThreshold.ToString("0.00") +
-            "\nTravel: " + Mathf.RoundToInt(switchInteractable.CurrentTravel * 100f) + "%" +
+            "目标：" + _instruction +
+            "\n状态：" + (switchInteractable.IsUp ? "ON / 已推上" : "OFF / 已拉下") +
+            "\n动作：" + phase +
+            "\n握拳强度：" + switchInteractable.GripSignal.ToString("0.00") + " / " + switchInteractable.grabThreshold.ToString("0.00") +
+            "\n行程：" + Mathf.RoundToInt(switchInteractable.CurrentTravel * 100f) + "%" +
             done;
+    }
+
+    void LoadSessionPrompt()
+    {
+        var session = SessionManager.Instance;
+        if (session == null) return;
+
+        if (!string.IsNullOrEmpty(session.selectedInstruction))
+            _instruction = session.selectedInstruction;
+        if (!string.IsNullOrEmpty(session.selectedSuccessMessage))
+            _successMessage = session.selectedSuccessMessage;
+    }
+
+    void ScheduleReturnAfterSuccess()
+    {
+        if (_returnScheduled) return;
+
+        var session = SessionManager.Instance;
+        if (session == null || !session.hasHubReturnPosition) return;
+
+        _returnScheduled = true;
+        StartCoroutine(ReturnAfterSuccessRoutine());
+    }
+
+    IEnumerator ReturnAfterSuccessRoutine()
+    {
+        yield return new WaitForSeconds(1.5f);
+        SceneFlow.EnsureExists().ReturnToHub();
     }
 
     GameObject CreateBox(Transform parent, string name, Vector3 position, Vector3 scale, Color color)

@@ -47,6 +47,27 @@ public class GraspController : MonoBehaviour
     bool _hasLastGrip;
     float _releaseTimer, _grabTimer, _gripSignal;
 
+    public void CancelInteraction()
+    {
+        if (_held != null)
+        {
+            var g = _held;
+            if (_heldCol != null && handVisual != null)
+                foreach (var c in handVisual.Colliders) if (c) Physics.IgnoreCollision(_heldCol, c, false);
+            g.OnReleased();
+            _held = null;
+            _heldCol = null;
+        }
+
+        SetHover(null);
+        _pendingGrab = null;
+        _releaseTimer = 0f;
+        _grabTimer = 0f;
+        _grabOffset = Vector3.zero;
+        _gripVel = Vector3.zero;
+        _hasLastGrip = false;
+    }
+
     void FixedUpdate()
     {
         if (hand == null) return;
