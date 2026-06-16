@@ -5,10 +5,10 @@ EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Scenes:
-  - enabled: 1
+  - enabled: 0
     path: Assets/HubWorld/Scenes/Bootstrap.unity
     guid: 49d5616c8a4022d3ef0ab384cd456789
-  - enabled: 1
+  - enabled: 0
     path: Assets/HubWorld/Scenes/HubWorld.unity
     guid: 5ae6727d9b5133e4f01bc495de567890
   - enabled: 1

@@ -67,8 +67,8 @@ unity/My project/[Bb]uilds/
 unity/My project/[Ll]ogs/
 unity/My project/[Uu]ser[Ss]ettings/
 unity/My project/[Mm]emoryCaptures/
-unity/My project/.vs/
-
+unity/My project/.vs
+unity/release
 # Unity generated IDE/project files.
 *.csproj
 *.sln
