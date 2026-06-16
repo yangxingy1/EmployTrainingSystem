@@ -1,3 +1,5 @@
+using System;
+using System.IO;
 using UnityEngine;
 
 #if UNITY_EDITOR
@@ -6,6 +8,7 @@ using UnityEditor;
 
 public class FactoryKeyboardSceneController : MonoBehaviour
 {
+    private const string HubPicsResourcesFolder = "HubPics";
     private const float DefaultVisitorStartWorldX = 186.764f;
     private const float DefaultVisitorStartWorldZ = -58.323f;
     private const float DefaultVisitorFloorHeightRatio = 0.320f;
@@ -382,28 +385,28 @@ public class FactoryKeyboardSceneController : MonoBehaviour
 
         return new[]
         {
-            CreateDefaultOverlay("9g2pd_142", "Assets/HubPics/70e19bf7-8ef7-4064-89f9-dedc0045dab3.png"),
-            CreateDefaultOverlay("9g2pd_141", "Assets/HubPics/808aafb0-5189-4670-9f70-286eec3d3607.png"),
-            CreateDefaultOverlay("9g2pd_145", "Assets/HubPics/b97801c0-ce09-4d2d-8e2f-bfd248407f57.png"),
-            CreateDefaultOverlay("9g2pd_146", "Assets/HubPics/f9e6b115-be42-4518-89cb-121dd70135ce.png"),
-            CreateDefaultOverlay("9g2pd_941", "Assets/HubPics/info1.png"),
-            CreateFixedSurfaceOverlay("9g2pd_943", "Assets/HubPics/info3.png", OverlaySurface.Left),
-            CreateFixedSurfaceOverlay("9g2pd_944", "Assets/HubPics/info4.png", OverlaySurface.Left),
-            CreateFixedSurfaceOverlay("9g2pd_945", "Assets/HubPics/info6.png", OverlaySurface.Left),
-            CreateFixedSurfaceOverlay("9g2pd_754", "Assets/HubPics/info5.png", OverlaySurface.Left),
-            CreateFixedSurfaceOverlay("9g2pd_755", "Assets/HubPics/info5.png", OverlaySurface.Left),
-            CreateFixedSurfaceOverlay("9g2pd_757", "Assets/HubPics/info4.png", OverlaySurface.Left),
-            CreateFixedSurfaceOverlay("9g2pd_758", "Assets/HubPics/info2.png", OverlaySurface.Left),
-            CreateFixedSurfaceOverlay("9g2pd_759", "Assets/HubPics/info1.png", OverlaySurface.Left),
-            CreateFixedSurfaceOverlay("9g2pd_760", "Assets/HubPics/info6.png", OverlaySurface.Left),
-            CreateFixedSurfaceOverlay("9g2pd_567", "Assets/HubPics/info4.png", OverlaySurface.Left),
-            CreateFixedSurfaceOverlay("9g2pd_568", "Assets/HubPics/info5.png", OverlaySurface.Left),
-            CreateFixedSurfaceOverlay("9g2pd_569", "Assets/HubPics/info2.png", OverlaySurface.Left),
-            CreateFixedSurfaceOverlay("9g2pd_570", "Assets/HubPics/info4.png", OverlaySurface.Left),
-            CreateDefaultOverlay("9g2pd_571", "Assets/HubPics/info4.png"),
-            CreateDefaultOverlay("9g2pd_572", "Assets/HubPics/info1.png"),
-            CreateDefaultOverlay("9g2pd_573", "Assets/HubPics/info3.png"),
-            CreateDefaultOverlay("9g2pd_574", "Assets/HubPics/info5.png")
+            CreateDefaultOverlay("9g2pd_142", "HubPics/70e19bf7-8ef7-4064-89f9-dedc0045dab3"),
+            CreateDefaultOverlay("9g2pd_141", "HubPics/808aafb0-5189-4670-9f70-286eec3d3607"),
+            CreateDefaultOverlay("9g2pd_145", "HubPics/b97801c0-ce09-4d2d-8e2f-bfd248407f57"),
+            CreateDefaultOverlay("9g2pd_146", "HubPics/f9e6b115-be42-4518-89cb-121dd70135ce"),
+            CreateDefaultOverlay("9g2pd_941", "HubPics/info1"),
+            CreateFixedSurfaceOverlay("9g2pd_943", "HubPics/info3", OverlaySurface.Left),
+            CreateFixedSurfaceOverlay("9g2pd_944", "HubPics/info4", OverlaySurface.Left),
+            CreateFixedSurfaceOverlay("9g2pd_945", "HubPics/info6", OverlaySurface.Left),
+            CreateFixedSurfaceOverlay("9g2pd_754", "HubPics/info5", OverlaySurface.Left),
+            CreateFixedSurfaceOverlay("9g2pd_755", "HubPics/info5", OverlaySurface.Left),
+            CreateFixedSurfaceOverlay("9g2pd_757", "HubPics/info4", OverlaySurface.Left),
+            CreateFixedSurfaceOverlay("9g2pd_758", "HubPics/info2", OverlaySurface.Left),
+            CreateFixedSurfaceOverlay("9g2pd_759", "HubPics/info1", OverlaySurface.Left),
+            CreateFixedSurfaceOverlay("9g2pd_760", "HubPics/info6", OverlaySurface.Left),
+            CreateFixedSurfaceOverlay("9g2pd_567", "HubPics/info4", OverlaySurface.Left),
+            CreateFixedSurfaceOverlay("9g2pd_568", "HubPics/info5", OverlaySurface.Left),
+            CreateFixedSurfaceOverlay("9g2pd_569", "HubPics/info2", OverlaySurface.Left),
+            CreateFixedSurfaceOverlay("9g2pd_570", "HubPics/info4", OverlaySurface.Left),
+            CreateDefaultOverlay("9g2pd_571", "HubPics/info4"),
+            CreateDefaultOverlay("9g2pd_572", "HubPics/info1"),
+            CreateDefaultOverlay("9g2pd_573", "HubPics/info3"),
+            CreateDefaultOverlay("9g2pd_574", "HubPics/info5")
         };
     }
 
@@ -432,6 +435,43 @@ public class FactoryKeyboardSceneController : MonoBehaviour
         return overlay;
     }
 
+    private static string ToResourcesTexturePath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return null;
+        }
+
+        var normalized = path.Replace('\\', '/').Trim();
+
+        const string legacyPrefix = "Assets/HubPics/";
+        if (normalized.StartsWith(legacyPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            normalized = HubPicsResourcesFolder + "/" + normalized.Substring(legacyPrefix.Length);
+        }
+
+        const string resourcesPrefix = "Assets/Resources/";
+        if (normalized.StartsWith(resourcesPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            normalized = normalized.Substring(resourcesPrefix.Length);
+        }
+
+        if (!normalized.Contains("/"))
+        {
+            normalized = HubPicsResourcesFolder + "/" + normalized;
+        }
+
+        var lastSlash = normalized.LastIndexOf('/');
+        if (lastSlash >= 0)
+        {
+            var folder = normalized.Substring(0, lastSlash);
+            var fileName = Path.GetFileNameWithoutExtension(normalized.Substring(lastSlash + 1));
+            return folder + "/" + fileName;
+        }
+
+        return Path.GetFileNameWithoutExtension(normalized);
+    }
+
     private Texture2D ResolveOverlayImage(ImageOverlay overlay)
     {
         if (overlay == null)
@@ -444,14 +484,21 @@ public class FactoryKeyboardSceneController : MonoBehaviour
             return overlay.image;
         }
 
-#if UNITY_EDITOR
-        if (!string.IsNullOrWhiteSpace(overlay.imageAssetPath))
+        var resourcesPath = ToResourcesTexturePath(overlay.imageAssetPath);
+        if (string.IsNullOrWhiteSpace(resourcesPath))
         {
-            return AssetDatabase.LoadAssetAtPath<Texture2D>(overlay.imageAssetPath);
+            return null;
         }
-#endif
 
-        return null;
+        var texture = Resources.Load<Texture2D>(resourcesPath);
+        if (texture == null)
+        {
+            Debug.LogError(
+                $"海报贴图加载失败: Resources/{resourcesPath}（原始路径: {overlay.imageAssetPath}）",
+                this);
+        }
+
+        return texture;
     }
 
     private void CreateImageOverlay(Renderer targetRenderer, ImageOverlay overlay, Texture2D image)
