@@ -24,6 +24,7 @@ from backend.auth import create_access_token, verify_token, hash_password
 from backend.schemas.user import UserCreate
 from backend.schemas.result import ResultSubmit
 from backend.schemas.login import LoginRequest
+from backend.schemas.staff import StaffCreate
 
 
 # 自动建表 —— 启动时根据 ORM 模型创建/更新数据库表结构
@@ -123,7 +124,14 @@ def login(user: LoginRequest, db: Session = Depends(get_db)):
     if not user.username or not user.password:
         raise HTTPException(status_code=400, detail="用户名和密码不能为空")
 
-    db_user = db.query(User).filter(User.username == user.username).first()
+    # 同名用户可能跨公司存在，提供 company_id 时按 用户名+公司 精确查询
+    if user.company_id is not None:
+        db_user = db.query(User).filter(
+            User.username == user.username,
+            User.company_id == user.company_id
+        ).first()
+    else:
+        db_user = db.query(User).filter(User.username == user.username).first()
     if not db_user:
         raise HTTPException(status_code=400, detail="用户不存在")
 
@@ -222,6 +230,93 @@ def delete_student(user_id: int, db: Session = Depends(get_db)):
     db.delete(student)
     db.commit()
     return {"success": True, "message": f"学员 {student.username} 已删除"}
+
+# =================================================================
+# 管理员：本公司人员管理（注册管理员/学员、查看、删除）
+# =================================================================
+
+def _get_admin_company(authorization: str, db: Session):
+    """从 JWT Token 解析当前管理员信息，返回 (admin_user, company_id)"""
+    if not authorization:
+        raise HTTPException(status_code=401, detail="未登录")
+    token = authorization.replace("Bearer ", "")
+    payload = verify_token(token)
+    if not payload or payload.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="仅管理员可操作")
+    admin_user = db.query(User).filter(User.id == payload["user_id"]).first()
+    if not admin_user:
+        raise HTTPException(status_code=401, detail="管理员不存在")
+    return admin_user, admin_user.company_id
+
+
+@app.get("/admin/staff")
+def get_company_staff(authorization: str = Header(None), db: Session = Depends(get_db)):
+    """获取本公司全部人员（管理员和学员）"""
+    _, company_id = _get_admin_company(authorization, db)
+    users = (
+        db.query(User)
+        .filter(User.company_id == company_id, User.role.in_(["admin", "student"]))
+        .order_by(User.role.desc(), User.id.asc())
+        .all()
+    )
+    return [{"id": u.id, "username": u.username, "role": u.role, "company_id": u.company_id} for u in users]
+
+
+@app.post("/admin/staff")
+def create_company_staff(data: StaffCreate, authorization: str = Header(None), db: Session = Depends(get_db)):
+    """管理员在本公司创建管理员或学员账号"""
+    _, company_id = _get_admin_company(authorization, db)
+
+    if not data.username or not data.username.strip():
+        raise HTTPException(status_code=400, detail="用户名不能为空")
+    if not data.password or len(data.password) < 3:
+        raise HTTPException(status_code=400, detail="密码至少需要3位")
+
+    existing = db.query(User).filter(
+        User.username == data.username,
+        User.company_id == company_id
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="该用户名已在本公司存在")
+
+    new_user = User(
+        username=data.username.strip(),
+        password=hash_password(data.password),
+        role=data.role,
+        company_id=company_id
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    label = "管理员" if data.role == "admin" else "学员"
+    return {"success": True, "message": f"{label}创建成功", "user_id": new_user.id}
+
+
+@app.delete("/admin/staff/{user_id}")
+def delete_company_staff(user_id: int, authorization: str = Header(None), db: Session = Depends(get_db)):
+    """管理员删除本公司人员（同步清理其任务分配记录）"""
+    _, company_id = _get_admin_company(authorization, db)
+
+    target = db.query(User).filter(
+        User.id == user_id,
+        User.company_id == company_id,
+        User.role.in_(["admin", "student"])
+    ).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="人员不存在或不属于本公司")
+
+    # 清理任务分配记录
+    db.query(TaskAssignment).filter(TaskAssignment.user_id == user_id).delete()
+    db.delete(target)
+    db.commit()
+    label = "管理员" if target.role == "admin" else "学员"
+    return {"success": True, "message": f"{label} {target.username} 已删除"}
+
+
+
+
+
+
 
 
 # =================================================================

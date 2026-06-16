@@ -108,15 +108,16 @@ def get_global_tasks(db: Session = Depends(get_db)):
 # ============ 分配记录查询 ============
 
 @router.get("/assignments")
-def get_assignments(db: Session = Depends(get_db)):
-    """获取所有分配记录 —— 联表查询学员 + 训练信息"""
-    rows = (
+def get_assignments(company_id: int = None, db: Session = Depends(get_db)):
+    """获取分配记录 —— 可按公司ID过滤，联表查询学员 + 训练信息"""
+    query = (
         db.query(TaskAssignment, User, Task)
         .join(User, TaskAssignment.user_id == User.id)
         .join(Task, TaskAssignment.task_id == Task.id)
-        .order_by(TaskAssignment.id.desc())
-        .all()
     )
+    if company_id is not None:
+        query = query.filter(User.company_id == company_id)
+    rows = query.order_by(TaskAssignment.id.desc()).all()
     return [
         {
             "id": assignment.id,

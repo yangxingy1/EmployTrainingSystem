@@ -100,7 +100,7 @@ def delete_company(company_id: int, db: Session = Depends(get_db)):
 @router.get("/admins")
 def get_admins(db: Session = Depends(get_db)):
     """Root 获取管理员列表（联表查询公司名称）"""
-    admins = db.query(User).filter(User.role == "admin").all()
+    admins = db.query(User).filter(User.role == "admin").order_by(User.company_id.asc(), User.id.asc()).all()
     result = []
     for admin in admins:
         company = db.query(Company).filter(Company.id == admin.company_id).first()
@@ -149,6 +149,20 @@ def delete_admin(admin_id: int, db: Session = Depends(get_db)):
     db.delete(admin)
     db.commit()
     return {"success": True, "message": "管理员已删除"}
+
+@router.patch("/admins/{admin_id}/reset-password")
+def reset_admin_password(admin_id: int, data: dict, db: Session = Depends(get_db)):
+    """Root 重置管理员密码"""
+    admin = db.query(User).filter(User.id == admin_id, User.role == "admin").first()
+    if not admin:
+        raise HTTPException(status_code=404, detail="管理员不存在")
+    new_password = data.get("password", "")
+    if not new_password or len(new_password) < 3:
+        raise HTTPException(status_code=400, detail="密码至少需要3位")
+    admin.password = hash_password(new_password)
+    db.commit()
+    return {"success": True, "message": f"管理员 {admin.username} 密码已重置"}
+
 
 
 # =================================================================
