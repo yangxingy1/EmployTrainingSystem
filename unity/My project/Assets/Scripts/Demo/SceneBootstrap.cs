@@ -12,6 +12,9 @@ public class SceneBootstrap : MonoBehaviour
 
     void Start()
     {
+        if (GetComponent<ReturnToHubInput>() == null)
+            gameObject.AddComponent<ReturnToHubInput>();
+
         SetupCamera();
         SetupLighting();
         SetupWorkbench();

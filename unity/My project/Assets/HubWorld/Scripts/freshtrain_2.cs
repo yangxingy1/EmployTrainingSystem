@@ -164,7 +164,7 @@ public class freshtrain_2 : MonoBehaviour
         CreateZoneBand("FreshTrain2 Right Training Lane Zone", new Vector3(22.5f, 0.016f, 0.2f), new Vector3(5.4f, 0.018f, 28.8f), new Color(0.13f, 0.18f, 0.15f), "进阶工位");
 
         CreateOverheadSign("新手教学区", "选择工位  /  进入操作  /  完成训练", new Vector3(0f, 3.05f, -13.9f), new Color(0.08f, 0.28f, 0.36f), new Color(0.12f, 0.72f, 0.94f));
-        CreateOverheadSign("自由练习工位", "靠近蓝色工位后按 E 进入训练", new Vector3(0f, 3.12f, 14.1f), new Color(0.13f, 0.18f, 0.22f), new Color(1f, 0.76f, 0.16f));
+        CreateOverheadSign("", "靠近蓝色工位后按 E 进入训练", new Vector3(0f, 3.12f, 14.1f), new Color(0.13f, 0.18f, 0.22f), new Color(1f, 0.76f, 0.16f));
         CreateLaneHeader("基础操作", new Vector3(-22.5f, 2.75f, 15.25f), new Color(0.10f, 0.34f, 0.48f));
         CreateLaneHeader("综合训练", new Vector3(22.5f, 2.75f, 15.25f), new Color(0.18f, 0.36f, 0.23f));
         CreateWallAccentPanels();
@@ -208,7 +208,8 @@ public class freshtrain_2 : MonoBehaviour
 
     static void CreateOverheadSign(string title, string subtitle, Vector3 position, Color plateColor, Color accentColor)
     {
-        var root = new GameObject("FreshTrain2 Sign " + title);
+        var signName = string.IsNullOrEmpty(title) ? subtitle : title;
+        var root = new GameObject("FreshTrain2 Sign " + signName);
         root.transform.position = position;
         root.AddComponent<FreshTrain2FaceCameraLabel>();
 
@@ -228,8 +229,13 @@ public class freshtrain_2 : MonoBehaviour
         SetColor(accent, accentColor);
         RemoveCollider(accent);
 
-        CreateSignText(root.transform, title, new Vector3(0f, 0.13f, 0.08f), 0.16f, 64, Color.white);
-        CreateSignText(root.transform, subtitle, new Vector3(0f, -0.18f, 0.08f), 0.062f, 30, new Color(0.78f, 0.88f, 0.92f));
+        if (!string.IsNullOrEmpty(title))
+            CreateSignText(root.transform, title, new Vector3(0f, 0.13f, 0.08f), 0.16f, 64, Color.white);
+
+        var subtitlePosition = string.IsNullOrEmpty(title) ? new Vector3(0f, -0.02f, 0.08f) : new Vector3(0f, -0.18f, 0.08f);
+        var subtitleSize = string.IsNullOrEmpty(title) ? 0.082f : 0.062f;
+        var subtitleFontSize = string.IsNullOrEmpty(title) ? 36 : 30;
+        CreateSignText(root.transform, subtitle, subtitlePosition, subtitleSize, subtitleFontSize, new Color(0.78f, 0.88f, 0.92f));
     }
 
     static void CreateLaneHeader(string title, Vector3 position, Color color)
@@ -270,6 +276,7 @@ public class freshtrain_2 : MonoBehaviour
         var textGo = new GameObject(textValue + " Text");
         textGo.transform.SetParent(parent, false);
         textGo.transform.localPosition = localPosition;
+        textGo.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
         var text = textGo.AddComponent<TextMesh>();
         text.text = textValue;
         text.anchor = TextAnchor.MiddleCenter;
@@ -433,14 +440,8 @@ public class freshtrain_2 : MonoBehaviour
 
     void CreatePlayer(SessionManager session)
     {
-        var player = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-        player.name = "FreshTrain2 Hub Player";
+        var player = new GameObject("FreshTrain2 Hub Player");
         player.transform.position = session.hasHubReturnPosition ? session.hubReturnPosition : DefaultPracticeSpawnPosition;
-        player.transform.localScale = new Vector3(0.8f, 1f, 0.8f);
-        SetColor(player, new Color(0.18f, 0.56f, 0.82f));
-
-        var capsuleCollider = player.GetComponent<CapsuleCollider>();
-        if (capsuleCollider != null) Destroy(capsuleCollider);
 
         var controller = player.AddComponent<CharacterController>();
         controller.height = 2f;
@@ -458,16 +459,129 @@ public class freshtrain_2 : MonoBehaviour
         var playerController = player.AddComponent<FreshTrain2PlayerController>();
         playerController.followCamera = cameraGo.transform;
         playerController.moveSpeed = 6.2f;
-        playerController.cameraDistance = 7.0f;
-        playerController.cameraHeight = 3.0f;
+        playerController.cameraDistance = 7.6f;
+        playerController.cameraHeight = 2.85f;
         playerController.initialYaw = DefaultPracticeSpawnYaw;
-        playerController.initialPitch = DefaultPracticeSpawnPitch;
+        playerController.initialPitch = DefaultPracticeSpawnPitch - 2f;
         playerController.worldBoundsX = new Vector2(-26.5f, 26.5f);
         playerController.worldBoundsZ = new Vector2(-17.5f, 17.5f);
+
+        CreatePlayerAvatar(player.transform);
 
         var interactor = player.AddComponent<FreshTrain2HubInteractor>();
         interactor.interactionRadius = 3.0f;
 
+    }
+
+    static void CreatePlayerAvatar(Transform parent)
+    {
+        var avatar = new GameObject("FreshTrain2 Safety Trainee Avatar");
+        avatar.transform.SetParent(parent, false);
+        avatar.transform.localPosition = Vector3.zero;
+        avatar.transform.localRotation = Quaternion.identity;
+
+        CreateAvatarPart(avatar.transform, "Soft Ground Shadow", PrimitiveType.Cylinder,
+            new Vector3(0f, -0.985f, 0f), Quaternion.identity, new Vector3(0.48f, 0.01f, 0.34f),
+            new Color(0.045f, 0.050f, 0.055f));
+
+        var leftBoot = CreateAvatarPart(avatar.transform, "Left Boot", PrimitiveType.Cube,
+            new Vector3(-0.16f, -0.86f, 0.04f), Quaternion.Euler(0f, 3f, 0f), new Vector3(0.22f, 0.18f, 0.30f),
+            new Color(0.055f, 0.060f, 0.068f));
+        var rightBoot = CreateAvatarPart(avatar.transform, "Right Boot", PrimitiveType.Cube,
+            new Vector3(0.16f, -0.86f, 0.04f), Quaternion.Euler(0f, -3f, 0f), new Vector3(0.22f, 0.18f, 0.30f),
+            new Color(0.055f, 0.060f, 0.068f));
+
+        var leftLeg = CreateAvatarPart(avatar.transform, "Left Leg", PrimitiveType.Capsule,
+            new Vector3(-0.15f, -0.50f, 0f), Quaternion.Euler(0f, 0f, -2f), new Vector3(0.14f, 0.35f, 0.14f),
+            new Color(0.12f, 0.23f, 0.36f));
+        var rightLeg = CreateAvatarPart(avatar.transform, "Right Leg", PrimitiveType.Capsule,
+            new Vector3(0.15f, -0.50f, 0f), Quaternion.Euler(0f, 0f, 2f), new Vector3(0.14f, 0.35f, 0.14f),
+            new Color(0.12f, 0.23f, 0.36f));
+
+        CreateAvatarPart(avatar.transform, "Utility Belt", PrimitiveType.Cube,
+            new Vector3(0f, -0.13f, 0f), Quaternion.identity, new Vector3(0.56f, 0.11f, 0.34f),
+            new Color(0.07f, 0.075f, 0.08f));
+        CreateAvatarPart(avatar.transform, "Blue Work Jacket", PrimitiveType.Cube,
+            new Vector3(0f, 0.22f, 0f), Quaternion.identity, new Vector3(0.58f, 0.60f, 0.34f),
+            new Color(0.10f, 0.30f, 0.50f));
+
+        CreateAvatarPart(avatar.transform, "Safety Vest Front", PrimitiveType.Cube,
+            new Vector3(0f, 0.23f, 0.181f), Quaternion.identity, new Vector3(0.46f, 0.55f, 0.035f),
+            new Color(0.94f, 0.48f, 0.08f));
+        CreateAvatarPart(avatar.transform, "Safety Vest Back", PrimitiveType.Cube,
+            new Vector3(0f, 0.23f, -0.181f), Quaternion.identity, new Vector3(0.46f, 0.55f, 0.035f),
+            new Color(0.94f, 0.48f, 0.08f));
+        CreateAvatarPart(avatar.transform, "Front Reflective Stripe", PrimitiveType.Cube,
+            new Vector3(0f, 0.31f, 0.203f), Quaternion.identity, new Vector3(0.52f, 0.055f, 0.018f),
+            new Color(1.0f, 0.88f, 0.20f));
+        CreateAvatarPart(avatar.transform, "Back Reflective Stripe", PrimitiveType.Cube,
+            new Vector3(0f, 0.31f, -0.203f), Quaternion.identity, new Vector3(0.52f, 0.055f, 0.018f),
+            new Color(1.0f, 0.88f, 0.20f));
+        CreateAvatarPart(avatar.transform, "Name Badge", PrimitiveType.Cube,
+            new Vector3(-0.15f, 0.41f, 0.209f), Quaternion.identity, new Vector3(0.15f, 0.09f, 0.018f),
+            new Color(0.52f, 0.86f, 1.0f));
+
+        var leftArm = CreateAvatarPart(avatar.transform, "Left Arm", PrimitiveType.Capsule,
+            new Vector3(-0.43f, 0.18f, 0f), Quaternion.Euler(0f, 0f, -12f), new Vector3(0.13f, 0.34f, 0.13f),
+            new Color(0.09f, 0.28f, 0.46f));
+        var rightArm = CreateAvatarPart(avatar.transform, "Right Arm", PrimitiveType.Capsule,
+            new Vector3(0.43f, 0.18f, 0f), Quaternion.Euler(0f, 0f, 12f), new Vector3(0.13f, 0.34f, 0.13f),
+            new Color(0.09f, 0.28f, 0.46f));
+        var leftGlove = CreateAvatarPart(avatar.transform, "Left Glove", PrimitiveType.Sphere,
+            new Vector3(-0.50f, -0.20f, 0.01f), Quaternion.identity, new Vector3(0.17f, 0.15f, 0.17f),
+            new Color(0.96f, 0.78f, 0.54f));
+        var rightGlove = CreateAvatarPart(avatar.transform, "Right Glove", PrimitiveType.Sphere,
+            new Vector3(0.50f, -0.20f, 0.01f), Quaternion.identity, new Vector3(0.17f, 0.15f, 0.17f),
+            new Color(0.96f, 0.78f, 0.54f));
+
+        CreateAvatarPart(avatar.transform, "Neck", PrimitiveType.Cylinder,
+            new Vector3(0f, 0.56f, 0f), Quaternion.identity, new Vector3(0.12f, 0.08f, 0.12f),
+            new Color(0.86f, 0.62f, 0.42f));
+        CreateAvatarPart(avatar.transform, "Head", PrimitiveType.Sphere,
+            new Vector3(0f, 0.74f, 0.02f), Quaternion.identity, new Vector3(0.38f, 0.38f, 0.36f),
+            new Color(0.91f, 0.68f, 0.48f));
+        CreateAvatarPart(avatar.transform, "Helmet Crown", PrimitiveType.Sphere,
+            new Vector3(0f, 0.94f, 0.02f), Quaternion.identity, new Vector3(0.44f, 0.18f, 0.42f),
+            new Color(1.0f, 0.77f, 0.12f));
+        CreateAvatarPart(avatar.transform, "Helmet Front Brim", PrimitiveType.Cube,
+            new Vector3(0f, 0.88f, 0.23f), Quaternion.identity, new Vector3(0.47f, 0.045f, 0.13f),
+            new Color(0.96f, 0.68f, 0.08f));
+        CreateAvatarPart(avatar.transform, "Helmet Rear Brim", PrimitiveType.Cube,
+            new Vector3(0f, 0.88f, -0.18f), Quaternion.identity, new Vector3(0.42f, 0.04f, 0.10f),
+            new Color(0.96f, 0.68f, 0.08f));
+        CreateAvatarPart(avatar.transform, "Helmet Ridge", PrimitiveType.Cube,
+            new Vector3(0f, 1.015f, 0.02f), Quaternion.identity, new Vector3(0.09f, 0.045f, 0.38f),
+            new Color(1.0f, 0.84f, 0.20f));
+
+        CreateAvatarPart(avatar.transform, "Left Eye", PrimitiveType.Cube,
+            new Vector3(-0.07f, 0.78f, 0.205f), Quaternion.identity, new Vector3(0.045f, 0.045f, 0.018f),
+            new Color(0.055f, 0.055f, 0.060f));
+        CreateAvatarPart(avatar.transform, "Right Eye", PrimitiveType.Cube,
+            new Vector3(0.07f, 0.78f, 0.205f), Quaternion.identity, new Vector3(0.045f, 0.045f, 0.018f),
+            new Color(0.055f, 0.055f, 0.060f));
+
+        var walker = avatar.AddComponent<FreshTrain2AvatarWalker>();
+        walker.leftLeg = leftLeg.transform;
+        walker.rightLeg = rightLeg.transform;
+        walker.leftBoot = leftBoot.transform;
+        walker.rightBoot = rightBoot.transform;
+        walker.leftArm = leftArm.transform;
+        walker.rightArm = rightArm.transform;
+        walker.leftGlove = leftGlove.transform;
+        walker.rightGlove = rightGlove.transform;
+    }
+
+    static GameObject CreateAvatarPart(Transform parent, string name, PrimitiveType primitive, Vector3 localPosition, Quaternion localRotation, Vector3 localScale, Color color)
+    {
+        var part = GameObject.CreatePrimitive(primitive);
+        part.name = name;
+        part.transform.SetParent(parent, false);
+        part.transform.localPosition = localPosition;
+        part.transform.localRotation = localRotation;
+        part.transform.localScale = localScale;
+        SetColor(part, color);
+        RemoveCollider(part);
+        return part;
     }
 
     static void CreateTaskStations(IReadOnlyList<AssignedTask> assignedTasks)
@@ -527,6 +641,123 @@ public class freshtrain_2 : MonoBehaviour
     {
         var collider = go.GetComponent<Collider>();
         if (collider != null) Destroy(collider);
+    }
+}
+
+public class FreshTrain2AvatarWalker : MonoBehaviour
+{
+    public Transform leftLeg;
+    public Transform rightLeg;
+    public Transform leftBoot;
+    public Transform rightBoot;
+    public Transform leftArm;
+    public Transform rightArm;
+    public Transform leftGlove;
+    public Transform rightGlove;
+
+    public float swingDegrees = 38f;
+    public float armSwingDegrees = 30f;
+    public float bootLift = 0.095f;
+    public float strideDistance = 0.10f;
+    public float armStrideDistance = 0.16f;
+    public float blendInSpeed = 7f;
+    public float blendOutSpeed = 9f;
+
+    CharacterController _controller;
+    bool _poseCaptured;
+    float _walkBlend;
+    float _phase;
+    Quaternion _leftLegRestRotation;
+    Quaternion _rightLegRestRotation;
+    Quaternion _leftBootRestRotation;
+    Quaternion _rightBootRestRotation;
+    Quaternion _leftArmRestRotation;
+    Quaternion _rightArmRestRotation;
+    Quaternion _leftGloveRestRotation;
+    Quaternion _rightGloveRestRotation;
+    Vector3 _leftBootRestPosition;
+    Vector3 _rightBootRestPosition;
+    Vector3 _leftGloveRestPosition;
+    Vector3 _rightGloveRestPosition;
+
+    void LateUpdate()
+    {
+        if (!_poseCaptured) CapturePose();
+        if (_controller == null) _controller = GetComponentInParent<CharacterController>();
+
+        var velocity = _controller != null ? _controller.velocity : Vector3.zero;
+        velocity.y = 0f;
+        var speed = velocity.magnitude;
+        var targetBlend = speed > 0.08f ? Mathf.Clamp01(speed / 4.0f) : 0f;
+        var blendSpeed = targetBlend > _walkBlend ? blendInSpeed : blendOutSpeed;
+        _walkBlend = Mathf.MoveTowards(_walkBlend, targetBlend, Time.deltaTime * blendSpeed);
+
+        if (_walkBlend > 0.001f)
+            _phase += Time.deltaTime * Mathf.Lerp(5.5f, 10.5f, Mathf.Clamp01(speed / 6.2f));
+
+        ApplyWalkPose(Mathf.Sin(_phase), Mathf.Cos(_phase));
+    }
+
+    void CapturePose()
+    {
+        _controller = GetComponentInParent<CharacterController>();
+        _leftLegRestRotation = RotationOf(leftLeg);
+        _rightLegRestRotation = RotationOf(rightLeg);
+        _leftBootRestRotation = RotationOf(leftBoot);
+        _rightBootRestRotation = RotationOf(rightBoot);
+        _leftArmRestRotation = RotationOf(leftArm);
+        _rightArmRestRotation = RotationOf(rightArm);
+        _leftGloveRestRotation = RotationOf(leftGlove);
+        _rightGloveRestRotation = RotationOf(rightGlove);
+        _leftBootRestPosition = PositionOf(leftBoot);
+        _rightBootRestPosition = PositionOf(rightBoot);
+        _leftGloveRestPosition = PositionOf(leftGlove);
+        _rightGloveRestPosition = PositionOf(rightGlove);
+        _poseCaptured = true;
+    }
+
+    void ApplyWalkPose(float sine, float cosine)
+    {
+        var legSwing = sine * swingDegrees * _walkBlend;
+        var armSwing = sine * armSwingDegrees * _walkBlend;
+        var leftLift = Mathf.Max(0f, cosine) * bootLift * _walkBlend;
+        var rightLift = Mathf.Max(0f, -cosine) * bootLift * _walkBlend;
+        var footStride = sine * strideDistance * _walkBlend;
+        var handStride = sine * armStrideDistance * _walkBlend;
+
+        SetRotation(leftLeg, _leftLegRestRotation * Quaternion.Euler(legSwing, 0f, 0f));
+        SetRotation(rightLeg, _rightLegRestRotation * Quaternion.Euler(-legSwing, 0f, 0f));
+        SetRotation(leftBoot, _leftBootRestRotation * Quaternion.Euler(legSwing * 0.62f, 0f, 0f));
+        SetRotation(rightBoot, _rightBootRestRotation * Quaternion.Euler(-legSwing * 0.62f, 0f, 0f));
+        SetRotation(leftArm, _leftArmRestRotation * Quaternion.Euler(-armSwing, 0f, 0f));
+        SetRotation(rightArm, _rightArmRestRotation * Quaternion.Euler(armSwing, 0f, 0f));
+        SetRotation(leftGlove, _leftGloveRestRotation * Quaternion.Euler(-armSwing * 0.55f, 0f, 0f));
+        SetRotation(rightGlove, _rightGloveRestRotation * Quaternion.Euler(armSwing * 0.55f, 0f, 0f));
+
+        SetPosition(leftBoot, _leftBootRestPosition + Vector3.forward * footStride + Vector3.up * leftLift);
+        SetPosition(rightBoot, _rightBootRestPosition - Vector3.forward * footStride + Vector3.up * rightLift);
+        SetPosition(leftGlove, _leftGloveRestPosition - Vector3.forward * handStride + Vector3.up * rightLift * 0.55f);
+        SetPosition(rightGlove, _rightGloveRestPosition + Vector3.forward * handStride + Vector3.up * leftLift * 0.55f);
+    }
+
+    static Quaternion RotationOf(Transform target)
+    {
+        return target != null ? target.localRotation : Quaternion.identity;
+    }
+
+    static Vector3 PositionOf(Transform target)
+    {
+        return target != null ? target.localPosition : Vector3.zero;
+    }
+
+    static void SetRotation(Transform target, Quaternion rotation)
+    {
+        if (target != null) target.localRotation = rotation;
+    }
+
+    static void SetPosition(Transform target, Vector3 position)
+    {
+        if (target != null) target.localPosition = position;
     }
 }
 
@@ -695,7 +926,17 @@ public class FreshTrain2TaskStation : MonoBehaviour
         trigger.center = new Vector3(0f, 0.86f, 0f);
         trigger.size = active ? new Vector3(2.9f, 2.1f, 2.9f) : new Vector3(2.4f, 1.8f, 2.4f);
 
+        CreateSolidCollision(active);
         CreateLabel(active ? displayName : displayName + "\n待开放", active ? Color.white : new Color(0.82f, 0.84f, 0.86f), panelColor, active);
+    }
+
+    void CreateSolidCollision(bool active)
+    {
+        var solid = gameObject.AddComponent<CapsuleCollider>();
+        solid.isTrigger = false;
+        solid.center = active ? new Vector3(0f, 0.72f, 0f) : new Vector3(0f, 0.56f, 0f);
+        solid.radius = active ? 0.82f : 0.66f;
+        solid.height = active ? 1.42f : 1.05f;
     }
 
     void CreateEntryBeacon(Color markerColor)
@@ -758,6 +999,7 @@ public class FreshTrain2TaskStation : MonoBehaviour
         var textGo = new GameObject("Label Text");
         textGo.transform.SetParent(labelGo.transform, false);
         textGo.transform.localPosition = new Vector3(0f, 0f, 0.045f);
+        textGo.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
 
         var label = textGo.AddComponent<TextMesh>();
         label.text = text;
@@ -1743,31 +1985,32 @@ public class FreshTrain2ReturnExit : MonoBehaviour
     {
         CreateCylinder("Return Exit Outer Halo", new Vector3(0f, 0.04f, 0f), new Vector3(3.25f, 0.035f, 3.25f), new Color(0.05f, 0.55f, 0.82f));
         CreateCylinder("Return Exit Inner Pad", new Vector3(0f, 0.08f, 0f), new Vector3(2.05f, 0.032f, 2.05f), new Color(0.04f, 0.20f, 0.28f));
-        CreateCube("Return Exit Left Pillar", new Vector3(-1.25f, 1.25f, 0f), new Vector3(0.22f, 2.5f, 0.22f), new Color(0.10f, 0.72f, 0.92f));
-        CreateCube("Return Exit Right Pillar", new Vector3(1.25f, 1.25f, 0f), new Vector3(0.22f, 2.5f, 0.22f), new Color(0.10f, 0.72f, 0.92f));
-        CreateCube("Return Exit Beam", new Vector3(0f, 2.55f, 0f), new Vector3(2.9f, 0.24f, 0.34f), new Color(0.06f, 0.40f, 0.58f));
+        CreateCube("Return Exit Left Pillar", new Vector3(-1.25f, 1.25f, 0f), new Vector3(0.22f, 2.5f, 0.22f), new Color(0.10f, 0.72f, 0.92f), true);
+        CreateCube("Return Exit Right Pillar", new Vector3(1.25f, 1.25f, 0f), new Vector3(0.22f, 2.5f, 0.22f), new Color(0.10f, 0.72f, 0.92f), true);
+        CreateCube("Return Exit Beam", new Vector3(0f, 2.55f, 0f), new Vector3(2.9f, 0.24f, 0.34f), new Color(0.06f, 0.40f, 0.58f), true);
 
         var labelRoot = new GameObject("Return Exit Label");
         labelRoot.transform.SetParent(transform, false);
-        labelRoot.transform.localPosition = new Vector3(0f, 3.15f, 0f);
+        labelRoot.transform.localPosition = new Vector3(0f, 2.16f, -0.24f);
         _label = labelRoot.transform;
 
-        var plate = CreateCube("Return Exit Label Plate", new Vector3(0f, 0f, -0.05f), new Vector3(3.25f, 0.52f, 0.07f), new Color(0.035f, 0.13f, 0.18f));
+        var plate = CreateCube("Return Exit Label Plate", new Vector3(0f, 0f, -0.05f), new Vector3(2.55f, 0.42f, 0.07f), new Color(0.035f, 0.13f, 0.18f));
         plate.transform.SetParent(labelRoot.transform, false);
 
         var textGo = new GameObject("Return Exit Label Text");
         textGo.transform.SetParent(labelRoot.transform, false);
         textGo.transform.localPosition = new Vector3(0f, 0.02f, 0.04f);
+        textGo.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
         var text = textGo.AddComponent<TextMesh>();
         text.text = "返回大厅";
         text.anchor = TextAnchor.MiddleCenter;
         text.alignment = TextAlignment.Center;
-        text.characterSize = 0.26f;
-        text.fontSize = 64;
+        text.characterSize = 0.19f;
+        text.fontSize = 56;
         text.color = Color.white;
     }
 
-    GameObject CreateCube(string name, Vector3 localPosition, Vector3 localScale, Color color)
+    GameObject CreateCube(string name, Vector3 localPosition, Vector3 localScale, Color color, bool solid = false)
     {
         var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
         go.name = name;
@@ -1775,6 +2018,7 @@ public class FreshTrain2ReturnExit : MonoBehaviour
         go.transform.localPosition = localPosition;
         go.transform.localScale = localScale;
         SetColor(go, color);
+        if (solid) go.AddComponent<BoxCollider>();
         return go;
     }
 
@@ -2041,6 +2285,7 @@ public class FreshTrain2FactoryScenery : MonoBehaviour
             go.transform.localScale = Vector3.Scale(go.transform.localScale, scale);
             if (alignBottomToY) AlignBottomToY(go, position.y);
             DisableColliders(go);
+            if (alignBottomToY) AddApproximateSolidCollider(go);
             return go;
         }
 
@@ -2051,6 +2296,7 @@ public class FreshTrain2FactoryScenery : MonoBehaviour
         go.transform.rotation = Quaternion.Euler(euler);
         go.transform.localScale = scale;
         SetColor(go, new Color(0.36f, 0.40f, 0.44f));
+        if (alignBottomToY) AddApproximateSolidCollider(go);
         return go;
     }
 
@@ -2071,7 +2317,46 @@ public class FreshTrain2FactoryScenery : MonoBehaviour
     {
         var colliders = go.GetComponentsInChildren<Collider>();
         foreach (var collider in colliders)
-            Destroy(collider);
+            collider.enabled = false;
+    }
+
+    static void AddApproximateSolidCollider(GameObject go)
+    {
+        var bounds = CalculateRendererBounds(go);
+        if (!bounds.HasValue) return;
+
+        var size = bounds.Value.size;
+        if (size.x < 0.08f || size.y < 0.08f || size.z < 0.08f) return;
+
+        var collider = go.AddComponent<BoxCollider>();
+        var scale = go.transform.lossyScale;
+        collider.isTrigger = false;
+        collider.center = go.transform.InverseTransformPoint(bounds.Value.center);
+        collider.size = new Vector3(
+            size.x / Mathf.Max(0.001f, Mathf.Abs(scale.x)),
+            size.y / Mathf.Max(0.001f, Mathf.Abs(scale.y)),
+            size.z / Mathf.Max(0.001f, Mathf.Abs(scale.z)));
+    }
+
+    static Bounds? CalculateRendererBounds(GameObject go)
+    {
+        var renderers = go.GetComponentsInChildren<Renderer>();
+        Bounds? bounds = null;
+        foreach (var renderer in renderers)
+        {
+            if (!renderer.enabled) continue;
+            if (!bounds.HasValue)
+            {
+                bounds = renderer.bounds;
+                continue;
+            }
+
+            var expanded = bounds.Value;
+            expanded.Encapsulate(renderer.bounds);
+            bounds = expanded;
+        }
+
+        return bounds;
     }
 
     static void SetColor(GameObject go, Color color)
@@ -2509,6 +2794,15 @@ public class FreshTrain2InteractiveSceneBuilder : MonoBehaviour
 public class FreshTrain2FaceCameraLabel : MonoBehaviour
 {
     public bool rotateOnlyAroundY = true;
+    public bool keepTextReadable = true;
+
+    static readonly Quaternion ReadableTextFlip = Quaternion.Euler(0f, 180f, 0f);
+    TextMesh _directText;
+
+    void Awake()
+    {
+        _directText = GetComponent<TextMesh>();
+    }
 
     void LateUpdate()
     {
@@ -2518,8 +2812,16 @@ public class FreshTrain2FaceCameraLabel : MonoBehaviour
         if (rotateOnlyAroundY)
             direction.y = 0f;
 
-        if (direction.sqrMagnitude > 0.001f)
-            transform.rotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
+        if (direction.sqrMagnitude <= 0.001f) return;
+
+        if (_directText == null)
+            _directText = GetComponent<TextMesh>();
+
+        var rotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
+        if (keepTextReadable && _directText != null)
+            rotation *= ReadableTextFlip;
+
+        transform.rotation = rotation;
     }
 }
 
