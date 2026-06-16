@@ -9,6 +9,9 @@ public class SessionManager : MonoBehaviour
     public string displayName = "Mock Trainee";
     public List<AssignedTask> assignedTasks = new List<AssignedTask>();
     public string selectedTaskId = "";
+    public string selectedInstruction = "";
+    public string selectedSuccessMessage = "成功完成训练";
+    public string returnSceneName = "HubWorld";
     public Vector3 hubReturnPosition = Vector3.zero;
     public bool hasHubReturnPosition;
 

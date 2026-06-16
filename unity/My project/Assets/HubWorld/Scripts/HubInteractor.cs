@@ -91,6 +91,8 @@ public class HubInteractor : MonoBehaviour
 
         var returnPosition = GetReturnPositionNearStation(_currentStation);
         session.selectedTaskId = task.taskId;
+        session.selectedInstruction = "";
+        session.selectedSuccessMessage = "成功完成训练";
 
         Debug.Log($"[HubInteractor] Enter scene: {task.sceneName} (taskId={task.taskId}, anchor={task.anchorId})");
         StartCoroutine(EnterTrainingRoutine(task, returnPosition));
