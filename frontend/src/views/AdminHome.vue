@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="admin-shell">
     <aside class="sidebar">
       <div class="brand-area">
@@ -29,8 +29,9 @@
 
       <div v-if="dashboardError" class="inline-alert error">{{ dashboardError }}</div>
 
+      <!-- 统计卡片 -->
       <section class="stat-grid">
-        <div class="stat-card"><span>学员总数</span><strong>{{ students.length }}</strong><small>可分配训练对象</small></div>
+        <div class="stat-card"><span>人员</span><strong>管理员 {{ admins.length }}<em style="font-weight:400;font-size:20px;color:#667481;margin:0 4px;">·</em>学员 {{ students.length }}</strong><small>本公司成员</small></div>
         <div class="stat-card accent"><span>训练项目</span><strong>{{ companyTasks.length }}</strong><small>本公司可用</small></div>
         <div class="stat-card"><span>分配记录</span><strong>{{ assignments.length }}</strong><small>累计派发任务</small></div>
         <div class="stat-card success"><span>完成率</span><strong>{{ completionRate }}%</strong><small>已完成 / 已分配</small></div>
@@ -62,34 +63,60 @@
         </div>
       </section>
 
-      <!-- 学员管理 -->
-      <section v-else-if="currentMenu === 'student'" class="workspace-panel">
+      <!-- 人员管理 -->
+      <section v-else-if="currentMenu === 'staff'" class="workspace-panel">
         <div class="panel-header">
           <div>
-            <h2>学员管理</h2>
-            <p>管理本公司学员账号，可注册新学员或移除现有学员。</p>
+            <h2>人员管理</h2>
+            <p>管理本公司人员账号，可注册管理员或学员，也可移除现有人员。</p>
           </div>
-          <button class="primary-btn" @click="showRegister=true">注册学员</button>
+          <div class="panel-actions">
+            <button class="primary-btn" @click="openRegister('admin')">注册管理员</button>
+            <button class="primary-btn" @click="openRegister('student')">注册学员</button>
+          </div>
         </div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>学员</th><th>已完成</th><th>完成率</th><th>近期任务</th><th>操作</th></tr></thead>
-            <tbody>
-              <tr v-for="student in students" :key="student.id">
-                <td><strong>{{ student.username }}</strong></td>
-                <td>{{ studentCompleted(student.id) }} / {{ studentAssigned(student.id) }}</td>
-                <td>
-                  <div class="progress-cell">
-                    <div class="progress-line"><span :style="{ width: `${studentRate(student.id)}%` }"></span></div>
-                    <strong>{{ studentRate(student.id) }}%</strong>
-                  </div>
-                </td>
-                <td>{{ studentLatestStatus(student.id) }}</td>
-                <td><button class="danger-btn-sm" @click="deleteStudent(student)">移除</button></td>
-              </tr>
-              <tr v-if="!students.length"><td colspan="5" class="empty-cell">暂无学员</td></tr>
-            </tbody>
-          </table>
+
+        <!-- 管理员列表 -->
+        <div class="sub-section">
+          <h3 class="sub-heading">管理员</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>用户名</th><th>角色</th><th>操作</th></tr></thead>
+              <tbody>
+                <tr v-for="admin in admins" :key="admin.id">
+                  <td><strong>{{ admin.username }}</strong></td>
+                  <td><span class="role-tag admin-tag">管理员</span></td>
+                  <td><button v-if="admin.id !== currentUserId && admin.id !== minAdminId" class="danger-btn-sm" @click="deleteStaff(admin)">移除</button><span v-else-if="admin.id === currentUserId" class="no-action">当前账号</span><span v-else class="no-action">初始管理员</span></td>
+                </tr>
+                <tr v-if="!admins.length"><td colspan="3" class="empty-cell">暂无管理员</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 学员列表 -->
+        <div class="sub-section">
+          <h3 class="sub-heading">学员</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>学员</th><th>已完成</th><th>完成率</th><th>近期任务</th><th>操作</th></tr></thead>
+              <tbody>
+                <tr v-for="student in students" :key="student.id">
+                  <td><strong>{{ student.username }}</strong></td>
+                  <td>{{ studentCompleted(student.id) }} / {{ studentAssigned(student.id) }}</td>
+                  <td>
+                    <div class="progress-cell">
+                      <div class="progress-line"><span :style="{ width: `${studentRate(student.id)}%` }"></span></div>
+                      <strong>{{ studentRate(student.id) }}%</strong>
+                    </div>
+                  </td>
+                  <td>{{ studentLatestStatus(student.id) }}</td>
+                  <td><button class="danger-btn-sm" @click="deleteStaff(student)">移除</button></td>
+                </tr>
+                <tr v-if="!students.length"><td colspan="5" class="empty-cell">暂无学员</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </section>
     </main>
@@ -124,11 +151,11 @@
       </div>
     </div>
 
-    <!-- 注册学员弹窗 -->
+    <!-- 注册人员弹窗 -->
     <div v-if="showRegister" class="dialog-mask" @click.self="closeRegister">
       <div class="dialog">
-        <h3>注册学员</h3>
-        <p class="dialog-desc">为本公司注册新学员账号</p>
+        <h3>注册{{ regRole === 'admin' ? '管理员' : '学员' }}</h3>
+        <p class="dialog-desc">为本公司创建{{ regRole === 'admin' ? '管理员' : '学员' }}账号</p>
         <div class="form-item"><span>用户名</span><input v-model="regForm.username" placeholder="请输入用户名" /></div>
         <div class="form-item"><span>密码</span><input type="password" v-model="regForm.password" placeholder="至少3位" /></div>
         <div class="form-item"><span>确认密码</span><input type="password" v-model="regForm.confirm" placeholder="再次输入密码" /></div>
@@ -147,23 +174,28 @@
 <script setup>
 import { computed, onMounted, ref, reactive } from "vue";
 import { useRouter } from "vue-router";
-import { getUsers, getAssignments } from "../api/task";
+import { getAssignments } from "../api/task";
 import axios from "axios";
 import AssignTraining from "../components/admin/AssignTraining.vue";
-import { api, LAUNCHER_URL } from "../config";
+import { api } from "../config";
 
 const router = useRouter();
 const students = ref([]);
+const admins = ref([]);
 const companyTasks = ref([]);
 const assignments = ref([]);
 const dashboardError = ref("");
 const username = localStorage.getItem("username") || "管理员";
 const adminCompanyId = Number(localStorage.getItem("company_id"));
 
+const currentUserId = Number(localStorage.getItem("user_id"));
+const minAdminId = computed(() => admins.value.length ? Math.min(...admins.value.map(a => a.id)) : 0);
+
+
 const menus = [
   { key: "assign", title: "训练分配", desc: "学员训练派发", mark: "分" },
   { key: "task", title: "训练项目", desc: "本公司可用训练", mark: "训" },
-  { key: "student", title: "学员管理", desc: "注册与移除", mark: "学" }
+  { key: "staff", title: "人员管理", desc: "注册与移除", mark: "人" }
 ];
 const currentMenu = ref("assign");
 const currentMenuMeta = computed(() => menus.find(m => m.key === currentMenu.value) || menus[0]);
@@ -215,12 +247,18 @@ async function addSelectedTasks() {
   if (ok > 0) await loadDashboard();
 }
 
-// ---- 注册学员 ----
+// ---- 注册人员 ----
 const showRegister = ref(false);
+const regRole = ref("student");
 const regForm = reactive({ username: "", password: "", confirm: "" });
 const regMsg = ref("");
 const regMsgType = ref("");
 const registering = ref(false);
+
+function openRegister(role) {
+  regRole.value = role;
+  showRegister.value = true;
+}
 
 function closeRegister() {
   showRegister.value = false;
@@ -237,12 +275,12 @@ async function doRegister() {
   registering.value = true;
   regMsg.value = "";
   try {
-    await axios.post(api("/register"), {
+    const token = localStorage.getItem("token");
+    await axios.post(api("/admin/staff"), {
       username: regForm.username.trim(),
       password: regForm.password,
-      role: "student",
-      company_id: adminCompanyId
-    });
+      role: regRole.value
+    }, { headers: { Authorization: `Bearer ${token}` } });
     regMsg.value = "注册成功";
     regMsgType.value = "success";
     setTimeout(() => { closeRegister(); loadDashboard(); }, 800);
@@ -252,11 +290,13 @@ async function doRegister() {
   } finally { registering.value = false; }
 }
 
-// ---- 删除学员 ----
-async function deleteStudent(student) {
-  if (!confirm(`确定移除学员"${student.username}"吗？其训练记录将一并删除。`)) return;
+// ---- 删除人员 ----
+async function deleteStaff(user) {
+  const label = user.role === "admin" ? "管理员" : "学员";
+  if (!confirm(`确定移除${label}"${user.username}"吗？其相关记录将一并删除。`)) return;
   try {
-    await axios.delete(api(`/users/${student.id}`));
+    const token = localStorage.getItem("token");
+    await axios.delete(api(`/admin/staff/${user.id}`), { headers: { Authorization: `Bearer ${token}` } });
     await loadDashboard();
   } catch (e) { alert(e.response?.data?.detail || "删除失败"); }
 }
@@ -265,8 +305,14 @@ async function deleteStudent(student) {
 async function loadDashboard() {
   dashboardError.value = "";
   try {
-    const [usersRes, assignmentsRes] = await Promise.all([getUsers(), getAssignments()]);
-    students.value = (usersRes.data || []).filter(u => u.role === "student" && u.company_id === adminCompanyId);
+    const token = localStorage.getItem("token");
+    const [staffRes, assignmentsRes] = await Promise.all([
+      axios.get(api("/admin/staff"), { headers: { Authorization: `Bearer ${token}` } }),
+      getAssignments(adminCompanyId)
+    ]);
+    const allStaff = staffRes.data || [];
+    admins.value = allStaff.filter(u => u.role === "admin");
+    students.value = allStaff.filter(u => u.role === "student");
     assignments.value = assignmentsRes.data || [];
     if (adminCompanyId) {
       const r = await axios.get(api(`/task/company/${adminCompanyId}`));
@@ -367,6 +413,24 @@ tr:last-child td { border-bottom: 0; }
 .confirm-btn:hover:not(:disabled) { background: var(--primary-strong); }
 .confirm-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
+
+/* ---- 人员管理子区块 ---- */
+.sub-section { margin-bottom: 28px; }
+.sub-section:last-child { margin-bottom: 0; }
+.sub-heading { font-size: 16px; color: var(--text-muted); margin-bottom: 10px; padding-left: 2px; }
+.panel-actions { display: flex; gap: 10px; }
+.role-tag { display: inline-block; padding: 2px 10px; border-radius: var(--radius-full); font-size: 12px; font-weight: 700; }
+.admin-tag { color: var(--primary); background: var(--primary-soft); }
+
 @media (max-width: 1180px) { .admin-shell { grid-template-columns: 1fr; } .sidebar { position: static; height: auto; } .side-menu { grid-template-columns: repeat(3, minmax(0, 1fr)); } .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* ---- 人员管理子区块 ---- */
+.sub-section { margin-bottom: 28px; }
+.sub-section:last-child { margin-bottom: 0; }
+.sub-heading { font-size: 16px; color: var(--text-muted); margin-bottom: 10px; padding-left: 2px; }
+.panel-actions { display: flex; gap: 10px; }
+.role-tag { display: inline-block; padding: 2px 10px; border-radius: var(--radius-full); font-size: 12px; font-weight: 700; }
+.admin-tag { color: var(--primary); background: var(--primary-soft); }
+
 @media (max-width: 760px) { .content-area { padding: 18px; } .top-bar, .user-area { align-items: stretch; flex-direction: column; } .user-area div { text-align: left; } .side-menu, .stat-grid { grid-template-columns: 1fr; } .dialog.wide { width: 95vw; } .dialog { min-width: auto; width: 90vw; } }
 </style>

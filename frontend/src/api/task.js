@@ -1,4 +1,4 @@
-﻿// API 封装 —— 训练任务与分配相关请求
+// API 封装 —— 训练任务与分配相关请求
 import axios from "axios";
 import { api } from "../config";
 
@@ -23,8 +23,9 @@ export function assignTask(data) {
 }
 
 // 获取所有分配记录
-export function getAssignments() {
-  return axios.get(api("/task/assignments"));
+export function getAssignments(companyId) {
+  const params = companyId ? { company_id: companyId } : {};
+  return axios.get(api("/task/assignments"), { params });
 }
 
 // 学员查看自己的训练任务

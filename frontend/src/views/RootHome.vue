@@ -70,7 +70,7 @@
           <tbody>
             <tr v-for="item in admins" :key="item.id">
               <td>{{ item.id }}</td><td>{{ item.username }}</td><td>{{ item.company_name }}</td>
-              <td><button class="danger-btn" @click="deleteAdmin(item)">删除</button></td>
+              <td><button class="action-btn" @click="openResetPwd(item)">重置密码</button><button class="danger-btn" @click="deleteAdmin(item)">删除</button></td>
             </tr>
           </tbody>
         </table>
@@ -171,6 +171,21 @@
       </div>
     </div>
   </div>
+
+    <!-- 重置密码弹窗 -->
+    <div v-if="showResetPwd" class="dialog-mask" @click.self="showResetPwd=false">
+      <div class="dialog">
+        <h3>重置管理员密码</h3>
+        <p style="color:#667481;margin-bottom:16px;">管理员: {{ resetPwdTarget?.username }}</p>
+        <div class="form-item"><span>新密码</span><input type="password" v-model="resetPwdForm.password" placeholder="至少3位" /></div>
+        <div class="form-item"><span>确认密码</span><input type="password" v-model="resetPwdForm.confirm" placeholder="再次输入" /></div>
+        <div v-if="resetPwdMsg" :class="['form-msg', resetPwdMsgType]">{{ resetPwdMsg }}</div>
+        <div class="dialog-actions">
+          <button class="cancel-btn" @click="showResetPwd=false">取消</button>
+          <button class="confirm-btn" @click="doResetPwd">确认重置</button>
+        </div>
+      </div>
+    </div>
 </template>
 
 <script setup>
@@ -181,6 +196,13 @@ import axios from "axios";
 import { api, LAUNCHER_URL } from "../config";
 
 const router = useRouter();
+
+// ---- 重置密码 ----
+const showResetPwd = ref(false);
+const resetPwdTarget = ref(null);
+const resetPwdForm = reactive({ password: "", confirm: "" });
+const resetPwdMsg = ref("");
+const resetPwdMsgType = ref("");
 const username = ref(localStorage.getItem("username") || "Root");
 const currentMenu = ref("dashboard");
 
@@ -209,6 +231,28 @@ const assignCompanyId = ref(null);
 const taskForm = reactive({ title: "", description: "" });
 
 // ============ 数据加载 ============
+// ---- 重置密码操作 ----
+function openResetPwd(admin) {
+  resetPwdTarget.value = admin;
+  resetPwdForm.password = "";
+  resetPwdForm.confirm = "";
+  resetPwdMsg.value = "";
+  showResetPwd.value = true;
+}
+async function doResetPwd() {
+  const pwd = resetPwdForm.password;
+  if (!pwd || pwd.length < 3) { resetPwdMsg.value = "密码至少需要3位"; resetPwdMsgType.value = "error"; return; }
+  if (pwd !== resetPwdForm.confirm) { resetPwdMsg.value = "两次输入不一致"; resetPwdMsgType.value = "error"; return; }
+  try {
+    await axios.patch(api(`/root/admins/${resetPwdTarget.value.id}/reset-password`), { password: pwd });
+    showResetPwd.value = false;
+    alert("密码已重置");
+  } catch (e) {
+    resetPwdMsg.value = e.response?.data?.detail || "操作失败";
+    resetPwdMsgType.value = "error";
+  }
+}
+
 async function loadCompanies() {
   try { const r = await axios.get(api("/root/companies")); companies.value = r.data || []; } catch (e) {}
 }
@@ -383,6 +427,10 @@ onMounted(async () => {
 .cancel-btn:hover { background: #d0d5da; }
 .confirm-btn { background: #2c4f8f; color: white; }
 .confirm-btn:hover { background: #234078; }
+
+.form-msg { padding: 10px 12px; border-radius: var(--radius); font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+.form-msg.error { color: var(--danger); background: #fff0ef; border: 1px solid #ffd1cc; }
+.form-msg.success { color: var(--success); background: #e4f5ed; border: 1px solid #c3e6d6; }
 
 @media (max-width: 900px) { .root-layout { flex-direction: column; } .sidebar { width: 100%; padding: 16px; } .menu { flex-direction: row; flex-wrap: wrap; } .content { padding: 18px; } .stats-grid { grid-template-columns: 1fr; } }
 </style>
