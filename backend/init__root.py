@@ -6,7 +6,7 @@ from backend.database import SessionLocal
 from backend.models.user import User
 import hashlib
 
-load_dotenv()
+load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
 
 # root 默认凭证 —— 生产环境应修改
 ROOT_USERNAME = os.getenv("ROOT_USERNAME")
