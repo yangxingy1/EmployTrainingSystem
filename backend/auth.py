@@ -6,8 +6,8 @@ from dotenv import load_dotenv
 from datetime import datetime, timedelta, timezone
 from jose import jwt, JWTError
 
-# 指定路径，兼容服务器部署时 CWD 不在 backend/ 的情况
 load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
+
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 if not SECRET_KEY:

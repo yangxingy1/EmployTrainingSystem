@@ -1,2 +1,0 @@
-"""HuiDongShou gesture service package."""
-
