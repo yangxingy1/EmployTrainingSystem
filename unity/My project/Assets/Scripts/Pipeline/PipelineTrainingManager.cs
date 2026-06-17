@@ -145,9 +145,9 @@ public class PipelineTrainingManager : MonoBehaviour
             {
                 step = PipelineStep.OpenInletValve,
                 name = "4. 开启进口主阀门",
-                instruction = "握住进口阀门（V1）手轮，\n逆时针缓慢旋转至全开位置。\n目标：旋转 ≥ 1440°（约 4 圈），\n注意：缓慢开启，观察压力变化。",
+                instruction = "握住进口阀门（V1）手轮，\n逆时针缓慢旋转至全开位置。\n目标：旋转 ≥ 720°（约 2 圈），\n注意：缓慢开启，观察压力变化。",
                 completionHint = "进口阀门已全开，流体开始进入管道。",
-                targetValveAngle = 1440f,
+                targetValveAngle = 720f,
                 angleTolerance = 90f
             },
             new StepDefinition
@@ -181,16 +181,16 @@ public class PipelineTrainingManager : MonoBehaviour
             {
                 step = PipelineStep.OpenOutletValve,
                 name = "8. 开启出口阀门",
-                instruction = "走到管道出口端，缓慢打开出口阀门（V3）。\n目标：旋转 ≥ 1080°（约 3 圈）。\n注意：打开后观察下游流量变化。",
+                instruction = "走到管道出口端，缓慢打开出口阀门（V3）。\n目标：旋转 ≥ 540°（约 1.5 圈）。\n注意：打开后观察下游流量变化。",
                 completionHint = "出口阀门已打开，完整流体通路建立。",
-                targetValveAngle = 1080f,
+                targetValveAngle = 540f,
                 angleTolerance = 90f
             },
             new StepDefinition
             {
                 step = PipelineStep.EmergencyStopTest,
                 name = "9. 急停功能测试",
-                instruction = "按下急停按钮（EMG-STOP），\n验证系统快速切断功能：\n· 阀门应自动关断\n· 报警灯应亮起\n按下【复位】按钮恢复正常状态。",
+                instruction = "靠近急停按钮（EMG-STOP），按 F 键触发急停。\n验证系统快速切断功能：\n· 阀门应自动关断\n· 报警灯应亮起\n按 R 键复位恢复正常状态。",
                 completionHint = "急停功能测试通过，系统已复位。",
                 targetButtonId = "EStop_Button"
             },
@@ -342,7 +342,8 @@ public class PipelineTrainingManager : MonoBehaviour
                 break;
 
             case PipelineStep.MonitorFlowMeter:
-                completed = _flowMeterObserved && (Time.time - _flowMeterObservedTime > 2f);
+                completed = _flowMeterObserved && (Time.time - _flowMeterObservedTime > 2f)
+                         && IsGaugeNearTarget("flow_F1", def.targetGaugeValue, def.gaugeTolerance);
                 break;
 
             case PipelineStep.AdjustControlValve:
@@ -354,7 +355,8 @@ public class PipelineTrainingManager : MonoBehaviour
             }
 
             case PipelineStep.CheckMidPressure:
-                completed = IsGaugeNearTarget("gauge_P2", def.targetGaugeValue, def.gaugeTolerance);
+                completed = _gaugesRead.Contains("Gauge_P2")
+                         && IsGaugeNearTarget("gauge_P2", def.targetGaugeValue, def.gaugeTolerance);
                 break;
 
             case PipelineStep.OpenOutletValve:

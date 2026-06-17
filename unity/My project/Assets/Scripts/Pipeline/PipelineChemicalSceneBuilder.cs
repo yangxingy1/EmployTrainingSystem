@@ -569,32 +569,38 @@ public class PipelineChemicalSceneBuilder : PipelineBuilder
     void CreateTrainingUI(GameObject root, PipelineTrainingManager mgr)
     {
         float S = SCALE_FACTOR;
-        // 标题
+        // 标题（独立，不放入面板）
         GameObject titleObj = CreateLabel("UI_Title", root.transform,
             new Vector3(-1f * S, 2.8f * S, -5f * S),
             "化工厂管道操作培训", 0.055f * S, Color.white, true);
         mgr.titleText = titleObj.GetComponent<TextMesh>();
 
-        // 步骤名
-        GameObject stepObj = CreateLabel("UI_Step", root.transform,
-            new Vector3(5.5f * S, 2.4f * S, 2f * S),
-            "", 0.04f * S, new Color(1f, 0.9f, 0.4f), true);
+        // ── UI 信息面板（Step + Instruction + Status 的父容器）──
+        //     三条字幕统一放在同一平面上，整体绕 Y 轴面向玩家
+        GameObject infoPanel = new GameObject("UI_InfoPanel");
+        infoPanel.transform.SetParent(root.transform, false);
+        infoPanel.transform.localPosition = new Vector3(5.5f * S, 1.5f * S, 2f * S);
+        infoPanel.transform.localRotation = Quaternion.identity;
+
+        // 步骤名（尺寸缩小：0.040 → 0.032）
+        GameObject stepObj = CreateLabel("UI_Step", infoPanel.transform,
+            new Vector3(0f, 0.9f * S, 0f),
+            "", 0.032f * S, new Color(1f, 0.9f, 0.4f), true);
         mgr.stepText = stepObj.GetComponent<TextMesh>();
 
-        // 操作说明
-        GameObject instObj = CreateLabel("UI_Instruction", root.transform,
-            new Vector3(5.5f * S, 1.6f * S, 2f * S),
-            "", 0.025f * S, new Color(0.8f, 0.9f, 1f));
-        // 左上对齐
+        // 操作说明（尺寸缩小：0.025 → 0.020）
+        GameObject instObj = CreateLabel("UI_Instruction", infoPanel.transform,
+            new Vector3(0f, 0.1f * S, 0f),
+            "", 0.020f * S, new Color(0.8f, 0.9f, 1f));
         TextMesh instTm = instObj.GetComponent<TextMesh>();
         instTm.anchor = TextAnchor.UpperLeft;
         instTm.alignment = TextAlignment.Left;
         mgr.instructionText = instTm;
 
-        // 状态
-        GameObject statusObj = CreateLabel("UI_Status", root.transform,
-            new Vector3(5.5f * S, 0.5f * S, 2f * S),
-            "", 0.022f * S, new Color(0.6f, 0.85f, 1f));
+        // 状态（尺寸缩小：0.022 → 0.018）
+        GameObject statusObj = CreateLabel("UI_Status", infoPanel.transform,
+            new Vector3(0f, -1.0f * S, 0f),
+            "", 0.018f * S, new Color(0.6f, 0.85f, 1f));
         TextMesh statusTm = statusObj.GetComponent<TextMesh>();
         statusTm.anchor = TextAnchor.UpperLeft;
         statusTm.alignment = TextAlignment.Left;

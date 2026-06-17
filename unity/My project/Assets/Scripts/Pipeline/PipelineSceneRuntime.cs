@@ -36,7 +36,8 @@ public class PipelineSceneRuntime : MonoBehaviour
     public float playerInteractRadius = 5f;
 
     [Header("Player Movement")]
-    public float moveSpeed = 5f;
+    public float moveSpeed = 20f;
+    public float sprintMultiplier = 2.2f;
     public float mouseSensitivity = 2f;
     public float playerHeight = 10f;
     public float playerRadius = 2f;
@@ -87,6 +88,12 @@ public class PipelineSceneRuntime : MonoBehaviour
     // 压力表数字读数（运行时动态创建）
     private TextMesh _gaugeP1Readout;
     private TextMesh _gaugeP2Readout;
+
+    // 交互完成标记（用于 [√] 反馈）
+    private HashSet<Transform> _markedInteractions = new HashSet<Transform>();
+
+    // UI 信息面板容器（统一 Billboard）
+    private Transform _uiInfoPanel;
 
     // ═══════════════════════════════════════════════════════════
     //  初始化
@@ -256,6 +263,72 @@ public class PipelineSceneRuntime : MonoBehaviour
         Debug.Log("[PipelineSceneRuntime] 已自动创建第一人称玩家（CharacterController + Camera）。位置: " + spawnPos);
     }
 
+    /// <summary>
+    /// 设置 UI_InfoPanel 容器：如果场景中已有则复用，否则在运行时动态创建，
+    /// 将 Step / Instruction / Status 三条字幕归入同一父节点，统一绕 Y 轴面向玩家。
+    /// 同时缩小字号。
+    /// </summary>
+    void FindUIInfoPanel()
+    {
+        _uiInfoPanel = null;
+
+        // 1) 场景中已有 UI_InfoPanel（重新生成过的场景）
+        Transform genRoot = GeneratedRoot;
+        if (genRoot != null)
+        {
+            Transform found = genRoot.Find("UI_InfoPanel");
+            if (found != null)
+            {
+                _uiInfoPanel = found;
+                return;
+            }
+        }
+
+        // 2) stepText 的父节点已经是 UI_InfoPanel
+        if (trainingManager != null && trainingManager.stepText != null)
+        {
+            Transform parent = trainingManager.stepText.transform.parent;
+            if (parent != null && parent.name == "UI_InfoPanel")
+            {
+                _uiInfoPanel = parent;
+                return;
+            }
+        }
+
+        // 3) 运行时动态创建容器，把已有的三条字幕移入（不依赖重新生成场景）
+        if (trainingManager == null) return;
+        if (trainingManager.stepText == null || trainingManager.instructionText == null || trainingManager.statusText == null)
+            return;
+
+        Transform root = genRoot;
+        if (root == null) root = transform;
+
+        // 以三条字幕的世界坐标中心作为容器位置（同一 X/Z，仅 Y 不同）
+        Vector3 pStep = trainingManager.stepText.transform.position;
+        Vector3 pInst = trainingManager.instructionText.transform.position;
+        Vector3 pStat = trainingManager.statusText.transform.position;
+        Vector3 center = (pStep + pInst + pStat) / 3f;
+
+        GameObject panel = new GameObject("UI_InfoPanel");
+        panel.transform.SetParent(root, false);
+        panel.transform.position = center;
+        panel.transform.localRotation = Quaternion.identity;
+
+        // 移入容器（worldPositionStays=true 保持世界位置不变）
+        trainingManager.stepText.transform.SetParent(panel.transform, true);
+        trainingManager.instructionText.transform.SetParent(panel.transform, true);
+        trainingManager.statusText.transform.SetParent(panel.transform, true);
+
+        // 缩小字号
+        float S = 6f; // SCALE_FACTOR
+        trainingManager.stepText.characterSize = 0.032f * S;
+        trainingManager.instructionText.characterSize = 0.020f * S;
+        trainingManager.statusText.characterSize = 0.018f * S;
+
+        _uiInfoPanel = panel.transform;
+        Debug.Log("[PipelineSceneRuntime] 运行时创建 UI_InfoPanel 容器，统一字幕 Billboard。");
+    }
+
     // ═══════════════════════════════════════════════════════════
     //  Update
     // ═══════════════════════════════════════════════════════════
@@ -301,7 +374,11 @@ public class PipelineSceneRuntime : MonoBehaviour
         moveDir.y = 0f;
         if (moveDir.magnitude > 1f) moveDir.Normalize();
 
-        Vector3 velocity = moveDir * moveSpeed;
+        float speed = moveSpeed;
+        if (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift))
+            speed *= sprintMultiplier;
+
+        Vector3 velocity = moveDir * speed;
 
         // 重力
         if (_playerController != null && _playerController.isGrounded)
@@ -343,6 +420,91 @@ public class PipelineSceneRuntime : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// 给交互对象添加绿色 [√] 完成标记（与巡检点反馈一致）。
+    /// 会向上查找父级站区，在其标签上追加 [√] 并变绿。
+    /// </summary>
+    /// <param name="localOffset">[√] 相对 target 的世界偏移（仅新建 [√] 时生效，默认 Vector3.up*1.5f）</param>
+    /// <param name="eulerAngles">[√] 的 XYZ 欧拉旋转角度（度），仅新建 [√] 时生效。默认 (0,0,0)=面朝±Z</param>
+    void MarkInteractionComplete(Transform target, Vector3? localOffset = null, Vector3? eulerAngles = null)
+    {
+        Vector3 offset = localOffset ?? Vector3.up * 1.5f;
+        Vector3 rotation = eulerAngles ?? Vector3.zero;
+        if (target == null) return;
+        if (_markedInteractions.Contains(target)) return;
+        _markedInteractions.Add(target);
+
+        // 收集候选标签：只搜索 target 自身 + parent 的直接子级（1 层深度），
+        // 避免 GetComponentsInChildren 穿透到无关层级
+        var candidates = new System.Collections.Generic.List<TextMesh>();
+
+        // target 自身的 TextMesh
+        TextMesh selfTm = target.GetComponent<TextMesh>();
+        if (selfTm != null) candidates.Add(selfTm);
+
+        // target 的直接子级（1 层）
+        foreach (Transform child in target)
+        {
+            TextMesh tm = child.GetComponent<TextMesh>();
+            if (tm != null) candidates.Add(tm);
+        }
+
+        // parent 的直接子级（即 target 的兄弟节点）—— 前提 parent 存在且不是场景根
+        Transform genRoot = GeneratedRoot;
+        if (target.parent != null && target.parent != genRoot)
+        {
+            TextMesh parentTm = target.parent.GetComponent<TextMesh>();
+            if (parentTm != null) candidates.Add(parentTm);
+            foreach (Transform sibling in target.parent)
+            {
+                TextMesh tm = sibling.GetComponent<TextMesh>();
+                if (tm != null && tm != selfTm) candidates.Add(tm);
+            }
+        }
+
+        bool found = false;
+        foreach (var label in candidates)
+        {
+            if (label == null) continue;
+            // 跳过动态读数（流量计、压力表）
+            if (label == flowMeterDisplay || label == _gaugeP1Readout || label == _gaugeP2Readout)
+                continue;
+            // 跳过培训 UI 字幕
+            if (trainingManager != null &&
+                (label == trainingManager.titleText || label == trainingManager.stepText
+                 || label == trainingManager.instructionText || label == trainingManager.statusText))
+                continue;
+
+            if (!label.text.EndsWith("[√]"))
+            {
+                label.text = label.text.TrimEnd() + " [√]";
+                label.color = new Color(0.2f, 1f, 0.3f);
+                found = true;
+            }
+        }
+
+        // 如果对象本身没有标签，创建一个 [√]
+        // ★ 挂到 target.parent（不旋转的父节点）下，避免随手轮/旋转部件一起转动
+        if (!found)
+        {
+            GameObject feedbackObj = new GameObject("Interaction_Feedback_[√]");
+            // 先设定世界位置（target 正上方 1.5 单位）
+            feedbackObj.transform.position = target.position + offset;
+            // 再挂到父节点，worldPositionStays=true 保持世界位置不变
+            Transform feedbackParent = target.parent != null ? target.parent : target;
+            feedbackObj.transform.SetParent(feedbackParent, true);
+            // ★ 显式设置旋转（覆盖父节点继承的旋转），支持 XYZ 三轴
+            feedbackObj.transform.localRotation = Quaternion.Euler(rotation);
+            TextMesh tm = feedbackObj.AddComponent<TextMesh>();
+            tm.text = "[√]";
+            tm.fontSize = 48;
+            tm.characterSize = 0.15f;
+            tm.anchor = TextAnchor.MiddleCenter;
+            tm.alignment = TextAlignment.Center;
+            tm.color = new Color(0.2f, 1f, 0.3f);
+        }
+    }
+
     // ═══════════════════════════════════════════════════════════
     //  键盘输入处理（阀门/按钮交互）
     // ═══════════════════════════════════════════════════════════
@@ -369,50 +531,57 @@ public class PipelineSceneRuntime : MonoBehaviour
                     _v1Angle += delta;
                     _v1Angle = Mathf.Max(0f, _v1Angle);
                     nearestValve.localRotation = _v1InitialRotation * Quaternion.Euler(0f, 0f, _v1Angle);
+                    // V1 进口红色阀门 [√]  偏移(X,Y,Z)  旋转(X,Y,Z)
+                    if (_v1Angle >= 720f) MarkInteractionComplete(inletValveWheel,
+                        new Vector3(0f, 1.5f, 0f), new Vector3(0f, 0f, -90f));
                 }
                 else if (nearestValve == controlValveWheel)
                 {
                     _v2Angle += delta;
                     _v2Angle = Mathf.Max(0f, _v2Angle);
                     nearestValve.localRotation = _v2InitialRotation * Quaternion.Euler(0f, 0f, _v2Angle);
+                    if (_v2Angle >= 720f) MarkInteractionComplete(controlValveWheel);
                 }
                 else if (nearestValve == outletValveWheel)
                 {
                     _v3Angle += delta;
                     _v3Angle = Mathf.Max(0f, _v3Angle);
                     nearestValve.localRotation = _v3InitialRotation * Quaternion.Euler(0f, 0f, _v3Angle);
+                    // V3 出口红色阀门 [√]  偏移(X,Y,Z)  旋转(X,Y,Z)
+                    if (_v3Angle >= 540f) MarkInteractionComplete(outletValveWheel,
+                        new Vector3(0f, 1.5f, 0f), new Vector3(0f, 0f, -90f));
                 }
             }
         }
 
-        // ── 急停按钮（空格键，靠近时） ──────────────────────────────
-        if (eStopButtonTransform != null && IsNearTarget(eStopButtonTransform.position))
-        {
-            if (Input.GetKeyDown(KeyCode.Space))
-            {
-                if (!_eStopPressed)
-                {
-                    _eStopPressed = true;
-                    _eStopResetting = false;
-                    _eStopTargetDepth = 0.04f;
-                    trainingManager?.ReportButtonPress("EStop_Button");
-                }
-            }
-            if (Input.GetKeyDown(KeyCode.R))
-            {
-                if (_eStopPressed)
-                {
-                    _eStopResetting = true;
-                    _eStopTargetDepth = 0f;
-                }
-            }
-        }
-
-        // ── 确认/交互键（始终可用，不依赖阀门距离） ────────────────
+        // ── F 键：急停优先（靠近时），否则通用交互 ──────────────
         if (Input.GetKeyDown(KeyCode.F))
         {
-            CheckNearbyButtons();
-            CheckNearbyZones();
+            // 优先：靠近急停按钮 → 触发急停
+            if (eStopButtonTransform != null && IsNearTarget(eStopButtonTransform.position)
+                && !_eStopPressed)
+            {
+                _eStopPressed = true;
+                _eStopResetting = false;
+                _eStopTargetDepth = 0.04f;
+                trainingManager?.ReportButtonPress("EStop_Button");
+                MarkInteractionComplete(eStopButtonTransform);
+            }
+            else
+            {
+                CheckNearbyButtons();
+                CheckNearbyZones();
+            }
+        }
+
+        // ── R 键：急停复位（靠近时） ──────────────────────────────
+        if (eStopButtonTransform != null && IsNearTarget(eStopButtonTransform.position))
+        {
+            if (Input.GetKeyDown(KeyCode.R) && _eStopPressed)
+            {
+                _eStopResetting = true;
+                _eStopTargetDepth = 0f;
+            }
         }
     }
 
@@ -500,9 +669,15 @@ public class PipelineSceneRuntime : MonoBehaviour
         if (!IsNearTarget(btn.transform.position)) return;
         string btnName = btn.name;
         if (btnName.Contains("PPE"))
+        {
             trainingManager?.ReportButtonPress("PPE_Confirm");
+            MarkInteractionComplete(btn.transform);
+        }
         else if (btnName.Contains("Shutdown") || btnName.Contains("Confirm"))
+        {
             trainingManager?.ReportButtonPress("Shutdown_Confirm");
+            MarkInteractionComplete(btn.transform);
+        }
     }
 
     private GameObject[] _cachedInspectionZones;
@@ -586,9 +761,19 @@ public class PipelineSceneRuntime : MonoBehaviour
         }
 
         if (_cachedGaugeP1Transform != null && IsNearTarget(_cachedGaugeP1Transform.position))
+        {
             trainingManager.ReportGaugeRead("Gauge_P1");
+            // P1 压力表 [√]  偏移(X,Y,Z)  旋转(X,Y,Z)
+            MarkInteractionComplete(_cachedGaugeP1Transform,
+                new Vector3(0f, 1f, 0f), new Vector3(180f, 0f, -90f));
+        }
         if (_cachedGaugeP2Transform != null && IsNearTarget(_cachedGaugeP2Transform.position))
+        {
             trainingManager.ReportGaugeRead("Gauge_P2");
+            // P2 压力表 [√]  偏移(X,Y,Z)  旋转(X,Y,Z)
+            MarkInteractionComplete(_cachedGaugeP2Transform,
+                new Vector3(0f, 1f, 0f), new Vector3(90f, 0f, 180f));
+        }
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -615,9 +800,9 @@ public class PipelineSceneRuntime : MonoBehaviour
         // - P2 ≈ V1开度 × V2开度 × (1 - V3开度×0.5) × maxPressure × 0.7
         //   （V3 关闭时 P2 最高 ≈ 0.7 MPa，V3 全开时降至 ≈ 0.35 MPa）
 
-        float v1Open = Mathf.Clamp01(_v1Angle / 1440f); // 1440° = 4圈全开
+        float v1Open = Mathf.Clamp01(_v1Angle / 720f); // 720° = 2圈全开
         float v2Open = Mathf.Clamp01(_v2Angle / 720f);   // 720° = 2圈
-        float v3Open = Mathf.Clamp01(_v3Angle / 1080f);  // 1080° = 3圈
+        float v3Open = Mathf.Clamp01(_v3Angle / 540f);  // 540° = 1.5圈
 
         float targetPressure1 = v1Open * maxPressure;
         float targetFlow = v1Open * v2Open * maxFlow;
@@ -662,32 +847,44 @@ public class PipelineSceneRuntime : MonoBehaviour
             _gaugeP1Readout.text = "P1 " + _simPressure1.ToString("F2") + " MPa";
             _gaugeP1Readout.color = _simPressure1 > 0.85f
                 ? new Color(1f, 0.3f, 0.2f)   // 红色 - 压力过高
-                : new Color(0.85f, 0.95f, 1f); // 浅蓝 - 正常
+                : new Color(1f, 0.85f, 0.1f); // 亮金色 - 正常
         }
         if (_gaugeP2Readout != null)
         {
             _gaugeP2Readout.text = "P2 " + _simPressure2.ToString("F2") + " MPa";
             _gaugeP2Readout.color = _simPressure2 > 0.85f
                 ? new Color(1f, 0.3f, 0.2f)   // 红色 - 压力过高
-                : new Color(0.85f, 0.95f, 1f); // 浅蓝 - 正常
+                : new Color(1f, 0.85f, 0.1f); // 亮金色 - 正常
         }
 
         // ★ 所有提示字幕始终水平面向玩家（Billboard）
-        FacePlayer(flowMeterDisplay?.transform);
-        FacePlayer(_gaugeP1Readout?.transform);
-        FacePlayer(_gaugeP2Readout?.transform);
+        if (flowMeterDisplay != null)
+            FacePlayer(flowMeterDisplay.transform);
+        if (_gaugeP1Readout != null)
+            FacePlayer(_gaugeP1Readout.transform);
+        if (_gaugeP2Readout != null)
+            FacePlayer(_gaugeP2Readout.transform);
         if (trainingManager != null)
         {
-            // ★ 必须用显式 != null 判断，Unity 序列化字段未赋值时
-            //    ?. 运算符无法绕过 UnassignedReferenceException
+            // 标题独立 Billboard
             if (trainingManager.titleText != null)
                 FacePlayer(trainingManager.titleText.transform);
-            if (trainingManager.stepText != null)
-                FacePlayer(trainingManager.stepText.transform);
-            if (trainingManager.instructionText != null)
-                FacePlayer(trainingManager.instructionText.transform);
-            if (trainingManager.statusText != null)
-                FacePlayer(trainingManager.statusText.transform);
+
+            // Step / Instruction / Status 统一放在 UI_InfoPanel 容器中整体旋转
+            if (_uiInfoPanel != null)
+            {
+                FacePlayer(_uiInfoPanel);
+            }
+            else
+            {
+                // 回退：旧 Prefab 没有 UI_InfoPanel，逐个 Billboard
+                if (trainingManager.stepText != null)
+                    FacePlayer(trainingManager.stepText.transform);
+                if (trainingManager.instructionText != null)
+                    FacePlayer(trainingManager.instructionText.transform);
+                if (trainingManager.statusText != null)
+                    FacePlayer(trainingManager.statusText.transform);
+            }
         }
 
         // 巡检点标签也始终面向玩家
@@ -895,7 +1092,7 @@ public class PipelineSceneRuntime : MonoBehaviour
 
         // 放置在仪表盘旁边（右侧 + 上方）
         Vector3 gaugeWorldPos = needleTransform.position;
-        obj.transform.position = gaugeWorldPos + Vector3.right * 2.0f + Vector3.up * 1.2f;
+        obj.transform.position = gaugeWorldPos + Vector3.up * 1.5f;
         obj.transform.localRotation = Quaternion.identity;
 
         TextMesh textMesh = obj.AddComponent<TextMesh>();
@@ -911,7 +1108,7 @@ public class PipelineSceneRuntime : MonoBehaviour
         tm.characterSize = 0.025f * 6f; // SCALE_FACTOR = 6
         tm.anchor = TextAnchor.MiddleCenter;
         tm.alignment = TextAlignment.Center;
-        tm.color = new Color(0.85f, 0.95f, 1f); // 浅蓝色，与 F1 绿色区分
+        tm.color = new Color(1f, 0.85f, 0.1f); // 亮金色，醒目可见
     }
 
     void UpdateEStopAnimation()
@@ -968,9 +1165,16 @@ public class PipelineSceneRuntime : MonoBehaviour
         {
             Vector3 toFlowMeter = (flowMeterDisplay.transform.position - _playerTransform.position).normalized;
             float dot = Vector3.Dot(_playerTransform.forward, toFlowMeter);
-            if (dot > 0.7f && IsNearTarget(flowMeterDisplay.transform.position))
+            // 流量计交互范围扩大一倍（用于步骤 5 读数确认）
+            if (dot > 0.7f)
             {
-                trainingManager.ReportFlowMeterObserved();
+                Vector3 pXZ = _playerTransform.position; pXZ.y = 0f;
+                Vector3 fXZ = flowMeterDisplay.transform.position; fXZ.y = 0f;
+                if (Vector3.Distance(pXZ, fXZ) < playerInteractRadius * 2f)
+                {
+                    trainingManager.ReportFlowMeterObserved();
+                    MarkInteractionComplete(flowMeterDisplay.transform);
+                }
             }
         }
     }
