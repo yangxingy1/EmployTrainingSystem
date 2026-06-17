@@ -10,7 +10,7 @@
       </div>
       <div class="product-copy">
         <p class="eyebrow">Training Operations</p>
-        <h1>把手部作业训练、任务分配和完成进度放到一个控制台里。</h1>
+        <h1>将手部作业训练、任务分配和完成进度放到一个控制台里。</h1>
         <p>面向工厂员工的虚拟仿真培训系统，支持管理员派发训练、学员启动 Unity 训练任务，并沉淀训练记录。</p>
       </div>
       <div class="capability-grid">
