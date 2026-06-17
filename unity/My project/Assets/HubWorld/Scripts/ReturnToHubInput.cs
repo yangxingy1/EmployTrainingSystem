@@ -1,7 +1,11 @@
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public class ReturnToHubInput : MonoBehaviour
 {
+    public string fallbackSceneName = "";
+    public bool preferFallbackScene;
+
     GUIStyle _buttonStyle;
     GUIStyle _hintStyle;
     Texture2D _buttonTexture;
@@ -9,7 +13,7 @@ public class ReturnToHubInput : MonoBehaviour
     void Update()
     {
         if (Input.GetKeyDown(KeyCode.R) || Input.GetKeyDown(KeyCode.Escape))
-            SceneFlow.EnsureExists().ReturnToHub();
+            ReturnToResolvedScene();
     }
 
     void OnGUI()
@@ -20,21 +24,62 @@ public class ReturnToHubInput : MonoBehaviour
 
         var buttonRect = new Rect(18f, 18f, 186f, 42f);
         if (GUI.Button(buttonRect, label, _buttonStyle))
-            SceneFlow.EnsureExists().ReturnToHub();
+            ReturnToResolvedScene();
 
         GUI.Label(new Rect(214f, 27f, 260f, 24f), "快捷键 R / Esc", _hintStyle);
     }
 
-    static string ResolveReturnLabel()
+    void ReturnToResolvedScene()
     {
+        string targetScene = ResolveReturnSceneName();
+        Debug.Log("[ReturnToHubInput] Return to " + targetScene);
+        SceneFlow.EnsureExists().LoadScene(targetScene);
+    }
+
+    string ResolveReturnSceneName()
+    {
+        if (preferFallbackScene && !string.IsNullOrEmpty(fallbackSceneName))
+        {
+            return fallbackSceneName;
+        }
+
         var session = SessionManager.Instance;
         var sceneName = session != null ? session.returnSceneName : "";
-        if (string.IsNullOrEmpty(sceneName) || sceneName == "freshTrain")
+        if (!string.IsNullOrEmpty(sceneName) && sceneName != "HubWorld")
+        {
+            return sceneName;
+        }
+
+        if (!string.IsNullOrEmpty(fallbackSceneName))
+        {
+            return fallbackSceneName;
+        }
+
+        string activeScene = SceneManager.GetActiveScene().name;
+        if (activeScene == "lead-train1" || activeScene == "formalTrain1" || activeScene == "leadTrain1")
+        {
+            return "train1";
+        }
+
+        if (activeScene == "train1" || activeScene == "freshTrain")
+        {
+            return "entry";
+        }
+
+        return "entry";
+    }
+
+    string ResolveReturnLabel()
+    {
+        string sceneName = ResolveReturnSceneName();
+        if (sceneName == "freshTrain")
             return "返回自由练习区";
         if (sceneName == "entry")
             return "返回游戏大厅";
         if (sceneName == "train1")
             return "返回常规训练区";
+        if (sceneName == "lead-train1")
+            return "返回引导式学习";
         if (sceneName == "HubWorld")
             return "返回大厅";
 

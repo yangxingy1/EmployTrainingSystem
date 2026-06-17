@@ -5,6 +5,8 @@ using UnityEngine;
 [DisallowMultipleComponent]
 public class LeadTrainGuideController : MonoBehaviour
 {
+    const string RetiredFireExtinguisherObjectName = "Fire Extinguisher Static";
+
     [Serializable]
     public class GuideStep
     {
@@ -35,6 +37,7 @@ public class LeadTrainGuideController : MonoBehaviour
 
     [Header("Guide Visuals")]
     public bool showPathWhenOutOfRange = true;
+    public float movementAvatarScale = 0.42f;
 
     FactoryOneSceneController _factoryController;
     Transform _player;
@@ -42,12 +45,19 @@ public class LeadTrainGuideController : MonoBehaviour
     int _currentStepIndex;
     bool _demoRunning;
     bool _guideCompleted;
+    bool _gestureTrainingStarted;
     string _postInteractPrompt;
     LeadTrainGuidePath _guidePath;
+    GameObject _movementAvatar;
 
     GUIStyle _panelStyle;
     GUIStyle _postPanelStyle;
     Texture2D _panelTexture;
+
+    static bool _hasRememberedMovementAvatarScale;
+    static Vector3 _rememberedMovementAvatarLocalScale;
+    static bool _hasRememberedGuideReturnProgress;
+    static int _rememberedGuideReturnStepIndex;
 
     public static GuideStep[] CreateDefaultSteps()
     {
@@ -55,29 +65,22 @@ public class LeadTrainGuideController : MonoBehaviour
         {
             new GuideStep
             {
-                machineObjectName = FireExtinguisherBuilder.StaticExtinguisherName,
-                title = "步骤 1：灭火器检查",
-                approachHint = "靠近灭火器，按 E 开始学习压力表检查方法。",
-                demoDescription = "演示：检查压力表指针是否位于绿色区域"
-            },
-            new GuideStep
-            {
                 machineObjectName = ElectricalControlCabinetBuilder.StaticCabinetName,
-                title = "步骤 2：配电柜",
+                title = "步骤 1：配电柜",
                 approachHint = "靠近配电柜，按 E 开始学习主断路器合闸与分闸操作。",
                 demoDescription = "演示：合闸送电 → 分闸断电"
             },
             new GuideStep
             {
                 machineObjectName = BreakerShutdownStationBuilder.StaticStationName,
-                title = "步骤 3：紧急停机作业区",
+                title = "步骤 2：紧急停机作业区",
                 approachHint = "靠近断路器停机站，按 E 开始学习紧急断电顺序。",
                 demoDescription = "演示：按顺序拉闸 ②→④→①→③"
             },
             new GuideStep
             {
                 machineObjectName = CNCTrainingMachineBuilder.StaticMachineName,
-                title = "步骤 4：CNC 实训机床",
+                title = "步骤 3：CNC 实训机床",
                 approachHint = "靠近 CNC 机床，按 E 开始学习标准开机与加工流程。",
                 demoDescription = "演示：上电 → 开门 → 夹紧 → 启动 → 急停 → 复位"
             }
@@ -97,6 +100,8 @@ public class LeadTrainGuideController : MonoBehaviour
             _factoryController.allowInteractFly = false;
         }
 
+        RemoveRetiredFireExtinguisherFromScene();
+
         _guidePath = GetComponent<LeadTrainGuidePath>();
         if (_guidePath == null)
         {
@@ -111,13 +116,18 @@ public class LeadTrainGuideController : MonoBehaviour
         _currentStepIndex = 0;
         _guideCompleted = false;
         _demoRunning = false;
+        _gestureTrainingStarted = false;
         _postInteractPrompt = null;
+        RestoreGuideReturnProgressIfNeeded();
+
+        RemoveGuideSceneReturnInput();
     }
 
     IEnumerator Start()
     {
         yield return null;
         _player = ResolvePlayerTransform();
+        EnsureMovementAvatar();
         CacheStepMachineTransforms();
         LogCurrentStepTarget();
     }
@@ -176,7 +186,19 @@ public class LeadTrainGuideController : MonoBehaviour
     void Update()
     {
         _player = ResolvePlayerTransform();
+        EnsureMovementAvatar();
         UpdateGuideVisuals();
+
+        if (_gestureTrainingStarted)
+        {
+            return;
+        }
+
+        if (!_demoRunning && WasGestureTrainingPressed())
+        {
+            StartGestureTrainingMode();
+            return;
+        }
 
         if (_guideCompleted || _demoRunning)
         {
@@ -188,11 +210,6 @@ public class LeadTrainGuideController : MonoBehaviour
             TryStartCurrentStepDemo();
         }
 
-        if (WasGestureTrainingPressed())
-        {
-            Debug.Log("[LeadTrain] 手势训练功能暂未开放。");
-        }
-
         if (WasDeviceInteractPressed())
         {
             Debug.Log("[LeadTrain] 设备交互功能暂未开放。");
@@ -201,12 +218,374 @@ public class LeadTrainGuideController : MonoBehaviour
 
     void OnGUI()
     {
+        if (_gestureTrainingStarted)
+        {
+            return;
+        }
+
         DrawEntryPanel();
 
         if (!string.IsNullOrEmpty(_postInteractPrompt))
         {
             DrawPostInteractPanel(_postInteractPrompt);
         }
+    }
+
+    void StartGestureTrainingMode()
+    {
+        if (_gestureTrainingStarted)
+        {
+            return;
+        }
+
+        string machineName = ResolveGestureTrainingMachineName();
+        RememberGuideReturnProgress(machineName);
+        FactoryOneSceneController.ClearOneShotStartCameraReturnOverride();
+        RememberGestureTrainingReturnPose();
+        _gestureTrainingStarted = true;
+        _demoRunning = false;
+        _postInteractPrompt = null;
+        HideGuideVisuals();
+        if (_movementAvatar != null)
+        {
+            RememberMovementAvatarScale(_movementAvatar.transform);
+            _movementAvatar.SetActive(false);
+        }
+
+        if (machineName == ElectricalControlCabinetBuilder.StaticCabinetName)
+        {
+            StartElectricalCabinetGestureTraining();
+            return;
+        }
+
+        if (machineName == CNCTrainingMachineBuilder.StaticMachineName)
+        {
+            StartCNCGestureTraining();
+            return;
+        }
+
+        StartBreakerGestureTraining();
+    }
+
+    void RememberGestureTrainingReturnPose()
+    {
+        Camera camera = _factoryController != null && _factoryController.playerCamera != null
+            ? _factoryController.playerCamera
+            : Camera.main;
+
+        if (camera == null)
+        {
+            Debug.LogWarning("[LeadTrain] 进入手势训练前未找到相机，无法记录返回位置。");
+            return;
+        }
+
+        Transform rig = camera.transform.parent;
+        if (rig == null && _factoryController != null)
+        {
+            rig = _factoryController.transform;
+        }
+        if (rig == null)
+        {
+            rig = ResolvePlayerTransform();
+        }
+
+        if (rig == null)
+        {
+            Debug.LogWarning("[LeadTrain] 进入手势训练前未找到玩家 Rig，无法记录返回位置。");
+            return;
+        }
+
+        Vector3 rigPosition = rig.position;
+        Vector3 cameraLocalPosition = camera.transform.localPosition;
+        FactoryOneSceneController.RememberOneShotStartCameraPose(
+            rigPosition,
+            rig.rotation,
+            cameraLocalPosition,
+            camera.transform.localRotation,
+            camera.transform.position,
+            camera.transform.rotation);
+
+        Vector3 position = rigPosition;
+        Debug.Log("[LeadTrain] 已记录手势训练返回位置：("
+            + position.x.ToString("F2") + ", "
+            + position.y.ToString("F2") + ", "
+            + position.z.ToString("F2") + ")");
+    }
+
+    void RememberGuideReturnProgress(string machineName)
+    {
+        int stepIndex = ResolveStepIndexForMachine(machineName);
+        if (stepIndex < 0)
+        {
+            stepIndex = _currentStepIndex;
+        }
+
+        _rememberedGuideReturnStepIndex = Mathf.Clamp(stepIndex + 1, 0, steps != null ? steps.Length : 0);
+        _hasRememberedGuideReturnProgress = true;
+
+        int stepCount = steps != null ? steps.Length : 0;
+        if (_rememberedGuideReturnStepIndex >= stepCount)
+        {
+            Debug.Log("[LeadTrain] 已记录返回后的引导进度：返回后完成全部步骤。");
+            return;
+        }
+
+        Debug.Log("[LeadTrain] 已记录返回后的引导进度：下一步 "
+            + (_rememberedGuideReturnStepIndex + 1)
+            + "/"
+            + stepCount);
+    }
+
+    void RestoreGuideReturnProgressIfNeeded()
+    {
+        if (!_hasRememberedGuideReturnProgress)
+        {
+            return;
+        }
+
+        _currentStepIndex = Mathf.Clamp(_rememberedGuideReturnStepIndex, 0, steps != null ? steps.Length : 0);
+        _guideCompleted = steps == null || _currentStepIndex >= steps.Length;
+        _hasRememberedGuideReturnProgress = false;
+
+        if (_guideCompleted)
+        {
+            Debug.Log("[LeadTrain] 已恢复引导进度：全部步骤已完成。");
+            return;
+        }
+
+        Debug.Log("[LeadTrain] 已恢复引导进度：继续步骤 "
+            + (_currentStepIndex + 1)
+            + "/"
+            + steps.Length);
+    }
+
+    int ResolveStepIndexForMachine(string machineName)
+    {
+        if (steps == null || string.IsNullOrEmpty(machineName))
+        {
+            return -1;
+        }
+
+        for (int i = 0; i < steps.Length; i++)
+        {
+            if (steps[i] != null && steps[i].machineObjectName == machineName)
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    void StartElectricalCabinetGestureTraining()
+    {
+        GameObject trainingObject = GameObject.Find("LeadTrain1ElectricalCabinetGestureTraining");
+        if (trainingObject == null)
+        {
+            trainingObject = new GameObject("LeadTrain1ElectricalCabinetGestureTraining");
+        }
+
+        LeadTrainElectricalCabinetGestureTrainingController training = trainingObject.GetComponent<LeadTrainElectricalCabinetGestureTrainingController>();
+        if (training == null)
+        {
+            training = trainingObject.AddComponent<LeadTrainElectricalCabinetGestureTrainingController>();
+        }
+
+        training.BeginTrainingScene();
+        Debug.Log("[LeadTrain] 已进入配电柜主断路器手势训练。");
+    }
+
+    void StartCNCGestureTraining()
+    {
+        GameObject trainingObject = GameObject.Find("LeadTrain1CNCGestureTraining");
+        if (trainingObject == null)
+        {
+            trainingObject = new GameObject("LeadTrain1CNCGestureTraining");
+        }
+
+        LeadTrainCNCGestureTrainingController training = trainingObject.GetComponent<LeadTrainCNCGestureTrainingController>();
+        if (training == null)
+        {
+            training = trainingObject.AddComponent<LeadTrainCNCGestureTrainingController>();
+        }
+
+        training.BeginTrainingScene();
+        Debug.Log("[LeadTrain] 已进入 CNC 8 步手势真实训练。");
+    }
+
+    void StartBreakerGestureTraining()
+    {
+        GameObject trainingObject = GameObject.Find("LeadTrain1GestureTraining");
+        if (trainingObject == null)
+        {
+            trainingObject = new GameObject("LeadTrain1GestureTraining");
+        }
+
+        LeadTrainGestureTrainingController training = trainingObject.GetComponent<LeadTrainGestureTrainingController>();
+        if (training == null)
+        {
+            training = trainingObject.AddComponent<LeadTrainGestureTrainingController>();
+        }
+
+        training.BeginTrainingScene();
+        Debug.Log("[LeadTrain] 已进入四电闸手势真实训练。");
+    }
+
+    string ResolveGestureTrainingMachineName()
+    {
+        if (_currentStepIndex >= 0 && steps != null && _currentStepIndex < steps.Length && steps[_currentStepIndex] != null)
+        {
+            Transform currentMachine = GetStepMachineTransform(_currentStepIndex);
+            if (currentMachine != null && IsInRange(currentMachine))
+            {
+                return steps[_currentStepIndex].machineObjectName;
+            }
+        }
+
+        Transform nearest = null;
+        string nearestName = "";
+        float nearestDistance = float.MaxValue;
+        Vector3 probe = ResolvePlayerProbePosition();
+
+        if (steps != null)
+        {
+            for (int i = 0; i < steps.Length; i++)
+            {
+                GuideStep step = steps[i];
+                if (step == null || string.IsNullOrEmpty(step.machineObjectName))
+                {
+                    continue;
+                }
+
+                Transform machine = GetStepMachineTransform(i);
+                if (machine == null)
+                {
+                    continue;
+                }
+
+                float distance = HorizontalDistance(probe, machine.position);
+                if (distance < nearestDistance)
+                {
+                    nearestDistance = distance;
+                    nearest = machine;
+                    nearestName = step.machineObjectName;
+                }
+            }
+        }
+
+        if (nearest != null && nearestDistance <= interactionDistance)
+        {
+            return nearestName;
+        }
+
+        if (_currentStepIndex >= 0 && steps != null && _currentStepIndex < steps.Length && steps[_currentStepIndex] != null)
+        {
+            return steps[_currentStepIndex].machineObjectName;
+        }
+
+        return BreakerShutdownStationBuilder.StaticStationName;
+    }
+
+    void EnsureMovementAvatar()
+    {
+        if (_gestureTrainingStarted || _player == null)
+        {
+            return;
+        }
+
+        Vector3 localPosition = ResolveMovementAvatarLocalPosition();
+
+        if (_movementAvatar != null)
+        {
+            ApplyMovementAvatarPose(_movementAvatar.transform, localPosition);
+            return;
+        }
+
+        Transform existing = _player.Find("LeadTrain Safety Trainee Avatar");
+        if (existing != null)
+        {
+            _movementAvatar = existing.gameObject;
+            ApplyMovementAvatarPose(existing, localPosition);
+            return;
+        }
+
+        _movementAvatar = SafetyTraineeAvatar.Create(
+            _player,
+            "LeadTrain Safety Trainee Avatar",
+            localPosition,
+            movementAvatarScale);
+        ApplyMovementAvatarPose(_movementAvatar.transform, localPosition);
+        Debug.Log("[LeadTrain] 已创建移动小人：" + localPosition);
+    }
+
+    void RememberMovementAvatarScale(Transform avatar)
+    {
+        if (avatar == null || !IsValidVector(avatar.localScale))
+        {
+            return;
+        }
+
+        _rememberedMovementAvatarLocalScale = avatar.localScale;
+        _hasRememberedMovementAvatarScale = true;
+    }
+
+    void ApplyMovementAvatarPose(Transform avatar, Vector3 localPosition)
+    {
+        if (avatar == null)
+        {
+            return;
+        }
+
+        avatar.localPosition = localPosition;
+        avatar.localRotation = Quaternion.identity;
+        avatar.localScale = ResolveMovementAvatarLocalScale();
+    }
+
+    Vector3 ResolveMovementAvatarLocalScale()
+    {
+        if (_hasRememberedMovementAvatarScale && IsValidVector(_rememberedMovementAvatarLocalScale))
+        {
+            return _rememberedMovementAvatarLocalScale;
+        }
+
+        return Vector3.one * Mathf.Max(0.1f, movementAvatarScale);
+    }
+
+    void RemoveGuideSceneReturnInput()
+    {
+        ReturnToHubInput[] returnInputs = FindObjectsOfType<ReturnToHubInput>();
+        for (int i = 0; i < returnInputs.Length; i++)
+        {
+            if (returnInputs[i] != null)
+            {
+                Destroy(returnInputs[i]);
+            }
+        }
+    }
+
+    Vector3 ResolveMovementAvatarLocalPosition()
+    {
+        return Vector3.zero;
+    }
+
+    void RemoveRetiredFireExtinguisherFromScene()
+    {
+        GameObject extinguisher = GameObject.Find(RetiredFireExtinguisherObjectName);
+        if (extinguisher == null)
+        {
+            return;
+        }
+
+        if (Application.isPlaying)
+        {
+            Destroy(extinguisher);
+        }
+        else
+        {
+            DestroyImmediate(extinguisher);
+        }
+
+        Debug.Log("[LeadTrain] 已移除灭火器组件，当前引导训练仅保留配电柜、紧急停机作业区、CNC。");
     }
 
     void DrawEntryPanel()
@@ -370,24 +749,12 @@ public class LeadTrainGuideController : MonoBehaviour
             return false;
         }
 
-        if (step.machineObjectName == FireExtinguisherBuilder.StaticExtinguisherName)
-        {
-            FireExtinguisherGaugeInteraction extinguisher = machineRoot.GetComponentInChildren<FireExtinguisherGaugeInteraction>();
-            if (extinguisher != null)
-            {
-                guidedSequence = extinguisher.PlayGuidedSequence();
-                return true;
-            }
-
-            return false;
-        }
-
         return false;
     }
 
     void UpdateGuideVisuals()
     {
-        if (_guideCompleted || _currentStepIndex >= steps.Length || _demoRunning)
+        if (_gestureTrainingStarted || _guideCompleted || _currentStepIndex >= steps.Length || _demoRunning)
         {
             HideGuideVisuals();
             return;
@@ -561,5 +928,18 @@ public class LeadTrainGuideController : MonoBehaviour
         a.y = 0f;
         b.y = 0f;
         return Vector3.Distance(a, b);
+    }
+
+    static bool IsValidVector(Vector3 value)
+    {
+        return IsValidFloat(value.x)
+            && IsValidFloat(value.y)
+            && IsValidFloat(value.z)
+            && value.sqrMagnitude > 0.0001f;
+    }
+
+    static bool IsValidFloat(float value)
+    {
+        return !float.IsNaN(value) && !float.IsInfinity(value);
     }
 }

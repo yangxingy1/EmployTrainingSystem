@@ -135,6 +135,50 @@ public class TrainingFlowController : MonoBehaviour
 
     public void RestartCurrentTraining()
     {
+        if (taskId == LeadTrainCNCGestureTrainingController.TaskId)
+        {
+            LeadTrainCNCGestureTrainingController cncTraining = FindObjectOfType<LeadTrainCNCGestureTrainingController>();
+            if (cncTraining != null)
+            {
+                cncTraining.RestartTraining(false);
+                ResetFlow();
+                return;
+            }
+        }
+
+        if (taskId == LeadTrainFireExtinguisherGestureTrainingController.TaskId)
+        {
+            LeadTrainFireExtinguisherGestureTrainingController fireTraining = FindObjectOfType<LeadTrainFireExtinguisherGestureTrainingController>();
+            if (fireTraining != null)
+            {
+                fireTraining.RestartTraining(false);
+                ResetFlow();
+                return;
+            }
+        }
+
+        if (taskId == LeadTrainElectricalCabinetGestureTrainingController.TaskId)
+        {
+            LeadTrainElectricalCabinetGestureTrainingController cabinetTraining = FindObjectOfType<LeadTrainElectricalCabinetGestureTrainingController>();
+            if (cabinetTraining != null)
+            {
+                cabinetTraining.RestartTraining(false);
+                ResetFlow();
+                return;
+            }
+        }
+
+        if (taskId == LeadTrainGestureTrainingController.TaskId)
+        {
+            LeadTrainGestureTrainingController leadGestureTraining = FindObjectOfType<LeadTrainGestureTrainingController>();
+            if (leadGestureTraining != null)
+            {
+                leadGestureTraining.RestartTraining(false);
+                ResetFlow();
+                return;
+            }
+        }
+
         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
     }
 
@@ -142,6 +186,34 @@ public class TrainingFlowController : MonoBehaviour
     {
         switch (id)
         {
+            case "lead_train1_electrical_cabinet_gesture":
+                taskName = "配电柜主断路器手势训练";
+                objective = "捏合旋钮完成主断路器 ON 合闸与 OFF 分闸，并观察电源灯状态变化";
+                gestureHint = "靠近旋钮后捏合，围绕旋钮中心旋转，松手后吸附到 ON/OFF 档位";
+                targetSuccessCount = 2;
+                targetSeconds = 90f;
+                break;
+            case "lead_train1_cnc_gesture":
+                taskName = "CNC 标准加工手势训练";
+                objective = "按电源、AUTO、开门、夹紧、关门、启动、急停、复位 8 步完成训练";
+                gestureHint = "按钮用点按，模式/夹具用捏合旋转，安全门用捏合水平滑动";
+                targetSuccessCount = 8;
+                targetSeconds = 180f;
+                break;
+            case "lead_train1_fire_extinguisher_gesture":
+                taskName = "灭火器点检手势训练";
+                objective = "按顺序完成标签、压力表、保险销、喷管和压把 5 步点检";
+                gestureHint = "按当前步骤使用点按、轻拉、滑动和收紧松开手势";
+                targetSuccessCount = 5;
+                targetSeconds = 120f;
+                break;
+            case "lead_train1_gesture":
+                taskName = "四电闸手势真实训练";
+                objective = "根据引导演示拉下4个电闸并完成确认";
+                gestureHint = "食指点按启动，捏合横杆向下拉，最后点击确认";
+                targetSuccessCount = 5;
+                targetSeconds = 120f;
+                break;
             case "electric_switch":
                 taskName = "拉杆电闸训练";
                 objective = "完成2次电闸状态切换";
@@ -187,7 +259,7 @@ public class TrainingFlowController : MonoBehaviour
             case "bolt_tightening":
                 taskName = "螺栓拧紧训练";
                 objective = "按顺序完成一组3颗螺栓拧紧";
-                gestureHint = "捏合高亮螺栓，顺时针小幅连续旋转";
+                gestureHint = "捏住扭矩扳手手柄，围绕目标螺栓顺时针拉动";
                 targetSuccessCount = 1;
                 targetSeconds = 120f;
                 break;
@@ -327,8 +399,36 @@ public class TrainingFlowController : MonoBehaviour
     void OnGUI()
     {
         EnsureStyles();
-        DrawTrainingPanel();
+        if (IsLeadTrainCompactTask())
+            DrawLeadGestureCompactPanel();
+        else
+            DrawTrainingPanel();
+
         if (_completed) DrawResultPanel();
+    }
+
+    bool IsLeadTrainCompactTask()
+    {
+        return taskId == LeadTrainElectricalCabinetGestureTrainingController.TaskId
+            || taskId == LeadTrainGestureTrainingController.TaskId
+            || taskId == LeadTrainFireExtinguisherGestureTrainingController.TaskId
+            || taskId == LeadTrainCNCGestureTrainingController.TaskId;
+    }
+
+    void DrawLeadGestureCompactPanel()
+    {
+        float width = 340f;
+        float height = 92f;
+        var rect = new Rect(Screen.width - width - 18f, 18f, width, height);
+        GUI.Box(rect, "", _panelStyle);
+
+        GUILayout.BeginArea(new Rect(rect.x + 14f, rect.y + 10f, rect.width - 28f, rect.height - 20f));
+        GUILayout.Label(taskName + "    " + _successCount + "/" + targetSuccessCount + "    误操作 " + _mistakeCount, _smallStyle);
+        DrawProgressBar(GUILayoutUtility.GetRect(1f, 12f), _progress01);
+        string recent = Time.time - _lastEventAt < 1.8f ? _lastEvent : _phase;
+        GUILayout.Label(recent, _smallStyle);
+        GUILayout.Label("T 重置    R/Esc 返回", _smallStyle);
+        GUILayout.EndArea();
     }
 
     void DrawTrainingPanel()

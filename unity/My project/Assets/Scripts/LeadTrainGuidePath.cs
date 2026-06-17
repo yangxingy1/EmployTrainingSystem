@@ -12,24 +12,26 @@ public class LeadTrainGuidePath : MonoBehaviour
     public Color lineColorA = new Color(0.45f, 0.78f, 1f, 1f);
     public Color lineColorB = new Color(0.72f, 0.92f, 1f, 1f);
     public float colorAlternateSpeed = 8f;
-    public float stripWidth = 1.25f;
-    public float stripLength = 8f;
-    public float pathGroundOffset = 0.03f;
+    public float stripWidth = 0.72f;
+    public float stripLength = 6f;
+    public float pathGroundOffset = 0.08f;
     public float groundRaycastHeight = 30f;
     public float groundRaycastDistance = 120f;
+    public float startClearance = 1.6f;
+    public float targetClearance = 2.2f;
 
     [Header("Ground Chevrons")]
     public Color chevronColorA = new Color(0.45f, 0.78f, 1f, 1f);
     public Color chevronColorB = new Color(0.72f, 0.92f, 1f, 1f);
-    public float chevronSpacing = 18f;
-    public int maxChevrons = 14;
-    public float chevronLength = 4f;
-    public float chevronWidth = 2.5f;
-    public float chevronHeight = 0.04f;
+    public float chevronSpacing = 12f;
+    public int maxChevrons = 10;
+    public float chevronLength = 3f;
+    public float chevronWidth = 1.6f;
+    public float chevronHeight = 0.055f;
 
     [Header("Target Ring")]
     public Color ringColor = LightBlueSoft;
-    public float ringRadius = 5f;
+    public float ringRadius = 3.2f;
 
     Material _lineMaterialA;
     Material _lineMaterialB;
@@ -67,9 +69,10 @@ public class LeadTrainGuidePath : MonoBehaviour
     {
         EnsureVisuals();
 
-        float groundY = ResolveHorizontalGroundY(playerPosition, targetPosition);
+        float groundY = ResolveHorizontalGroundY(targetPosition);
         Vector3 start = new Vector3(playerPosition.x, groundY, playerPosition.z);
         Vector3 end = new Vector3(targetPosition.x, groundY, targetPosition.z);
+        ApplyEndpointClearance(ref start, ref end);
         _resolvedGroundY = groundY;
 
         _cachedStart = start;
@@ -168,22 +171,39 @@ public class LeadTrainGuidePath : MonoBehaviour
         ConfigureMaterialColor(material, color);
     }
 
-    float ResolveHorizontalGroundY(Vector3 playerPosition, Vector3 targetPosition)
+    float ResolveHorizontalGroundY(Vector3 targetPosition)
     {
-        // 以当前目标设备根节点 Y 作为工厂地面基准，避免射线打到机器本体或玩家层导致线条悬空。
+        // 以当前目标设备附近地面为基准，避免玩家/相机高度把线条拉到空中或压到模型缝隙里。
         float floorY = targetPosition.y;
 
         if (TrySampleLowestGroundY(targetPosition, out float targetGroundY))
         {
-            floorY = Mathf.Min(floorY, targetGroundY);
-        }
-
-        if (TrySampleLowestGroundY(playerPosition, out float playerGroundY))
-        {
-            floorY = Mathf.Min(floorY, playerGroundY);
+            float maxReasonableDelta = Mathf.Max(1f, groundRaycastHeight * 0.15f);
+            if (Mathf.Abs(targetGroundY - targetPosition.y) <= maxReasonableDelta)
+            {
+                floorY = targetGroundY;
+            }
         }
 
         return floorY + pathGroundOffset;
+    }
+
+    void ApplyEndpointClearance(ref Vector3 start, ref Vector3 end)
+    {
+        Vector3 delta = end - start;
+        float planarDistance = new Vector3(delta.x, 0f, delta.z).magnitude;
+        if (planarDistance < 0.01f)
+        {
+            return;
+        }
+
+        Vector3 direction = new Vector3(delta.x, 0f, delta.z).normalized;
+        float usableDistance = Mathf.Max(0f, planarDistance - 0.5f);
+        float startOffset = Mathf.Min(Mathf.Max(0f, startClearance), usableDistance * 0.45f);
+        float targetOffset = Mathf.Min(Mathf.Max(0f, targetClearance), Mathf.Max(0f, usableDistance - startOffset));
+
+        start += direction * startOffset;
+        end -= direction * targetOffset;
     }
 
     bool TrySampleLowestGroundY(Vector3 worldPosition, out float groundY)
@@ -209,17 +229,6 @@ public class LeadTrainGuidePath : MonoBehaviour
         }
 
         return true;
-    }
-
-    bool TrySampleGroundY(Vector3 worldPosition, out float groundY)
-    {
-        if (TrySampleLowestGroundY(worldPosition, out groundY))
-        {
-            return true;
-        }
-
-        groundY = worldPosition.y;
-        return false;
     }
 
     void EnsureVisuals()
@@ -374,7 +383,12 @@ public class LeadTrainGuidePath : MonoBehaviour
         }
 
         Vector3 direction = new Vector3(delta.x, 0f, delta.z).normalized;
-        int chevronCount = Mathf.Clamp(Mathf.FloorToInt(planarDistance / chevronSpacing), 2, maxChevrons);
+        int chevronCount = Mathf.Clamp(Mathf.FloorToInt(planarDistance / chevronSpacing), 0, maxChevrons);
+        if (chevronCount == 0 && planarDistance >= chevronSpacing * 0.65f)
+        {
+            chevronCount = 1;
+        }
+
         _activeChevronCount = chevronCount;
         SetChevronCount(chevronCount);
 

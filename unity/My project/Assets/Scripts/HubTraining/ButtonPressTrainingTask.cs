@@ -129,6 +129,7 @@ public class FingertipTapButton : MonoBehaviour
     public GraspController grasp;
     public bool requireFreeHand = true;
     public bool interactable = true;
+    public bool showGuideLine = true;
     public System.Action Clicked;
 
     public Color idleColor = new Color(0.16f, 0.36f, 0.76f);
@@ -353,7 +354,7 @@ public class FingertipTapButton : MonoBehaviour
     void UpdateGuide(bool near)
     {
         if (_guideLine == null) return;
-        bool show = near && interactable && hand != null && hand.IsActive;
+        bool show = showGuideLine && near && interactable && hand != null && hand.IsActive;
         _guideLine.enabled = show;
         if (!show) return;
 

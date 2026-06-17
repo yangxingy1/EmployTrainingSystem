@@ -1,54 +1,10 @@
 using UnityEngine;
 
 /// <summary>
-/// 螺栓拧紧训练: 依次捏合目标螺栓并顺时针旋转，达到目标圈数后判定扭矩达标。
+/// 螺栓拧紧训练: 依次套住目标螺栓，捏住扭矩扳手手柄并顺时针拉动，达到目标扭矩后判定达标。
 /// </summary>
 public class BoltTighteningTrainingTask : MonoBehaviour
 {
-    struct TrackedRotation
-    {
-        float _baseAngle;
-        float _currentOffset;
-        float _accumulatedAngle;
-
-        public float TotalOffset => _accumulatedAngle + _currentOffset;
-
-        public void Reset()
-        {
-            _baseAngle = 0f;
-            _currentOffset = 0f;
-            _accumulatedAngle = 0f;
-        }
-
-        public void SetBaseFromVector(Vector3 direction)
-        {
-            _accumulatedAngle += _currentOffset;
-            _baseAngle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
-            _currentOffset = 0f;
-        }
-
-        public void SetTargetFromVector(Vector3 direction)
-        {
-            float targetAngle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
-            _currentOffset = ShortestAngleDistance(_baseAngle, targetAngle);
-            if (Mathf.Abs(_currentOffset) > 90f)
-            {
-                _baseAngle = targetAngle;
-                _accumulatedAngle += _currentOffset;
-                _currentOffset = 0f;
-            }
-        }
-
-        static float ShortestAngleDistance(float start, float end)
-        {
-            float delta = end - start;
-            float sign = Mathf.Sign(delta);
-            delta = Mathf.Abs(delta) % 360f;
-            if (delta > 180f) delta = -(360f - delta);
-            return delta * sign;
-        }
-    }
-
     class BoltUnit
     {
         public GameObject root;
@@ -69,6 +25,10 @@ public class BoltTighteningTrainingTask : MonoBehaviour
     GameObject _cursor;
     Renderer _cursorRenderer;
     Renderer _torqueFillRenderer;
+    Renderer _wrenchHandleRenderer;
+    Renderer _wrenchSocketRenderer;
+    Renderer _wrenchGripRenderer;
+    GameObject _wrenchRoot;
     LineRenderer _guideLine;
     TextMesh _status;
     TextMesh _targetLabel;
@@ -76,35 +36,34 @@ public class BoltTighteningTrainingTask : MonoBehaviour
     int _targetIndex;
     int _completedSets;
     int _wrongDirectionCount;
-    TrackedRotation _toolRotation;
-    TrackedRotation _orbitRotation;
-    float _lastTrackedRotation;
+    float _lastWrenchAngle;
     float _reverseAccumulator;
     float _lastSuccessAt = -99f;
+    float _wrenchAngle = WrenchStartAngle;
     bool _nearTarget;
+    bool _handleNear;
     bool _tightening;
-    bool _toolDriven;
-    bool _orbitDriven;
 
     readonly Color _steel = new Color(0.64f, 0.68f, 0.72f);
     readonly Color _darkSteel = new Color(0.30f, 0.33f, 0.36f);
     readonly Color _blue = new Color(0.22f, 0.58f, 1f);
     readonly Color _yellow = new Color(1f, 0.78f, 0.16f);
     readonly Color _green = new Color(0.20f, 0.86f, 0.34f);
-    readonly Color _red = new Color(0.95f, 0.18f, 0.10f);
 
-    const float GrabRadius = 0.72f;
-    const float GripThreshold = 0.42f;
-    const float ReleaseThreshold = 0.24f;
-    const float TightenDegrees = 320f;
-    const float ToolTwistSensitivity = 1.25f;
-    const float OrbitTwistSensitivity = 0.45f;
+    const float BoltGuideRadius = 1.55f;
+    const float GripThreshold = 0.46f;
+    const float ReleaseThreshold = 0.28f;
+    const float TightenDegrees = 240f;
     const float TightenDirection = -1f;
-    const float PositionTrackedRadius = 0.20f;
-    const float MinToolVectorLength = 0.16f;
-    const float MinStepDegrees = 0.16f;
-    const float MaxStepDegrees = 18f;
-    const float ReverseWarnDegrees = 28f;
+    const float WrenchStartAngle = 42f;
+    const float WrenchHandleLength = 1.22f;
+    const float WrenchGripDistance = 1.18f;
+    const float WrenchMinPullRadius = 0.52f;
+    const float WrenchMaxPullRadius = 1.48f;
+    const float HandleGrabRadius = 0.34f;
+    const float MinStepDegrees = 0.18f;
+    const float MaxStepDegrees = 22f;
+    const float ReverseWarnDegrees = 55f;
 
     void Start()
     {
@@ -146,6 +105,47 @@ public class BoltTighteningTrainingTask : MonoBehaviour
         CreateBox(root.transform, "TorqueRail", new Vector3(0f, -0.66f, -0.08f), new Vector3(2.20f, 0.06f, 0.06f), new Color(0.26f, 0.29f, 0.33f));
         var fill = CreateBox(root.transform, "TorqueFill", new Vector3(-1.08f, -0.66f, -0.11f), new Vector3(0.04f, 0.11f, 0.06f), _green);
         _torqueFillRenderer = fill.GetComponent<Renderer>();
+
+        BuildWrench(root.transform);
+    }
+
+    void BuildWrench(Transform parent)
+    {
+        _wrenchRoot = new GameObject("TorqueWrench");
+        _wrenchRoot.transform.parent = parent;
+
+        var socket = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        socket.name = "TorqueWrenchSocket";
+        socket.transform.parent = _wrenchRoot.transform;
+        socket.transform.localPosition = new Vector3(0f, 0f, -0.15f);
+        socket.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+        socket.transform.localScale = new Vector3(0.36f, 0.035f, 0.36f);
+        Destroy(socket.GetComponent<Collider>());
+        _wrenchSocketRenderer = socket.GetComponent<Renderer>();
+        SetRendererColor(_wrenchSocketRenderer, new Color(0.72f, 0.77f, 0.82f));
+
+        var handle = CreateBox(_wrenchRoot.transform, "TorqueWrenchHandle",
+            new Vector3(WrenchHandleLength * 0.52f, 0f, -0.15f),
+            new Vector3(WrenchHandleLength, 0.105f, 0.055f),
+            new Color(0.45f, 0.50f, 0.56f));
+        _wrenchHandleRenderer = handle.GetComponent<Renderer>();
+
+        var grip = CreateBox(_wrenchRoot.transform, "TorqueWrenchGrip",
+            new Vector3(WrenchGripDistance, 0f, -0.17f),
+            new Vector3(0.28f, 0.18f, 0.075f),
+            new Color(0.10f, 0.14f, 0.18f));
+        _wrenchGripRenderer = grip.GetComponent<Renderer>();
+
+        CreateBox(_wrenchRoot.transform, "TorqueWrenchJawMark",
+            new Vector3(0.16f, 0.115f, -0.16f),
+            new Vector3(0.22f, 0.045f, 0.045f),
+            new Color(0.90f, 0.95f, 1f));
+        CreateBox(_wrenchRoot.transform, "TorqueWrenchJawMarkMirror",
+            new Vector3(0.16f, -0.115f, -0.16f),
+            new Vector3(0.22f, 0.045f, 0.045f),
+            new Color(0.90f, 0.95f, 1f));
+
+        UpdateWrenchPose(CurrentBolt(), true);
     }
 
     BoltUnit BuildBolt(Transform parent, int index, Vector3 center)
@@ -250,6 +250,7 @@ public class BoltTighteningTrainingTask : MonoBehaviour
         if (hand == null || !hand.IsActive || CurrentBolt() == null)
         {
             _nearTarget = false;
+            _handleNear = false;
             StopTightening();
             return;
         }
@@ -258,10 +259,12 @@ public class BoltTighteningTrainingTask : MonoBehaviour
         Vector3 grip = hand.GripPoint;
         Vector3 offset = grip - bolt.center;
         float distance = new Vector2(offset.x, offset.y).magnitude;
-        _nearTarget = distance <= GrabRadius;
+        _nearTarget = distance <= BoltGuideRadius;
+        _handleNear = DistanceXY(grip, WrenchGripPoint(bolt)) <= HandleGrabRadius;
         bool gripping = hand.PinchOnlyStrength >= GripThreshold;
+        bool usablePullRadius = distance >= WrenchMinPullRadius && distance <= WrenchMaxPullRadius;
 
-        if (_nearTarget && gripping)
+        if (_handleNear && gripping)
         {
             if (!_tightening)
             {
@@ -269,83 +272,47 @@ public class BoltTighteningTrainingTask : MonoBehaviour
             }
             else
             {
-                TrackBoltRotation(bolt);
+                TrackWrenchPull(bolt);
             }
         }
         else
         {
-            if (hand.PinchOnlyStrength <= ReleaseThreshold || !_nearTarget)
+            if (_tightening && gripping && usablePullRadius)
+            {
+                TrackWrenchPull(bolt);
+            }
+            else if (hand.PinchOnlyStrength <= ReleaseThreshold || !usablePullRadius)
+            {
                 StopTightening();
+            }
         }
 
         if (bolt.progress < TightenDegrees || bolt.done) return;
 
         bolt.done = true;
         _lastSuccessAt = Time.time;
+        StopTightening();
         SelectNextBolt();
     }
 
     void BeginTightening(BoltUnit bolt)
     {
         _tightening = true;
-        _toolRotation.Reset();
-        _orbitRotation.Reset();
-        _toolDriven = false;
-        _orbitDriven = false;
         _reverseAccumulator = 0f;
-
-        Vector3 toolVector = ToolTwistVector();
-        if (toolVector.sqrMagnitude >= MinToolVectorLength * MinToolVectorLength)
-        {
-            _toolRotation.SetBaseFromVector(toolVector.normalized);
-            _toolDriven = true;
-        }
-
-        Vector3 orbitVector = OrbitVector(bolt);
-        if (orbitVector.sqrMagnitude >= PositionTrackedRadius * PositionTrackedRadius)
-        {
-            _orbitRotation.SetBaseFromVector(orbitVector.normalized);
-            _orbitDriven = true;
-        }
-
-        _lastTrackedRotation = 0f;
+        _wrenchAngle = AngleFromBolt(bolt, hand.GripPoint);
+        _lastWrenchAngle = _wrenchAngle;
+        UpdateWrenchPose(bolt, false);
     }
 
-    void TrackBoltRotation(BoltUnit bolt)
+    void TrackWrenchPull(BoltUnit bolt)
     {
-        Vector3 toolVector = ToolTwistVector();
-        if (toolVector.sqrMagnitude >= MinToolVectorLength * MinToolVectorLength)
-        {
-            if (!_toolDriven)
-            {
-                _toolRotation.SetBaseFromVector(toolVector.normalized);
-                _toolDriven = true;
-            }
-            _toolRotation.SetTargetFromVector(toolVector.normalized);
-        }
-        else
-        {
-            _toolDriven = false;
-        }
+        float angle = AngleFromBolt(bolt, hand.GripPoint);
+        float angleDelta = Mathf.DeltaAngle(_lastWrenchAngle, angle);
+        _lastWrenchAngle = angle;
+        _wrenchAngle = angle;
+        UpdateWrenchPose(bolt, false);
 
-        Vector3 orbitVector = OrbitVector(bolt);
-        if (orbitVector.sqrMagnitude >= PositionTrackedRadius * PositionTrackedRadius)
-        {
-            if (!_orbitDriven)
-            {
-                _orbitRotation.SetBaseFromVector(orbitVector.normalized);
-                _orbitDriven = true;
-            }
-            _orbitRotation.SetTargetFromVector(orbitVector.normalized);
-        }
-        else
-        {
-            _orbitDriven = false;
-        }
-
-        float tracked = TightenDirection * (_toolRotation.TotalOffset * ToolTwistSensitivity + _orbitRotation.TotalOffset * OrbitTwistSensitivity);
-        float rawStep = tracked - _lastTrackedRotation;
-        _lastTrackedRotation = tracked;
+        float rawStep = TightenDirection * angleDelta;
 
         if (Mathf.Abs(rawStep) < MinStepDegrees || Mathf.Abs(rawStep) > MaxStepDegrees)
             return;
@@ -361,7 +328,7 @@ public class BoltTighteningTrainingTask : MonoBehaviour
             if (_reverseAccumulator >= ReverseWarnDegrees)
             {
                 _wrongDirectionCount++;
-                TrainingFlowController.Active?.RecordMistake("螺栓出现反向旋转");
+                TrainingFlowController.Active?.RecordMistake("扳手反向回程过大");
                 _reverseAccumulator = 0f;
             }
         }
@@ -380,37 +347,54 @@ public class BoltTighteningTrainingTask : MonoBehaviour
     void StopTightening()
     {
         _tightening = false;
-        _toolDriven = false;
-        _orbitDriven = false;
-        _lastTrackedRotation = 0f;
+        _lastWrenchAngle = 0f;
         _reverseAccumulator = 0f;
-        _toolRotation.Reset();
-        _orbitRotation.Reset();
+        _wrenchAngle = WrenchStartAngle;
+        UpdateWrenchPose(CurrentBolt(), true);
     }
 
-    Vector3 ToolTwistVector()
+    float AngleFromBolt(BoltUnit bolt, Vector3 point)
     {
-        if (hand == null || hand.Points == null || hand.Points.Length <= 17)
-            return Vector3.zero;
-
-        Vector3 thumb = hand.Points[4];
-        Vector3 index = hand.Points[8];
-        Vector3 vector = index - thumb;
-        vector.z = 0f;
-        if (vector.sqrMagnitude >= MinToolVectorLength * MinToolVectorLength)
-            return vector;
-
-        vector = hand.Points[17] - hand.Points[5];
-        vector.z = 0f;
-        return vector;
+        if (bolt == null) return WrenchStartAngle;
+        Vector3 vector = point - bolt.center;
+        return Mathf.Atan2(vector.y, vector.x) * Mathf.Rad2Deg;
     }
 
-    Vector3 OrbitVector(BoltUnit bolt)
+    Vector3 WrenchGripPoint(BoltUnit bolt)
     {
-        if (hand == null || bolt == null) return Vector3.zero;
-        Vector3 vector = hand.GripPoint - bolt.center;
-        vector.z = 0f;
-        return vector;
+        if (bolt == null) return Vector3.zero;
+        float angle = _tightening ? _wrenchAngle : WrenchStartAngle;
+        float radians = angle * Mathf.Deg2Rad;
+        Vector3 direction = new Vector3(Mathf.Cos(radians), Mathf.Sin(radians), 0f);
+        return bolt.center + direction * WrenchGripDistance;
+    }
+
+    void UpdateWrenchPose(BoltUnit bolt, bool resetToStart)
+    {
+        if (_wrenchRoot == null) return;
+
+        if (bolt == null)
+        {
+            _wrenchRoot.SetActive(false);
+            return;
+        }
+
+        _wrenchRoot.SetActive(true);
+        if (resetToStart) _wrenchAngle = WrenchStartAngle;
+        _wrenchRoot.transform.position = bolt.center + new Vector3(0f, 0f, -0.04f);
+        _wrenchRoot.transform.rotation = Quaternion.Euler(0f, 0f, _wrenchAngle);
+
+        Color handle = _tightening
+            ? _green
+            : _handleNear ? _yellow : new Color(0.45f, 0.50f, 0.56f);
+        SetRendererColor(_wrenchHandleRenderer, handle);
+        SetRendererColor(_wrenchGripRenderer, _handleNear || _tightening ? _yellow : new Color(0.10f, 0.14f, 0.18f));
+        SetRendererColor(_wrenchSocketRenderer, _tightening ? _green : new Color(0.72f, 0.77f, 0.82f));
+    }
+
+    static float DistanceXY(Vector3 a, Vector3 b)
+    {
+        return Vector2.Distance(new Vector2(a.x, a.y), new Vector2(b.x, b.y));
     }
 
     void UpdateCursorAndGuide()
@@ -431,14 +415,14 @@ public class BoltTighteningTrainingTask : MonoBehaviour
 
         Color cursorColor = _tightening
             ? _green
-            : _nearTarget ? _yellow : new Color(0.18f, 0.66f, 1f);
+            : _handleNear ? _yellow : _nearTarget ? new Color(0.62f, 0.82f, 1f) : new Color(0.18f, 0.66f, 1f);
         SetRendererColor(_cursorRenderer, cursorColor);
 
         BoltUnit bolt = CurrentBolt();
-        _guideLine.enabled = bolt != null && (_nearTarget || _tightening);
+        _guideLine.enabled = bolt != null && (_nearTarget || _handleNear || _tightening);
         if (!_guideLine.enabled) return;
         _guideLine.SetPosition(0, grip);
-        _guideLine.SetPosition(1, bolt.center + new Vector3(0f, 0f, -0.18f));
+        _guideLine.SetPosition(1, WrenchGripPoint(bolt) + new Vector3(0f, 0f, -0.18f));
     }
 
     void UpdateVisuals()
@@ -459,6 +443,7 @@ public class BoltTighteningTrainingTask : MonoBehaviour
         }
 
         BoltUnit currentBolt = CurrentBolt();
+        UpdateWrenchPose(currentBolt, false);
         float pct = currentBolt == null ? 1f : Mathf.Clamp01(currentBolt.progress / TightenDegrees);
         if (_torqueFillRenderer != null)
         {
@@ -477,9 +462,10 @@ public class BoltTighteningTrainingTask : MonoBehaviour
         string phase;
         if (!hand.IsActive) phase = "等待手势识别";
         else if (AllDone()) phase = "本轮螺栓已全部达标";
-        else if (_tightening) phase = (_toolDriven ? "拧动手指/手腕推进" : "围绕螺栓小幅旋转");
-        else if (_nearTarget) phase = "捏合螺栓头开始拧紧";
-        else phase = "移动光标到高亮螺栓";
+        else if (_tightening) phase = "顺时针拉动扭矩扳手";
+        else if (_handleNear) phase = "捏合扳手手柄开始拧紧";
+        else if (_nearTarget) phase = "移动到高亮扳手手柄";
+        else phase = "移动光标到目标螺栓旁";
 
         float pct = bolt == null ? 100f : Mathf.Clamp01(bolt.progress / TightenDegrees) * 100f;
         string done = Time.time - _lastSuccessAt < 1.1f ? "\n扭矩达标" : "";
@@ -488,12 +474,12 @@ public class BoltTighteningTrainingTask : MonoBehaviour
             "\n当前目标: " + (bolt == null ? "完成" : (_targetIndex + 1).ToString()) +
             "\n扭矩进度: " + pct.ToString("0") + "%" +
             "\n完成轮次: " + _completedSets +
-            "\n反向提示: " + _wrongDirectionCount +
+            "\n反向/空回程: " + _wrongDirectionCount +
             "\n捏合: " + hand.PinchOnlyStrength.ToString("0.00") +
             done;
 
         if (_targetLabel != null)
-            _targetLabel.text = bolt == null ? "全部螺栓扭矩达标" : "目标: 拧紧 " + (_targetIndex + 1) + " 号螺栓";
+            _targetLabel.text = bolt == null ? "全部螺栓扭矩达标" : "目标: 用扭矩扳手拧紧 " + (_targetIndex + 1) + " 号螺栓";
     }
 
     void SelectNextBolt()
@@ -502,6 +488,8 @@ public class BoltTighteningTrainingTask : MonoBehaviour
         {
             if (_bolts[i] == null || _bolts[i].done) continue;
             _targetIndex = i;
+            _wrenchAngle = WrenchStartAngle;
+            UpdateWrenchPose(_bolts[i], true);
             return;
         }
 

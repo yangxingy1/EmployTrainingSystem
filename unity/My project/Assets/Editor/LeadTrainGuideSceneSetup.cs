@@ -51,7 +51,7 @@ public static class LeadTrainGuideSceneSetup
         ValidateRequiredMachines();
         Selection.activeGameObject = guide.gameObject;
         MarkSceneDirty(guide.gameObject);
-        Debug.Log("[LeadTrain] Reset guide step order to: Fire -> Cabinet -> Breaker -> CNC");
+        Debug.Log("[LeadTrain] Reset guide step order to: Cabinet -> Breaker -> CNC");
     }
 
     static void ValidateRequiredMachines()

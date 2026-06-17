@@ -10,6 +10,8 @@ public sealed class FactoryOneSceneController : MonoBehaviour
     public const string StaticFactoryName = "Factory 1 Static";
     public const string DefaultFactoryAssetPath = "Assets/Factory/LimeExp_1.FBX";
     public const float KnownGoodStartCameraWorldHeight = -71.32077f;
+    public const string OneShotStartCameraWorldHeightKey = "LeadTrain.OneShotStartCameraWorldHeight";
+    public const string OneShotStartCameraPoseKey = "LeadTrain.OneShotStartCameraPose";
 
     [Header("Factory")]
     public GameObject sceneFactoryRoot;
@@ -44,6 +46,15 @@ public sealed class FactoryOneSceneController : MonoBehaviour
     private float pitch;
     private float nextHeightLogTime;
     private float ActualEyeHeight => Mathf.Max(0.1f, eyeHeight + cameraHeightOffset);
+
+    private static bool _hasOneShotStartCameraPose;
+    private static Vector3 _cachedRigPosition;
+    private static Quaternion _cachedRigRotation;
+    private static Vector3 _cachedCameraLocalPosition;
+    private static Quaternion _cachedCameraLocalRotation;
+    private static bool _hasCachedCameraWorldPose;
+    private static Vector3 _cachedCameraWorldPosition;
+    private static Quaternion _cachedCameraWorldRotation;
 
     private void Start()
     {
@@ -173,6 +184,7 @@ public sealed class FactoryOneSceneController : MonoBehaviour
         {
             cameraRig.position = new Vector3(0f, 2f, -10f);
             cameraRig.rotation = Quaternion.identity;
+            TryApplyOneShotStartCameraPose(false);
             return;
         }
 
@@ -190,16 +202,325 @@ public sealed class FactoryOneSceneController : MonoBehaviour
         cameraRig.rotation = Quaternion.Euler(0f, cameraRig.eulerAngles.y, 0f);
         playerCamera.transform.localRotation = Quaternion.identity;
         pitch = 0f;
+
+        TryApplyOneShotStartCameraPose(true);
     }
 
     private float ResolveStartCameraWorldHeight(float rigWorldY)
     {
+        if (TryConsumeOneShotStartCameraWorldHeight(out float savedCameraWorldHeight))
+        {
+            float savedEyeHeight = savedCameraWorldHeight - rigWorldY;
+            if (savedEyeHeight >= 0.6f && savedEyeHeight <= 3.2f)
+            {
+                return savedCameraWorldHeight;
+            }
+
+            Debug.LogWarning(
+                $"Ignored stale gesture return camera height: {savedCameraWorldHeight:F6} " +
+                $"for rigY {rigWorldY:F6}");
+        }
+
         if (!useFixedStartCameraWorldHeight)
         {
             return rigWorldY + ActualEyeHeight;
         }
 
         return forceKnownGoodStartCameraWorldHeight ? KnownGoodStartCameraWorldHeight : startCameraWorldHeight;
+    }
+
+    public static void RememberOneShotStartCameraWorldHeight(float cameraWorldHeight)
+    {
+        if (!IsValidHeight(cameraWorldHeight))
+        {
+            return;
+        }
+
+        PlayerPrefs.SetFloat(OneShotStartCameraWorldHeightKey, cameraWorldHeight);
+        PlayerPrefs.Save();
+    }
+
+    public static void RememberOneShotStartCameraPose(Transform rig, Camera camera)
+    {
+        if (rig == null || camera == null)
+        {
+            return;
+        }
+
+        RememberOneShotStartCameraPose(
+            rig.position,
+            rig.rotation,
+            camera.transform.localPosition,
+            camera.transform.localRotation,
+            camera.transform.position,
+            camera.transform.rotation);
+    }
+
+    public static void RememberOneShotStartCameraPose(
+        Vector3 rigPosition,
+        Quaternion rigRotation,
+        Vector3 cameraLocalPosition,
+        Quaternion cameraLocalRotation,
+        Vector3 cameraWorldPosition,
+        Quaternion cameraWorldRotation)
+    {
+        if (!IsValidVector(rigPosition)
+            || !IsValidQuaternion(rigRotation)
+            || !IsValidVector(cameraLocalPosition)
+            || !IsValidQuaternion(cameraLocalRotation)
+            || !IsValidVector(cameraWorldPosition)
+            || !IsValidQuaternion(cameraWorldRotation))
+        {
+            return;
+        }
+
+        _hasOneShotStartCameraPose = true;
+        _cachedRigPosition = rigPosition;
+        _cachedRigRotation = rigRotation;
+        _cachedCameraLocalPosition = cameraLocalPosition;
+        _cachedCameraLocalRotation = cameraLocalRotation;
+        _hasCachedCameraWorldPose = true;
+        _cachedCameraWorldPosition = cameraWorldPosition;
+        _cachedCameraWorldRotation = cameraWorldRotation;
+
+        PlayerPrefs.SetInt(OneShotStartCameraPoseKey + ".HasPose", 1);
+        PlayerPrefs.SetInt(OneShotStartCameraPoseKey + ".HasWorldPose", 1);
+        SetVector3(OneShotStartCameraPoseKey + ".RigPosition", rigPosition);
+        SetQuaternion(OneShotStartCameraPoseKey + ".RigRotation", rigRotation);
+        SetVector3(OneShotStartCameraPoseKey + ".CameraLocalPosition", cameraLocalPosition);
+        SetQuaternion(OneShotStartCameraPoseKey + ".CameraLocalRotation", cameraLocalRotation);
+        SetVector3(OneShotStartCameraPoseKey + ".CameraWorldPosition", cameraWorldPosition);
+        SetQuaternion(OneShotStartCameraPoseKey + ".CameraWorldRotation", cameraWorldRotation);
+        PlayerPrefs.DeleteKey(OneShotStartCameraWorldHeightKey);
+        PlayerPrefs.Save();
+    }
+
+    public static void ClearOneShotStartCameraReturnOverride()
+    {
+        ClearOneShotStartCameraPose();
+    }
+
+    private static bool TryConsumeOneShotStartCameraWorldHeight(out float cameraWorldHeight)
+    {
+        cameraWorldHeight = 0f;
+        if (!PlayerPrefs.HasKey(OneShotStartCameraWorldHeightKey))
+        {
+            return false;
+        }
+
+        cameraWorldHeight = PlayerPrefs.GetFloat(OneShotStartCameraWorldHeightKey);
+        PlayerPrefs.DeleteKey(OneShotStartCameraWorldHeightKey);
+        PlayerPrefs.Save();
+        return IsValidHeight(cameraWorldHeight);
+    }
+
+    private bool TryApplyOneShotStartCameraPose(bool normalizeFirstPersonPose)
+    {
+        if (!TryConsumeOneShotStartCameraPose(
+            out Vector3 rigPosition,
+            out Quaternion rigRotation,
+            out Vector3 cameraLocalPosition,
+            out Quaternion cameraLocalRotation,
+            out Vector3 cameraWorldPosition,
+            out Quaternion cameraWorldRotation))
+        {
+            return false;
+        }
+
+        float savedPitch = NormalizePitch(cameraLocalRotation.eulerAngles.x);
+        if (normalizeFirstPersonPose)
+        {
+            rigRotation = Quaternion.Euler(0f, rigRotation.eulerAngles.y, 0f);
+            cameraLocalRotation = Quaternion.Euler(savedPitch, 0f, 0f);
+        }
+
+        bool hasCameraWorldPose = IsValidVector(cameraWorldPosition) && IsValidQuaternion(cameraWorldRotation);
+        if (hasCameraWorldPose)
+        {
+            rigPosition = cameraWorldPosition - (rigRotation * cameraLocalPosition);
+        }
+
+        bool controllerWasEnabled = characterController != null && characterController.enabled;
+        if (controllerWasEnabled)
+        {
+            characterController.enabled = false;
+        }
+
+        cameraRig.SetPositionAndRotation(rigPosition, rigRotation);
+        playerCamera.transform.localPosition = cameraLocalPosition;
+        playerCamera.transform.localRotation = cameraLocalRotation;
+
+        if (controllerWasEnabled)
+        {
+            characterController.enabled = true;
+        }
+
+        pitch = savedPitch;
+        Physics.SyncTransforms();
+        Debug.Log(
+            $"Factory Camera Pose [Gesture Return]: rig=({rigPosition.x:F2}, {rigPosition.y:F2}, {rigPosition.z:F2}), " +
+            $"cameraY={playerCamera.transform.position.y:F6}");
+        return true;
+    }
+
+    private static bool TryConsumeOneShotStartCameraPose(
+        out Vector3 rigPosition,
+        out Quaternion rigRotation,
+        out Vector3 cameraLocalPosition,
+        out Quaternion cameraLocalRotation,
+        out Vector3 cameraWorldPosition,
+        out Quaternion cameraWorldRotation)
+    {
+        rigPosition = Vector3.zero;
+        rigRotation = Quaternion.identity;
+        cameraLocalPosition = Vector3.zero;
+        cameraLocalRotation = Quaternion.identity;
+        cameraWorldPosition = Vector3.zero;
+        cameraWorldRotation = Quaternion.identity;
+
+        if (_hasOneShotStartCameraPose)
+        {
+            rigPosition = _cachedRigPosition;
+            rigRotation = _cachedRigRotation;
+            cameraLocalPosition = _cachedCameraLocalPosition;
+            cameraLocalRotation = _cachedCameraLocalRotation;
+            cameraWorldPosition = _cachedCameraWorldPosition;
+            cameraWorldRotation = _cachedCameraWorldRotation;
+            bool hasWorldPose = _hasCachedCameraWorldPose
+                && IsValidVector(cameraWorldPosition)
+                && IsValidQuaternion(cameraWorldRotation);
+            ClearOneShotStartCameraPose();
+
+            return IsValidVector(rigPosition)
+                && IsValidQuaternion(rigRotation)
+                && IsValidVector(cameraLocalPosition)
+                && IsValidQuaternion(cameraLocalRotation)
+                && hasWorldPose;
+        }
+
+        if (PlayerPrefs.GetInt(OneShotStartCameraPoseKey + ".HasPose", 0) != 1)
+        {
+            return false;
+        }
+
+        if (PlayerPrefs.GetInt(OneShotStartCameraPoseKey + ".HasWorldPose", 0) != 1)
+        {
+            ClearOneShotStartCameraPose();
+            return false;
+        }
+
+        rigPosition = GetVector3(OneShotStartCameraPoseKey + ".RigPosition");
+        rigRotation = GetQuaternion(OneShotStartCameraPoseKey + ".RigRotation");
+        cameraLocalPosition = GetVector3(OneShotStartCameraPoseKey + ".CameraLocalPosition");
+        cameraLocalRotation = GetQuaternion(OneShotStartCameraPoseKey + ".CameraLocalRotation");
+        cameraWorldPosition = GetVector3(OneShotStartCameraPoseKey + ".CameraWorldPosition");
+        cameraWorldRotation = GetQuaternion(OneShotStartCameraPoseKey + ".CameraWorldRotation");
+        ClearOneShotStartCameraPose();
+
+        return IsValidVector(rigPosition)
+            && IsValidQuaternion(rigRotation)
+            && IsValidVector(cameraLocalPosition)
+            && IsValidQuaternion(cameraLocalRotation)
+            && IsValidVector(cameraWorldPosition)
+            && IsValidQuaternion(cameraWorldRotation);
+    }
+
+    private static void ClearOneShotStartCameraPose()
+    {
+        _hasOneShotStartCameraPose = false;
+        _hasCachedCameraWorldPose = false;
+
+        string[] suffixes =
+        {
+            ".HasPose",
+            ".HasWorldPose",
+            ".RigPosition.x",
+            ".RigPosition.y",
+            ".RigPosition.z",
+            ".RigRotation.x",
+            ".RigRotation.y",
+            ".RigRotation.z",
+            ".RigRotation.w",
+            ".CameraLocalPosition.x",
+            ".CameraLocalPosition.y",
+            ".CameraLocalPosition.z",
+            ".CameraLocalRotation.x",
+            ".CameraLocalRotation.y",
+            ".CameraLocalRotation.z",
+            ".CameraLocalRotation.w",
+            ".CameraWorldPosition.x",
+            ".CameraWorldPosition.y",
+            ".CameraWorldPosition.z",
+            ".CameraWorldRotation.x",
+            ".CameraWorldRotation.y",
+            ".CameraWorldRotation.z",
+            ".CameraWorldRotation.w"
+        };
+
+        for (int i = 0; i < suffixes.Length; i++)
+        {
+            PlayerPrefs.DeleteKey(OneShotStartCameraPoseKey + suffixes[i]);
+        }
+
+        PlayerPrefs.DeleteKey(OneShotStartCameraWorldHeightKey);
+        PlayerPrefs.Save();
+    }
+
+    private static void SetVector3(string prefix, Vector3 value)
+    {
+        PlayerPrefs.SetFloat(prefix + ".x", value.x);
+        PlayerPrefs.SetFloat(prefix + ".y", value.y);
+        PlayerPrefs.SetFloat(prefix + ".z", value.z);
+    }
+
+    private static Vector3 GetVector3(string prefix)
+    {
+        return new Vector3(
+            PlayerPrefs.GetFloat(prefix + ".x"),
+            PlayerPrefs.GetFloat(prefix + ".y"),
+            PlayerPrefs.GetFloat(prefix + ".z"));
+    }
+
+    private static void SetQuaternion(string prefix, Quaternion value)
+    {
+        PlayerPrefs.SetFloat(prefix + ".x", value.x);
+        PlayerPrefs.SetFloat(prefix + ".y", value.y);
+        PlayerPrefs.SetFloat(prefix + ".z", value.z);
+        PlayerPrefs.SetFloat(prefix + ".w", value.w);
+    }
+
+    private static Quaternion GetQuaternion(string prefix)
+    {
+        return new Quaternion(
+            PlayerPrefs.GetFloat(prefix + ".x"),
+            PlayerPrefs.GetFloat(prefix + ".y"),
+            PlayerPrefs.GetFloat(prefix + ".z"),
+            PlayerPrefs.GetFloat(prefix + ".w", 1f));
+    }
+
+    private static bool IsValidHeight(float value)
+    {
+        return !float.IsNaN(value) && !float.IsInfinity(value);
+    }
+
+    private static bool IsValidVector(Vector3 value)
+    {
+        return IsValidHeight(value.x) && IsValidHeight(value.y) && IsValidHeight(value.z);
+    }
+
+    private static bool IsValidQuaternion(Quaternion value)
+    {
+        return IsValidHeight(value.x)
+            && IsValidHeight(value.y)
+            && IsValidHeight(value.z)
+            && IsValidHeight(value.w)
+            && value.x * value.x + value.y * value.y + value.z * value.z + value.w * value.w > 0.0001f;
+    }
+
+    private static float NormalizePitch(float eulerX)
+    {
+        float normalized = eulerX > 180f ? eulerX - 360f : eulerX;
+        return Mathf.Clamp(normalized, -85f, 85f);
     }
 
     private void UpdateCursorLock()
