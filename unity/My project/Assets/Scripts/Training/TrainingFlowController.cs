@@ -21,6 +21,9 @@ public class TrainingFlowController : MonoBehaviour
     string _detail = "";
     string _lastEvent = "暂无";
     float _lastEventAt = -99f;
+    int _externalScore = -1;
+    string _reportPath = "";
+    string _errorSummary = "";
 
     GUIStyle _panelStyle;
     GUIStyle _titleStyle;
@@ -88,6 +91,9 @@ public class TrainingFlowController : MonoBehaviour
         _detail = objective;
         _lastEvent = "训练已开始";
         _lastEventAt = Time.time;
+        _externalScore = -1;
+        _reportPath = "";
+        _errorSummary = "";
     }
 
     public void ReportProgress(float progress01, string phase, string detail = "")
@@ -99,7 +105,7 @@ public class TrainingFlowController : MonoBehaviour
         if (!string.IsNullOrEmpty(detail)) _detail = detail;
     }
 
-    public void RecordSuccess(string detail = "")
+    public void RecordSuccess(string detail = "", bool allowAutoComplete = true)
     {
         if (_completed) return;
 
@@ -108,7 +114,7 @@ public class TrainingFlowController : MonoBehaviour
         _lastEventAt = Time.time;
         _progress01 = Mathf.Max(_progress01, Mathf.Clamp01(_successCount / Mathf.Max(1f, targetSuccessCount)));
 
-        if (_successCount >= targetSuccessCount)
+        if (allowAutoComplete && _successCount >= targetSuccessCount)
             CompleteTraining();
     }
 
@@ -131,6 +137,13 @@ public class TrainingFlowController : MonoBehaviour
         _detail = string.IsNullOrEmpty(detail) ? "已达到本工位训练目标" : detail;
         _lastEvent = _detail;
         _lastEventAt = Time.time;
+    }
+
+    public void AttachReportResult(int score, string reportPath, string errorSummary)
+    {
+        _externalScore = Mathf.Clamp(score, 0, 100);
+        _reportPath = string.IsNullOrEmpty(reportPath) ? "" : reportPath;
+        _errorSummary = string.IsNullOrEmpty(errorSummary) ? "" : errorSummary;
     }
 
     public void RestartCurrentTraining()
@@ -353,6 +366,9 @@ public class TrainingFlowController : MonoBehaviour
 
     int CalculateScore()
     {
+        if (_externalScore >= 0)
+            return _externalScore;
+
         int total = Mathf.Max(1, _successCount + _mistakeCount);
         float accuracyScore = _successCount * 100f / total;
         float timeScore = Elapsed <= targetSeconds
@@ -461,7 +477,7 @@ public class TrainingFlowController : MonoBehaviour
     void DrawResultPanel()
     {
         float width = 440f;
-        float height = 250f;
+        float height = string.IsNullOrEmpty(_errorSummary) && string.IsNullOrEmpty(_reportPath) ? 250f : 360f;
         var rect = new Rect((Screen.width - width) * 0.5f, (Screen.height - height) * 0.5f, width, height);
         GUI.Box(rect, "", _panelStyle);
 
@@ -472,6 +488,14 @@ public class TrainingFlowController : MonoBehaviour
         GUILayout.Label("用时: " + Elapsed.ToString("0.0") + " 秒", _labelStyle);
         GUILayout.Label("有效操作: " + _successCount + "    误操作: " + _mistakeCount, _labelStyle);
         GUILayout.Label("综合评分: " + CalculateScore() + " 分", _labelStyle);
+        if (!string.IsNullOrEmpty(_errorSummary))
+        {
+            GUILayout.Space(6f);
+            GUILayout.Label("关键错误摘要:", _labelStyle);
+            GUILayout.Label(_errorSummary, _smallStyle);
+        }
+        if (!string.IsNullOrEmpty(_reportPath))
+            GUILayout.Label("报告: " + _reportPath, _smallStyle);
         GUILayout.Space(12f);
         GUILayout.BeginHorizontal();
         if (GUILayout.Button("重新开始 (T)", _buttonStyle, GUILayout.Height(38f)))

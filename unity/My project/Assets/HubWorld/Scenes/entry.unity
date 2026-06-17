@@ -393,6 +393,7 @@ GameObject:
   - component: {fileID: 1260736276}
   - component: {fileID: 1260736275}
   - component: {fileID: 1260736277}
+  - component: {fileID: 1260736278}
   m_Layer: 0
   m_Name: FactoryController
   m_TagString: Untagged
@@ -462,6 +463,22 @@ MonoBehaviour:
   freshTrainSceneName: freshTrain
   interactionDistance: 28
   interactKey: 101
+--- !u!114 &1260736278
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1260736274}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4e7f67ba3b164d4cb7f4e32a00112233, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  regTrainSceneName: regTrain
+  interactionDistance: 32
+  interactKey: 101
+  portalOffsetFromPlayer: {x: 7.5, y: 0, z: 10}
 --- !u!4 &1260736276
 Transform:
   m_ObjectHideFlags: 0

@@ -51,6 +51,18 @@ public class LeadTrainCNCGestureTrainingController : MonoBehaviour
         "点按 RESET 复位急停，回到就绪状态"
     };
 
+    readonly string[] _expectedActions =
+    {
+        "PointTap: POWER",
+        "GrabRotate: AUTO mode knob",
+        "GrabSlide: open safety door",
+        "GrabRotate: clamp workpiece",
+        "GrabSlide: close safety door",
+        "PointTap: CYCLE START",
+        "PointTap: EMERGENCY STOP",
+        "PointTap: RESET"
+    };
+
     const int ZonePower = 0;
     const int ZoneMode = 1;
     const int ZoneDoor = 2;
@@ -93,6 +105,7 @@ public class LeadTrainCNCGestureTrainingController : MonoBehaviour
     readonly float[] _buttonPressUntil = new float[ZoneCount];
     readonly bool[] _completedSteps = new bool[8];
     readonly int[] _mistakesByStep = new int[8];
+    TrainingReportRecorder _reportRecorder;
 
     Transform _leftDoor;
     Transform _rightDoor;
@@ -197,6 +210,9 @@ public class LeadTrainCNCGestureTrainingController : MonoBehaviour
             _completedSteps[i] = false;
             _mistakesByStep[i] = 0;
         }
+
+        _reportRecorder = new TrainingReportRecorder();
+        _reportRecorder.Begin(TaskId, SceneManager.GetActiveScene().name, _stepNames, _expectedActions);
 
         if (resetTrainingFlow)
         {
@@ -871,9 +887,10 @@ public class LeadTrainCNCGestureTrainingController : MonoBehaviour
 
         int completedIndex = _stepIndex;
         _completedSteps[completedIndex] = true;
+        _reportRecorder?.MarkStepCompleted(completedIndex);
         _feedback = message;
         FlashZone(ZoneForStep(completedIndex), _done, 0.36f);
-        TrainingFlowController.Active?.RecordSuccess(_stepNames[completedIndex] + "完成：" + message);
+        TrainingFlowController.Active?.RecordSuccess(_stepNames[completedIndex] + "完成：" + message, false);
 
         _stepIndex++;
         if (_stepIndex >= _completedSteps.Length)
@@ -882,6 +899,12 @@ public class LeadTrainCNCGestureTrainingController : MonoBehaviour
             _feedback = _everManualAfterAuto
                 ? "CNC 8 步训练完成；注意：训练中曾切到 MANUAL"
                 : "CNC 8 步训练完成，机床处于 AUTO 就绪状态";
+            if (_reportRecorder != null)
+            {
+                float targetSeconds = TrainingFlowController.Active != null ? TrainingFlowController.Active.targetSeconds : 180f;
+                int score = _reportRecorder.Complete(targetSeconds);
+                TrainingFlowController.Active?.AttachReportResult(score, _reportRecorder.LastSavedPath, _reportRecorder.ErrorSummary);
+            }
             TrainingFlowController.Active?.CompleteTraining(_feedback);
         }
     }
@@ -901,11 +924,70 @@ public class LeadTrainCNCGestureTrainingController : MonoBehaviour
         _lastMistakeAt = Time.time;
         _feedback = message;
         RegisterStepMistake();
+        _reportRecorder?.RecordError(
+            _stepIndex,
+            message,
+            ConsequenceForMistake(message),
+            SeverityForMistake(message));
         if (ShouldShowCurrentStepHint())
         {
             FlashZone(ZoneForStep(_stepIndex), _orange, 0.42f);
         }
         TrainingFlowController.Active?.RecordMistake(message);
+    }
+
+    string SeverityForMistake(string message)
+    {
+        if (string.IsNullOrEmpty(message))
+        {
+            return "normal";
+        }
+
+        if (message.Contains("安全门未关闭")
+            || message.Contains("工件未夹紧")
+            || message.Contains("手动模式")
+            || message.Contains("MANUAL")
+            || message.Contains("启动将被锁定"))
+        {
+            return "safety";
+        }
+
+        return "normal";
+    }
+
+    string ConsequenceForMistake(string message)
+    {
+        if (string.IsNullOrEmpty(message))
+        {
+            return "当前动作无效，需要回到正确步骤继续。";
+        }
+
+        if (message.Contains("安全门未关闭"))
+        {
+            return "启动被锁定；真实场景存在飞溅和夹伤风险。";
+        }
+
+        if (message.Contains("工件未夹紧"))
+        {
+            return "加工可能导致工件移位、刀具损坏。";
+        }
+
+        if (message.Contains("手动模式") || message.Contains("MANUAL") || message.Contains("启动将被锁定"))
+        {
+            return "自动加工链路中断，需要切回 AUTO。";
+        }
+
+        if (message.Contains("步骤") || message.Contains("请先"))
+        {
+            return "前置条件未满足，当前动作无效。";
+        }
+
+        if (message.Contains("正确手势") || message.Contains("点按") || message.Contains("旋转"))
+        {
+            return "手势类型不匹配，设备不会响应该操作。";
+        }
+
+        return "当前动作无效，需要按提示恢复正确流程。";
     }
 
     void RegisterStepMistake()

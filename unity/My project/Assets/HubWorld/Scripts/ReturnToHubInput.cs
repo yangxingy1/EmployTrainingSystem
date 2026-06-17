@@ -56,12 +56,12 @@ public class ReturnToHubInput : MonoBehaviour
         }
 
         string activeScene = SceneManager.GetActiveScene().name;
-        if (activeScene == "lead-train1" || activeScene == "formalTrain1" || activeScene == "leadTrain1")
+        if (activeScene == "lead-train1" || activeScene == "formalTrain1" || activeScene == "leadTrain1" || activeScene == "train2")
         {
-            return "train1";
+            return "regTrain";
         }
 
-        if (activeScene == "train1" || activeScene == "freshTrain")
+        if (activeScene == "train1" || activeScene == "freshTrain" || activeScene == "regTrain")
         {
             return "entry";
         }
@@ -76,6 +76,8 @@ public class ReturnToHubInput : MonoBehaviour
             return "返回自由练习区";
         if (sceneName == "entry")
             return "返回游戏大厅";
+        if (sceneName == "regTrain")
+            return "返回常规训练区";
         if (sceneName == "train1")
             return "返回常规训练区";
         if (sceneName == "lead-train1")
