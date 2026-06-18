@@ -53,6 +53,15 @@ public class PipelineSceneRuntime : MonoBehaviour
     private float _v2Angle;   // 控制阀累计角度
     private float _v3Angle;   // 出口阀累计角度
 
+    // 阀门自动旋转动画目标角度
+    private float _v1TargetAngle;
+    private float _v2TargetAngle;
+    private float _v3TargetAngle;
+    private bool _v1HasTarget;
+    private bool _v2HasTarget;
+    private bool _v3HasTarget;
+    private const float ValveAutoRotateSpeed = 360f;  // 自动旋转速度（度/秒）
+
     // 保存每个阀门手轮的初始 localRotation（避免首次交互时 Y/X 轴跳变）
     private Quaternion _v1InitialRotation;
     private Quaternion _v2InitialRotation;
@@ -94,6 +103,12 @@ public class PipelineSceneRuntime : MonoBehaviour
 
     // UI 信息面板容器（统一 Billboard）
     private Transform _uiInfoPanel;
+
+    // F 键交互提示
+    private bool _showInteractPrompt;
+
+    // 手势训练迷你场景
+    private bool _gestureTrainingActive;
 
     // ═══════════════════════════════════════════════════════════
     //  初始化
@@ -341,11 +356,21 @@ public class PipelineSceneRuntime : MonoBehaviour
             return;
         }
 
+        // 手势训练期间：冻结玩家移动和键盘交互，仅维持模拟与视觉更新
+        if (_gestureTrainingActive)
+        {
+            UpdateSimulation();
+            UpdateVisuals();
+            ReportToTrainingManager();
+            return;
+        }
+
         HandlePlayerMovement();
         HandleKeyboardInput();
         UpdateSimulation();
         UpdateVisuals();
         ReportToTrainingManager();
+        UpdateInteractPrompt();
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -506,66 +531,167 @@ public class PipelineSceneRuntime : MonoBehaviour
     }
 
     // ═══════════════════════════════════════════════════════════
+    //  F 键交互提示 UI（OnGUI 屏幕贴图）
+    // ═══════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// 屏幕右上角 F 键交互提示。当玩家靠近任意 F 键可交互对象时显示。
+    /// 使用 OnGUI 渲染，不依赖 Canvas / 动态字体。
+    /// </summary>
+    void OnGUI()
+    {
+        // 手势训练期间不显示 F 键提示（迷你场景有自己的 UI）
+        if (_gestureTrainingActive) return;
+        if (!_showInteractPrompt || _playerTransform == null)
+            return;
+
+        string promptText = "   请按 F 键进行交互";
+
+        // ── 样式 ──────────────────────────────────────────────
+        GUIStyle boxStyle = new GUIStyle(GUI.skin.box);
+        boxStyle.normal.background = MakeSolidTexture(
+            new Color(0.02f, 0.02f, 0.02f, 0.88f), ref _cachedBgTex);
+        boxStyle.normal.textColor = Color.white;
+        boxStyle.fontSize = 26;
+        boxStyle.fontStyle = FontStyle.Bold;
+        boxStyle.alignment = TextAnchor.MiddleCenter;
+        boxStyle.padding = new RectOffset(18, 18, 10, 10);
+
+        // ── 尺寸与位置（右上角） ──────────────────────────────
+        Vector2 textSize = boxStyle.CalcSize(new GUIContent(promptText));
+        float boxW = textSize.x + 44; // 留 F 键徽章空间
+        float boxH = textSize.y + 20;
+        float x = Screen.width - boxW - 30;
+        float y = 30;
+
+        Rect boxRect = new Rect(x, y, boxW, boxH);
+
+        // ── 外发光边框 ────────────────────────────────────────
+        GUIStyle borderStyle = new GUIStyle(GUI.skin.box);
+        borderStyle.normal.background = MakeSolidTexture(
+            new Color(1f, 0.6f, 0.05f, 0.9f), ref _cachedBorderTex);
+        GUI.Box(new Rect(x - 2, y - 2, boxW + 4, boxH + 4), "", borderStyle);
+
+        // ── 主体黑色背景 ──────────────────────────────────────
+        GUI.Box(boxRect, promptText, boxStyle);
+
+        // ── F 键徽章（覆盖在左侧） ─────────────────────────────
+        GUIStyle keyBadgeStyle = new GUIStyle(GUI.skin.box);
+        keyBadgeStyle.normal.background = MakeSolidTexture(
+            new Color(1f, 0.85f, 0.1f, 1f), ref _cachedKeyTex);
+        keyBadgeStyle.normal.textColor = new Color(0.1f, 0.1f, 0.1f, 1f);
+        keyBadgeStyle.fontSize = 22;
+        keyBadgeStyle.fontStyle = FontStyle.Bold;
+        keyBadgeStyle.alignment = TextAnchor.MiddleCenter;
+        keyBadgeStyle.padding = new RectOffset(0, 0, 0, 0);
+
+        float keyW = 36;
+        float keyH = 30;
+        Rect keyRect = new Rect(x + 12, y + (boxH - keyH) / 2, keyW, keyH);
+        GUI.Box(keyRect, "F", keyBadgeStyle);
+    }
+
+    void UpdateInteractPrompt()
+    {
+        _showInteractPrompt = IsNearAnyFKeyInteractable();
+    }
+
+    bool IsNearAnyFKeyInteractable()
+    {
+        if (_playerTransform == null) return false;
+
+        // 按钮（PPE 确认 / 关停提交）
+        if (sceneBuilder != null)
+        {
+            foreach (var btn in sceneBuilder.confirmButtons)
+            {
+                if (btn != null && IsNearTarget(btn.transform.position))
+                    return true;
+            }
+        }
+        if (_cachedButtons != null)
+        {
+            foreach (var btn in _cachedButtons)
+            {
+                if (btn != null && IsNearTarget(btn.transform.position))
+                    return true;
+            }
+        }
+
+        // 巡检点
+        if (_cachedInspectionZones != null)
+        {
+            foreach (var zone in _cachedInspectionZones)
+            {
+                if (zone != null && IsNearTarget(zone.transform.position))
+                    return true;
+            }
+        }
+
+        // 压力表 P1 / P2
+        if (_cachedGaugeP1Transform != null && IsNearTarget(_cachedGaugeP1Transform.position))
+            return true;
+        if (_cachedGaugeP2Transform != null && IsNearTarget(_cachedGaugeP2Transform.position))
+            return true;
+
+        // 流量计 F1
+        if (flowMeterDisplay != null && IsNearTarget(flowMeterDisplay.transform.position))
+            return true;
+
+        // 急停按钮
+        if (eStopButtonTransform != null && IsNearTarget(eStopButtonTransform.position))
+            return true;
+
+        // 阀门（V1 / V2 / V3）
+        if (inletValveWheel != null && IsNearTarget(inletValveWheel.position))
+            return true;
+        if (controlValveWheel != null && IsNearTarget(controlValveWheel.position))
+            return true;
+        if (outletValveWheel != null && IsNearTarget(outletValveWheel.position))
+            return true;
+
+        return false;
+    }
+
+    /// <summary>生成 1x1 纯色纹理（OnGUI 背景用）</summary>
+    static Texture2D MakeSolidTexture(Color color, ref Texture2D cache)
+    {
+        if (cache == null)
+        {
+            cache = new Texture2D(1, 1);
+            cache.hideFlags = HideFlags.HideAndDontSave;
+        }
+        cache.SetPixel(0, 0, color);
+        cache.Apply();
+        return cache;
+    }
+    static Texture2D _cachedBgTex;
+    static Texture2D _cachedBorderTex;
+    static Texture2D _cachedKeyTex;
+
+    // ═══════════════════════════════════════════════════════════
     //  键盘输入处理（阀门/按钮交互）
     // ═══════════════════════════════════════════════════════════
 
     void HandleKeyboardInput()
     {
-        // ── 阀门旋转（仅在靠近阀门时） ─────────────────────────────
-        Transform nearestValve = GetNearestValve();
-
-        if (nearestValve != null)
-        {
-            float rotateInput = 0f;
-
-            // Q = 逆时针旋转（开阀），E = 顺时针旋转（关阀）
-            if (Input.GetKey(KeyCode.Q)) rotateInput = 1f;
-            if (Input.GetKey(KeyCode.E)) rotateInput = -1f;
-
-            if (Mathf.Abs(rotateInput) > 0.01f)
-            {
-                float delta = rotateInput * valveRotateSpeed * Time.deltaTime;
-
-                if (nearestValve == inletValveWheel)
-                {
-                    _v1Angle += delta;
-                    _v1Angle = Mathf.Max(0f, _v1Angle);
-                    nearestValve.localRotation = _v1InitialRotation * Quaternion.Euler(0f, 0f, _v1Angle);
-                    // V1 进口红色阀门 [√]  偏移(X,Y,Z)  旋转(X,Y,Z)
-                    if (_v1Angle >= 720f) MarkInteractionComplete(inletValveWheel,
-                        new Vector3(0f, 1.5f, 0f), new Vector3(0f, 0f, -90f));
-                }
-                else if (nearestValve == controlValveWheel)
-                {
-                    _v2Angle += delta;
-                    _v2Angle = Mathf.Max(0f, _v2Angle);
-                    nearestValve.localRotation = _v2InitialRotation * Quaternion.Euler(0f, 0f, _v2Angle);
-                    if (_v2Angle >= 720f) MarkInteractionComplete(controlValveWheel);
-                }
-                else if (nearestValve == outletValveWheel)
-                {
-                    _v3Angle += delta;
-                    _v3Angle = Mathf.Max(0f, _v3Angle);
-                    nearestValve.localRotation = _v3InitialRotation * Quaternion.Euler(0f, 0f, _v3Angle);
-                    // V3 出口红色阀门 [√]  偏移(X,Y,Z)  旋转(X,Y,Z)
-                    if (_v3Angle >= 540f) MarkInteractionComplete(outletValveWheel,
-                        new Vector3(0f, 1.5f, 0f), new Vector3(0f, 0f, -90f));
-                }
-            }
-        }
-
-        // ── F 键：急停优先（靠近时），否则通用交互 ──────────────
+        // ── F 键：急停优先 → 阀门 → 仪表 → 按钮 → 巡检点 ──────────
         if (Input.GetKeyDown(KeyCode.F))
         {
-            // 优先：靠近急停按钮 → 触发急停
-            if (eStopButtonTransform != null && IsNearTarget(eStopButtonTransform.position)
-                && !_eStopPressed)
+            // 优先级 1：靠近急停按钮 → 进入手势训练迷你场景
+            if (eStopButtonTransform != null && IsNearTarget(eStopButtonTransform.position))
             {
-                _eStopPressed = true;
-                _eStopResetting = false;
-                _eStopTargetDepth = 0.04f;
-                trainingManager?.ReportButtonPress("EStop_Button");
-                MarkInteractionComplete(eStopButtonTransform);
+                EnterGestureTraining(PipelineTrainingManager.PipelineStep.EmergencyStopTest);
+            }
+            // 优先级 2：靠近阀门 → 进入阀门手势训练（替代原 Q/E 键盘旋转）
+            else if (TryEnterValveGestureTraining())
+            {
+                // 已在 TryEnterValveGestureTraining 内部处理
+            }
+            // 优先级 3：靠近压力表 / 流量计 → 进入对应的手势训练迷你场景
+            else if (TryEnterGaugeGestureTraining())
+            {
+                // 已在 TryEnterGaugeGestureTraining 内部处理
             }
             else
             {
@@ -608,6 +734,33 @@ public class PipelineSceneRuntime : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// F 键按下时尝试进入阀门手势训练迷你场景（替代原 Q/E 键盘旋转）。
+    /// </summary>
+    /// <returns>true = 已进入手势训练</returns>
+    bool TryEnterValveGestureTraining()
+    {
+        // V1 进口阀门（步骤 4）
+        if (inletValveWheel != null && IsNearTarget(inletValveWheel.position))
+        {
+            EnterGestureTraining(PipelineTrainingManager.PipelineStep.OpenInletValve);
+            return true;
+        }
+        // V2 控制阀门（步骤 6）
+        if (controlValveWheel != null && IsNearTarget(controlValveWheel.position))
+        {
+            EnterGestureTraining(PipelineTrainingManager.PipelineStep.AdjustControlValve);
+            return true;
+        }
+        // V3 出口阀门（步骤 8）
+        if (outletValveWheel != null && IsNearTarget(outletValveWheel.position))
+        {
+            EnterGestureTraining(PipelineTrainingManager.PipelineStep.OpenOutletValve);
+            return true;
+        }
+        return false;
+    }
+
     bool IsNearTarget(Vector3 targetPos)
     {
         if (_playerTransform == null) return false;
@@ -617,6 +770,217 @@ public class PipelineSceneRuntime : MonoBehaviour
         playerXZ.y = 0f;
         targetXZ.y = 0f;
         return Vector3.Distance(playerXZ, targetXZ) < playerInteractRadius;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  手势训练迷你场景调度
+    // ═══════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// 进入手势训练迷你场景。冻结玩家移动，创建由脚本搭建的手势操作面板。
+    /// </summary>
+    void EnterGestureTraining(PipelineTrainingManager.PipelineStep step)
+    {
+        if (_gestureTrainingActive) return;
+        _gestureTrainingActive = true;
+
+        var def = trainingManager != null ? trainingManager.GetStepDef(step) : default;
+        string stepName = def.step != PipelineTrainingManager.PipelineStep.NotStarted
+            ? def.name
+            : step.ToString();
+
+        string gaugeValue = null;
+        float gaugeNumericValue = 0f;
+        Color? bgColor = null;
+
+        // 按步骤配置迷你场景
+        switch (step)
+        {
+            case PipelineTrainingManager.PipelineStep.PPECheck:
+                bgColor = new Color(0.05f, 0.10f, 0.18f); // 深蓝色调 — 安全装备
+                break;
+            case PipelineTrainingManager.PipelineStep.ReadInitialPressure:
+                gaugeValue = _simPressure1.ToString("F2") + " MPa";
+                gaugeNumericValue = _simPressure1;
+                bgColor = new Color(0.07f, 0.09f, 0.11f);
+                break;
+            case PipelineTrainingManager.PipelineStep.MonitorFlowMeter:
+                gaugeValue = _simFlow.ToString("F1") + " L/min";
+                gaugeNumericValue = _simFlow;
+                bgColor = new Color(0.07f, 0.09f, 0.11f);
+                break;
+            case PipelineTrainingManager.PipelineStep.CheckMidPressure:
+                gaugeValue = _simPressure2.ToString("F2") + " MPa";
+                gaugeNumericValue = _simPressure2;
+                bgColor = new Color(0.07f, 0.09f, 0.11f);
+                break;
+            case PipelineTrainingManager.PipelineStep.EmergencyStopTest:
+                bgColor = new Color(0.18f, 0.05f, 0.05f); // 深红色调 — 急停
+                break;
+            case PipelineTrainingManager.PipelineStep.SystemShutdown:
+                bgColor = new Color(0.05f, 0.12f, 0.08f); // 深绿色调 — 关停
+                break;
+            case PipelineTrainingManager.PipelineStep.OpenInletValve:
+                bgColor = new Color(0.06f, 0.08f, 0.12f); // 深色 — 阀门
+                break;
+            case PipelineTrainingManager.PipelineStep.AdjustControlValve:
+                // 步骤 6：显示 F1 流量读数，无固定角度目标
+                gaugeValue = _simFlow.ToString("F1") + " L/min";
+                gaugeNumericValue = _simFlow;
+                bgColor = new Color(0.06f, 0.08f, 0.12f);
+                break;
+            case PipelineTrainingManager.PipelineStep.OpenOutletValve:
+                bgColor = new Color(0.06f, 0.08f, 0.12f);
+                break;
+        }
+
+        // 阀门步骤获取当前角度和目标
+        float initialValveAngle = 0f;
+        float valveTargetAngle = 720f;
+        float flowMaxValue = 0f;
+        switch (step)
+        {
+            case PipelineTrainingManager.PipelineStep.OpenInletValve:
+                initialValveAngle = _v1Angle;
+                valveTargetAngle = 720f;
+                break;
+            case PipelineTrainingManager.PipelineStep.AdjustControlValve:
+                initialValveAngle = _v2Angle;
+                valveTargetAngle = 0f;  // 无固定角度目标，以流量为准
+                // flowMaxValue = V1开度 × maxFlow（V2 全开时的理论最大流量）
+                flowMaxValue = Mathf.Clamp01(_v1Angle / 720f) * maxFlow;
+                break;
+            case PipelineTrainingManager.PipelineStep.OpenOutletValve:
+                initialValveAngle = _v3Angle;
+                valveTargetAngle = 540f;
+                break;
+        }
+
+        GameObject trainingObj = new GameObject("PipelineGestureTraining_" + step);
+        var controller = trainingObj.AddComponent<PipelineGestureTrainingController>();
+        controller.ConfigureAndBegin(step, stepName, gaugeValue, gaugeNumericValue, bgColor, this, (success) =>
+        {
+            float resultAngle = controller.ValveAngle;
+            OnGestureTrainingComplete(step, success, resultAngle);
+        }, initialValveAngle, valveTargetAngle, flowMaxValue);
+
+        Debug.Log("[PipelineSceneRuntime] 进入手势训练迷你场景: " + stepName);
+    }
+
+    /// <summary>
+    /// 手势训练完成回调。标记步骤完成并恢复玩家控制。
+    /// </summary>
+    void OnGestureTrainingComplete(PipelineTrainingManager.PipelineStep step, bool success, float valveAngle = 0f)
+    {
+        _gestureTrainingActive = false;
+
+        // ── 阀门步骤：无论成功/取消，都保存旋转角度 ────────────────
+        switch (step)
+        {
+            case PipelineTrainingManager.PipelineStep.OpenInletValve:
+                _v1TargetAngle = valveAngle;
+                _v1HasTarget = true;
+                break;
+            case PipelineTrainingManager.PipelineStep.AdjustControlValve:
+                _v2TargetAngle = valveAngle;
+                _v2HasTarget = true;
+                break;
+            case PipelineTrainingManager.PipelineStep.OpenOutletValve:
+                _v3TargetAngle = valveAngle;
+                _v3HasTarget = true;
+                break;
+        }
+
+        // 用户取消训练 → 不标记步骤完成，仅恢复玩家控制
+        if (!success)
+        {
+            Debug.Log("[PipelineSceneRuntime] 手势训练已取消: " + step + " (阀门角度已保存: " + valveAngle + "°)");
+            return;
+        }
+
+        // 根据步骤类型向 TrainingManager 报告完成
+        switch (step)
+        {
+            case PipelineTrainingManager.PipelineStep.PPECheck:
+                trainingManager?.ReportButtonPress("PPE_Confirm");
+                // 在所有 PPE 按钮上标记 [√]
+                MarkPPEComplete();
+                break;
+            case PipelineTrainingManager.PipelineStep.ReadInitialPressure:
+                trainingManager?.ReportGaugeRead("Gauge_P1");
+                if (_cachedGaugeP1Transform != null)
+                    MarkInteractionComplete(_cachedGaugeP1Transform,
+                        new Vector3(0f, 1f, 0f), new Vector3(180f, 0f, -90f));
+                break;
+            case PipelineTrainingManager.PipelineStep.MonitorFlowMeter:
+                trainingManager?.ReportGaugeRead("Flow_F1");
+                if (flowMeterDisplay != null)
+                    MarkInteractionComplete(flowMeterDisplay.transform,
+                        new Vector3(0f, 1f, 0f), new Vector3(0f, 0f, 0f));
+                break;
+            case PipelineTrainingManager.PipelineStep.CheckMidPressure:
+                trainingManager?.ReportGaugeRead("Gauge_P2");
+                if (_cachedGaugeP2Transform != null)
+                    MarkInteractionComplete(_cachedGaugeP2Transform,
+                        new Vector3(0f, 1f, 0f), new Vector3(90f, 0f, 180f));
+                break;
+            case PipelineTrainingManager.PipelineStep.EmergencyStopTest:
+                trainingManager?.ReportButtonPress("EStop_Button");
+                if (eStopButtonTransform != null)
+                    MarkInteractionComplete(eStopButtonTransform);
+                break;
+            case PipelineTrainingManager.PipelineStep.SystemShutdown:
+                trainingManager?.ReportButtonPress("Shutdown_Confirm");
+                // 标记所有 Shutdown 按钮
+                if (sceneBuilder != null)
+                {
+                    foreach (var btn in sceneBuilder.confirmButtons)
+                    {
+                        if (btn != null && (btn.name.Contains("Shutdown") || btn.name.Contains("Confirm")))
+                            MarkInteractionComplete(btn.transform);
+                    }
+                }
+                break;
+            case PipelineTrainingManager.PipelineStep.OpenInletValve:
+                if (valveAngle >= 720f && inletValveWheel != null)
+                    MarkInteractionComplete(inletValveWheel,
+                        new Vector3(0f, 1.5f, 0f), new Vector3(0f, 0f, -90f));
+                break;
+            case PipelineTrainingManager.PipelineStep.AdjustControlValve:
+                if (valveAngle >= 720f && controlValveWheel != null)
+                    MarkInteractionComplete(controlValveWheel);
+                break;
+            case PipelineTrainingManager.PipelineStep.OpenOutletValve:
+                if (valveAngle >= 540f && outletValveWheel != null)
+                    MarkInteractionComplete(outletValveWheel,
+                        new Vector3(0f, 1.5f, 0f), new Vector3(0f, 0f, -90f));
+                break;
+        }
+
+        Debug.Log("[PipelineSceneRuntime] 手势训练完成: " + step);
+    }
+
+    /// <summary>
+    /// 在所有 PPE 按钮上标记 [√]
+    /// </summary>
+    void MarkPPEComplete()
+    {
+        if (sceneBuilder != null)
+        {
+            foreach (var btn in sceneBuilder.confirmButtons)
+            {
+                if (btn != null && btn.name.Contains("PPE"))
+                    MarkInteractionComplete(btn.transform);
+            }
+        }
+        if (_cachedButtons != null)
+        {
+            foreach (var btn in _cachedButtons)
+            {
+                if (btn != null && btn.name.Contains("PPE"))
+                    MarkInteractionComplete(btn.transform);
+            }
+        }
     }
 
     private GameObject[] _cachedButtons;
@@ -668,15 +1032,14 @@ public class PipelineSceneRuntime : MonoBehaviour
     {
         if (!IsNearTarget(btn.transform.position)) return;
         string btnName = btn.name;
+
         if (btnName.Contains("PPE"))
         {
-            trainingManager?.ReportButtonPress("PPE_Confirm");
-            MarkInteractionComplete(btn.transform);
+            EnterGestureTraining(PipelineTrainingManager.PipelineStep.PPECheck);
         }
         else if (btnName.Contains("Shutdown") || btnName.Contains("Confirm"))
         {
-            trainingManager?.ReportButtonPress("Shutdown_Confirm");
-            MarkInteractionComplete(btn.transform);
+            EnterGestureTraining(PipelineTrainingManager.PipelineStep.SystemShutdown);
         }
     }
 
@@ -684,6 +1047,7 @@ public class PipelineSceneRuntime : MonoBehaviour
     private HashSet<GameObject> _visitedZones = new HashSet<GameObject>();
     private Transform _cachedGaugeP1Transform;
     private Transform _cachedGaugeP2Transform;
+    private Transform _cachedFlowMeterTransform;
     private bool _gaugesScanned;
 
     void CheckNearbyZones()
@@ -739,6 +1103,57 @@ public class PipelineSceneRuntime : MonoBehaviour
         CheckNearbyGauges();
     }
 
+    /// <summary>
+    /// F 键按下时尝试进入仪表（压力表/流量计）手势训练迷你场景。
+    /// </summary>
+    /// <returns>true = 已进入手势训练（不再继续后续按钮/巡检点检查）</returns>
+    bool TryEnterGaugeGestureTraining()
+    {
+        // 懒扫描仪表 Transform（与 CheckNearbyGauges 共享缓存）
+        if (!_gaugesScanned)
+        {
+            foreach (Transform t in transform.GetComponentsInChildren<Transform>(true))
+            {
+                if (t.name.Contains("GaugeP1") || (t.name.Contains("P1") && t.name.Contains("Gauge")))
+                    _cachedGaugeP1Transform = t;
+                if (t.name.Contains("GaugeP2") || (t.name.Contains("P2") && t.name.Contains("Gauge")))
+                    _cachedGaugeP2Transform = t;
+                if (t.name.Contains("FlowMeter") || t.name.Contains("flowMeter"))
+                    _cachedFlowMeterTransform = t;
+            }
+            _gaugesScanned = true;
+        }
+
+        if (_cachedGaugeP1Transform != null && IsNearTarget(_cachedGaugeP1Transform.position))
+        {
+            EnterGestureTraining(PipelineTrainingManager.PipelineStep.ReadInitialPressure);
+            return true;
+        }
+        if (_cachedGaugeP2Transform != null && IsNearTarget(_cachedGaugeP2Transform.position))
+        {
+            EnterGestureTraining(PipelineTrainingManager.PipelineStep.CheckMidPressure);
+            return true;
+        }
+
+        // 流量计优先用缓存的 Transform；若为空或匹配到错误对象，用 sceneBuilder 的直接引用兜底
+        Transform flowTarget = _cachedFlowMeterTransform;
+        if (flowTarget == null && flowMeterDisplay != null)
+            flowTarget = flowMeterDisplay.transform;
+        // 如果缓存的 Transform 不是 FlowMeter 开头（如被 FlowArrow 误匹配），用 display 的父级修正
+        if (_cachedFlowMeterTransform != null
+            && !_cachedFlowMeterTransform.name.StartsWith("FlowMeter")
+            && flowMeterDisplay != null)
+            flowTarget = flowMeterDisplay.transform;
+
+        if (flowTarget != null && IsNearTarget(flowTarget.position))
+        {
+            EnterGestureTraining(PipelineTrainingManager.PipelineStep.MonitorFlowMeter);
+            return true;
+        }
+
+        return false;
+    }
+
     void CheckNearbyGauges()
     {
         if (trainingManager == null) return;
@@ -752,12 +1167,17 @@ public class PipelineSceneRuntime : MonoBehaviour
                     _cachedGaugeP1Transform = t;
                 if (t.name.Contains("GaugeP2") || (t.name.Contains("P2") && t.name.Contains("Gauge")))
                     _cachedGaugeP2Transform = t;
+                if (_cachedFlowMeterTransform == null &&
+                    (t.name.Contains("FlowMeter") || t.name.Contains("flowMeter")))
+                    _cachedFlowMeterTransform = t;
             }
             _gaugesScanned = true;
             if (_cachedGaugeP1Transform != null)
                 Debug.Log("[PipelineSceneRuntime] 发现仪表 P1: " + _cachedGaugeP1Transform.name);
             if (_cachedGaugeP2Transform != null)
                 Debug.Log("[PipelineSceneRuntime] 发现仪表 P2: " + _cachedGaugeP2Transform.name);
+            if (_cachedFlowMeterTransform != null)
+                Debug.Log("[PipelineSceneRuntime] 发现流量计: " + _cachedFlowMeterTransform.name);
         }
 
         if (_cachedGaugeP1Transform != null && IsNearTarget(_cachedGaugeP1Transform.position))
@@ -773,6 +1193,12 @@ public class PipelineSceneRuntime : MonoBehaviour
             // P2 压力表 [√]  偏移(X,Y,Z)  旋转(X,Y,Z)
             MarkInteractionComplete(_cachedGaugeP2Transform,
                 new Vector3(0f, 1f, 0f), new Vector3(90f, 0f, 180f));
+        }
+        if (flowMeterDisplay != null && IsNearTarget(flowMeterDisplay.transform.position))
+        {
+            trainingManager.ReportGaugeRead("Flow_F1");
+            MarkInteractionComplete(flowMeterDisplay.transform,
+                new Vector3(0f, 1f, 0f), new Vector3(0f, 0f, 0f));
         }
     }
 
@@ -822,6 +1248,11 @@ public class PipelineSceneRuntime : MonoBehaviour
 
     void UpdateVisuals()
     {
+        // ── 阀门手轮自动旋转动画（手势训练返回后的平滑过渡） ─────
+        UpdateValveAutoRotate(inletValveWheel, ref _v1Angle, _v1TargetAngle, ref _v1HasTarget, _v1InitialRotation);
+        UpdateValveAutoRotate(controlValveWheel, ref _v2Angle, _v2TargetAngle, ref _v2HasTarget, _v2InitialRotation);
+        UpdateValveAutoRotate(outletValveWheel, ref _v3Angle, _v3TargetAngle, ref _v3HasTarget, _v3InitialRotation);
+
         // 压力表 P1 指针：-120° = 0 MPa, +120° = maxPressure
         UpdateGaugeNeedle(gaugeP1Needle, _simPressure1, maxPressure, _p1NeedleInitialRotation);
 
@@ -924,6 +1355,32 @@ public class PipelineSceneRuntime : MonoBehaviour
         float angle = Mathf.Lerp(-120f, 120f, ratio);
         // 保留初始朝向，仅叠加 Z 轴旋转（防止手动调整后旋转轴偏移）
         needlePivot.localRotation = initialRotation * Quaternion.Euler(0f, 0f, angle);
+    }
+
+    /// <summary>
+    /// 阀门手轮自动旋转动画：手势训练返回后，平滑旋转至目标角度。
+    /// </summary>
+    void UpdateValveAutoRotate(Transform handwheel, ref float currentAngle, float targetAngle, ref bool hasTarget, Quaternion initialRotation)
+    {
+        if (handwheel == null || !hasTarget) return;
+
+        if (Mathf.Abs(currentAngle - targetAngle) < 0.5f)
+        {
+            // 已到达目标
+            currentAngle = targetAngle;
+            hasTarget = false;
+        }
+        else
+        {
+            // 平滑旋转（逆时针 = 正方向）
+            float step = ValveAutoRotateSpeed * Time.deltaTime;
+            if (targetAngle > currentAngle)
+                currentAngle = Mathf.Min(currentAngle + step, targetAngle);
+            else
+                currentAngle = Mathf.Max(currentAngle - step, targetAngle);
+        }
+
+        handwheel.localRotation = initialRotation * Quaternion.Euler(0f, 0f, currentAngle);
     }
 
     /// <summary>
@@ -1159,24 +1616,6 @@ public class PipelineSceneRuntime : MonoBehaviour
         trainingManager.ReportGaugeValue("gauge_P1", _simPressure1);
         trainingManager.ReportGaugeValue("gauge_P2", _simPressure2);
         trainingManager.ReportGaugeValue("flow_F1", _simFlow);
-
-        // 流量计观察检测（玩家面朝流量计方向）
-        if (_playerTransform != null && flowMeterDisplay != null)
-        {
-            Vector3 toFlowMeter = (flowMeterDisplay.transform.position - _playerTransform.position).normalized;
-            float dot = Vector3.Dot(_playerTransform.forward, toFlowMeter);
-            // 流量计交互范围扩大一倍（用于步骤 5 读数确认）
-            if (dot > 0.7f)
-            {
-                Vector3 pXZ = _playerTransform.position; pXZ.y = 0f;
-                Vector3 fXZ = flowMeterDisplay.transform.position; fXZ.y = 0f;
-                if (Vector3.Distance(pXZ, fXZ) < playerInteractRadius * 2f)
-                {
-                    trainingManager.ReportFlowMeterObserved();
-                    MarkInteractionComplete(flowMeterDisplay.transform);
-                }
-            }
-        }
     }
 
     // ═══════════════════════════════════════════════════════════

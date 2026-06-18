@@ -342,7 +342,7 @@ public class PipelineTrainingManager : MonoBehaviour
                 break;
 
             case PipelineStep.MonitorFlowMeter:
-                completed = _flowMeterObserved && (Time.time - _flowMeterObservedTime > 2f)
+                completed = _gaugesRead.Contains("Flow_F1")
                          && IsGaugeNearTarget("flow_F1", def.targetGaugeValue, def.gaugeTolerance);
                 break;
 
