@@ -1,5 +1,10 @@
 {
-    "assignment_id": 1,
-    "task_id": 1,
-    "status": "running"
+    "assignment_id": 2,
+    "task_id": 6,
+    "status": "running",
+    "student_id": 10,
+    "username": "cjf",
+    "attempt_id": 27,
+    "scene_name": "lead-train1",
+    "backend_url": "http://127.0.0.1:8000"
 }
