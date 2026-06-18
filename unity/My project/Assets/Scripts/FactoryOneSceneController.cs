@@ -24,7 +24,7 @@ public sealed class FactoryOneSceneController : MonoBehaviour
     public float eyeHeight = 1.7f;
     public float cameraHeightOffset;
     public bool useFixedStartCameraWorldHeight = true;
-    public bool forceKnownGoodStartCameraWorldHeight = true;
+    public bool forceKnownGoodStartCameraWorldHeight;
     public float startCameraWorldHeight = KnownGoodStartCameraWorldHeight;
     public float startDistanceRatio = 0.22f;
     public float startGroundClearance = 0.15f;
@@ -193,7 +193,7 @@ public sealed class FactoryOneSceneController : MonoBehaviour
         start.y = bounds.min.y + startGroundClearance;
 
         cameraRig.position = start;
-        float cameraWorldHeight = ResolveStartCameraWorldHeight(start.y);
+        float cameraWorldHeight = ResolveStartCameraWorldHeight(start.y, bounds);
         playerCamera.transform.localPosition = Vector3.up * (cameraWorldHeight - start.y);
 
         Vector3 lookTarget = bounds.center;
@@ -203,15 +203,18 @@ public sealed class FactoryOneSceneController : MonoBehaviour
         playerCamera.transform.localRotation = Quaternion.identity;
         pitch = 0f;
 
-        TryApplyOneShotStartCameraPose(true);
+        TryApplyOneShotStartCameraPose(true, bounds);
     }
 
-    private float ResolveStartCameraWorldHeight(float rigWorldY)
+    private float ResolveStartCameraWorldHeight(float rigWorldY, Bounds factoryBounds)
     {
+        float boundsBasedHeight = rigWorldY + ActualEyeHeight;
         if (TryConsumeOneShotStartCameraWorldHeight(out float savedCameraWorldHeight))
         {
             float savedEyeHeight = savedCameraWorldHeight - rigWorldY;
-            if (savedEyeHeight >= 0.6f && savedEyeHeight <= 3.2f)
+            if (savedEyeHeight >= 0.6f
+                && savedEyeHeight <= 3.2f
+                && IsCameraWorldHeightInsideFactory(factoryBounds, savedCameraWorldHeight))
             {
                 return savedCameraWorldHeight;
             }
@@ -223,10 +226,19 @@ public sealed class FactoryOneSceneController : MonoBehaviour
 
         if (!useFixedStartCameraWorldHeight)
         {
-            return rigWorldY + ActualEyeHeight;
+            return boundsBasedHeight;
         }
 
-        return forceKnownGoodStartCameraWorldHeight ? KnownGoodStartCameraWorldHeight : startCameraWorldHeight;
+        float configuredHeight = forceKnownGoodStartCameraWorldHeight ? KnownGoodStartCameraWorldHeight : startCameraWorldHeight;
+        if (IsConfiguredStartHeightUsable(rigWorldY, factoryBounds, configuredHeight))
+        {
+            return configuredHeight;
+        }
+
+        Debug.LogWarning(
+            $"Ignored configured factory camera height {configuredHeight:F6}; " +
+            $"using bounds-based height {boundsBasedHeight:F6} for rigY {rigWorldY:F6}.");
+        return boundsBasedHeight;
     }
 
     public static void RememberOneShotStartCameraWorldHeight(float cameraWorldHeight)
@@ -316,6 +328,11 @@ public sealed class FactoryOneSceneController : MonoBehaviour
 
     private bool TryApplyOneShotStartCameraPose(bool normalizeFirstPersonPose)
     {
+        return TryApplyOneShotStartCameraPose(normalizeFirstPersonPose, default(Bounds));
+    }
+
+    private bool TryApplyOneShotStartCameraPose(bool normalizeFirstPersonPose, Bounds factoryBounds)
+    {
         if (!TryConsumeOneShotStartCameraPose(
             out Vector3 rigPosition,
             out Quaternion rigRotation,
@@ -338,6 +355,16 @@ public sealed class FactoryOneSceneController : MonoBehaviour
         if (hasCameraWorldPose)
         {
             rigPosition = cameraWorldPosition - (rigRotation * cameraLocalPosition);
+        }
+
+        if (normalizeFirstPersonPose
+            && factoryBounds.size != Vector3.zero
+            && !IsReturnPoseInsideFactory(factoryBounds, rigPosition, cameraLocalPosition, cameraWorldPosition))
+        {
+            Debug.LogWarning(
+                $"Ignored stale gesture return camera pose: rig=({rigPosition.x:F2}, {rigPosition.y:F2}, {rigPosition.z:F2}), " +
+                $"cameraY={cameraWorldPosition.y:F6}");
+            return false;
         }
 
         bool controllerWasEnabled = characterController != null && characterController.enabled;
@@ -506,6 +533,46 @@ public sealed class FactoryOneSceneController : MonoBehaviour
     private static bool IsValidVector(Vector3 value)
     {
         return IsValidHeight(value.x) && IsValidHeight(value.y) && IsValidHeight(value.z);
+    }
+
+    private bool IsConfiguredStartHeightUsable(float rigWorldY, Bounds factoryBounds, float cameraWorldHeight)
+    {
+        float eye = cameraWorldHeight - rigWorldY;
+        return eye >= 0.6f
+            && eye <= 3.2f
+            && IsCameraWorldHeightInsideFactory(factoryBounds, cameraWorldHeight);
+    }
+
+    private static bool IsCameraWorldHeightInsideFactory(Bounds factoryBounds, float cameraWorldHeight)
+    {
+        if (factoryBounds.size == Vector3.zero)
+        {
+            return IsValidHeight(cameraWorldHeight);
+        }
+
+        float padding = Mathf.Max(2f, factoryBounds.size.y * 0.04f);
+        return cameraWorldHeight >= factoryBounds.min.y - padding
+            && cameraWorldHeight <= factoryBounds.max.y + padding;
+    }
+
+    private bool IsReturnPoseInsideFactory(Bounds factoryBounds, Vector3 rigPosition, Vector3 cameraLocalPosition, Vector3 cameraWorldPosition)
+    {
+        if (!IsValidVector(rigPosition) || !IsValidVector(cameraLocalPosition) || !IsValidVector(cameraWorldPosition))
+        {
+            return false;
+        }
+
+        float eye = cameraWorldPosition.y - rigPosition.y;
+        if (eye < 0.6f || eye > 3.2f)
+        {
+            return false;
+        }
+
+        Bounds padded = factoryBounds;
+        float horizontalPadding = Mathf.Max(8f, factoryBounds.extents.magnitude * 0.18f);
+        float verticalPadding = Mathf.Max(2f, factoryBounds.size.y * 0.04f);
+        padded.Expand(new Vector3(horizontalPadding, verticalPadding, horizontalPadding));
+        return padded.Contains(cameraWorldPosition);
     }
 
     private static bool IsValidQuaternion(Quaternion value)

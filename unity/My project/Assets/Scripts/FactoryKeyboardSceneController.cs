@@ -255,16 +255,38 @@ public class FactoryKeyboardSceneController : MonoBehaviour
             return;
         }
 
+#if !UNITY_EDITOR
+        Debug.Log(
+            "[FactoryKeyboard] Skipped runtime MeshCollider generation in Player build. " +
+            "FBX meshes are not readable after packaging and Unity can crash while creating collision data.",
+            this);
+        return;
+#else
+        var addedCount = 0;
+        var skippedUnreadableCount = 0;
         foreach (var meshFilter in factoryInstance.GetComponentsInChildren<MeshFilter>())
         {
-            if (meshFilter.sharedMesh == null || meshFilter.GetComponent<Collider>() != null)
+            var mesh = meshFilter.sharedMesh;
+            if (mesh == null || meshFilter.GetComponent<Collider>() != null)
             {
                 continue;
             }
 
+            if (!mesh.isReadable)
+            {
+                skippedUnreadableCount++;
+                continue;
+            }
+
             var meshCollider = meshFilter.gameObject.AddComponent<MeshCollider>();
-            meshCollider.sharedMesh = meshFilter.sharedMesh;
+            meshCollider.sharedMesh = mesh;
+            addedCount++;
         }
+
+        Debug.Log(
+            $"[FactoryKeyboard] MeshCollider generation finished. added={addedCount}, skippedUnreadable={skippedUnreadableCount}.",
+            this);
+#endif
     }
 
     private void ApplyMaterialOverrides()

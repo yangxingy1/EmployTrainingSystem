@@ -7,6 +7,7 @@ public static class CNCRuntimeScriptReferenceFixer
 {
     private const string MigrationKey = "EmployTraining.CNCRuntimeScriptRef.v1";
     private const string RuntimeScriptPath = "Assets/Scripts/CNCTrainingMachineRuntime.cs";
+    private const string InteractableScriptPath = "Assets/Scripts/CNCInteractablePart.cs";
     private const string Train1ScenePath = "Assets/HubWorld/Scenes/train1.unity";
 
     static CNCRuntimeScriptReferenceFixer()
@@ -39,9 +40,10 @@ public static class CNCRuntimeScriptReferenceFixer
     private static void FixSceneReferences(string scenePath)
     {
         MonoScript runtimeScript = AssetDatabase.LoadAssetAtPath<MonoScript>(RuntimeScriptPath);
-        if (runtimeScript == null)
+        MonoScript interactableScript = AssetDatabase.LoadAssetAtPath<MonoScript>(InteractableScriptPath);
+        if (runtimeScript == null || interactableScript == null)
         {
-            Debug.LogWarning("[CNCFix] Runtime script not found: " + RuntimeScriptPath);
+            Debug.LogWarning("[CNCFix] Runtime script not found: " + RuntimeScriptPath + " or " + InteractableScriptPath);
             return;
         }
 
@@ -58,7 +60,7 @@ public static class CNCRuntimeScriptReferenceFixer
 
         foreach (CNCInteractablePart interactable in Object.FindObjectsByType<CNCInteractablePart>(FindObjectsInactive.Include, FindObjectsSortMode.None))
         {
-            if (FixComponentScript(interactable, runtimeScript))
+            if (FixComponentScript(interactable, interactableScript))
             {
                 fixedCount++;
             }

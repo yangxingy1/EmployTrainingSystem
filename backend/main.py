@@ -16,12 +16,15 @@ from backend.models.company import Company
 from backend.models.task import Task
 from backend.models.task_assignment import TaskAssignment
 from backend.models.company_task import CompanyTask
-from backend.routers import task
+from backend.models.training_attempt import TrainingAttempt
+from backend.models.training_sub_result import TrainingSubResult
+from backend.routers import task, training
 from backend.auth import create_access_token, verify_token
 from backend.schemas.user import UserCreate
 from backend.schemas.result import ResultSubmit
 from backend.schemas.login import LoginRequest
 from backend.schemas.root_login import RootLoginRequest
+from backend.training_catalog import is_allowed_scene
 
 
 # =================================================================
@@ -51,6 +54,7 @@ app = FastAPI(
 
 # 注册 /task 前缀路由子模块
 app.include_router(task.router)
+app.include_router(training.router)
 
 # CORS 跨域 —— 开发阶段允许所有来源
 app.add_middleware(
@@ -262,6 +266,8 @@ def delete_company(company_id: int, db: Session = Depends(get_db)):
     company = db.query(Company).filter(Company.id == company_id).first()
     if not company:
         raise HTTPException(status_code=404, detail="公司不存在")
+    user_ids = db.query(User.id).filter(User.company_id == company_id)
+    db.query(TrainingAttempt).filter(TrainingAttempt.student_id.in_(user_ids)).delete(synchronize_session=False)
     db.query(User).filter(User.company_id == company_id).delete()
     db.query(CompanyTask).filter(CompanyTask.company_id == company_id).delete()
     db.delete(company)
@@ -352,6 +358,7 @@ def get_company_task_assignments(db: Session = Depends(get_db)):
         db.query(CompanyTask, Company, Task)
         .join(Company, CompanyTask.company_id == Company.id)
         .join(Task, CompanyTask.task_id == Task.id)
+        .filter(Task.scene_name.in_(["lead-train1", "train2"]))
         .order_by(CompanyTask.id.desc())
         .all()
     )
@@ -361,7 +368,8 @@ def get_company_task_assignments(db: Session = Depends(get_db)):
             "company_id": company.id,
             "company_name": company.name,
             "task_id": task.id,
-            "task_title": task.title
+            "task_title": task.title,
+            "scene_name": task.scene_name
         }
         for ct, company, task in rows
     ]
@@ -374,6 +382,10 @@ def assign_task_to_company(data: dict, db: Session = Depends(get_db)):
     task_id = data.get("task_id")
     if not company_id or not task_id:
         raise HTTPException(status_code=400, detail="缺少 company_id 或 task_id")
+
+    task_obj = db.query(Task).filter(Task.id == task_id).first()
+    if not task_obj or not is_allowed_scene(task_obj.scene_name):
+        raise HTTPException(status_code=400, detail="该训练项目不在当前可分配范围内")
 
     exist = db.query(CompanyTask).filter(
         CompanyTask.company_id == company_id,
@@ -417,6 +429,7 @@ def get_my_tasks(user_id: int, db: Session = Depends(get_db)):
         db.query(Task, TaskAssignment)
         .join(TaskAssignment, TaskAssignment.task_id == Task.id)
         .filter(TaskAssignment.user_id == user_id)
+        .filter(Task.scene_name.in_(["lead-train1", "train2"]))
         .order_by(TaskAssignment.id.desc())
         .all()
     )
@@ -425,8 +438,12 @@ def get_my_tasks(user_id: int, db: Session = Depends(get_db)):
             "id": task.id,
             "title": task.title,
             "description": task.description,
+            "scene_name": task.scene_name,
             "assignment_id": assignment.id,
-            "status": assignment.status
+            "status": assignment.status,
+            "score": assignment.score,
+            "train_time": assignment.train_time,
+            "finished_at": assignment.finished_at
         }
         for task, assignment in rows
     ]
@@ -490,10 +507,23 @@ def submit_result(data: ResultSubmit, db: Session = Depends(get_db)):
         TaskAssignment.id == data.assignment_id
     ).first()
     if assignment:
+        task_obj = db.query(Task).filter(Task.id == data.task_id).first()
+        finished_at = datetime.utcnow()
+        db.add(TrainingAttempt(
+            assignment_id=data.assignment_id,
+            student_id=data.student_id,
+            task_id=data.task_id,
+            scene_name=task_obj.scene_name if task_obj else "",
+            status="done",
+            score=data.score,
+            train_time=data.train_time,
+            finished_at=finished_at,
+            summary="旧接口提交结果",
+        ))
         assignment.status = "done"
         assignment.score = data.score
         assignment.train_time = data.train_time
-        assignment.finished_at = datetime.utcnow()
+        assignment.finished_at = finished_at
         db.commit()
         print(f"训练完成: 学员={data.student_id}, 任务={data.task_id}, 成绩={data.score}, 用时={data.train_time}s")
     return {"success": True}

@@ -16,7 +16,8 @@ DEFAULT_CONFIG = {
     "username": "",
     "token": "",
     "poll_interval": 5,
-    "trainer_exe": "unity/main.exe"
+    "trainer_exe": "unity/main.exe",
+    "legacy_result_upload": False
 }
 
 

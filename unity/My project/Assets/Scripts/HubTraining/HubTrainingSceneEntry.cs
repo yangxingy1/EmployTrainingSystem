@@ -70,6 +70,9 @@ public class HubTrainingSceneEntry : MonoBehaviour
             case "material_transfer":
                 CreatePickPlaceTask();
                 break;
+            case "integrated_exam":
+                CreateFreeMoveTask();
+                break;
             case "ppe_check":
             case "dispatch_console":
             case "inspection_check":
@@ -128,6 +131,13 @@ public class HubTrainingSceneEntry : MonoBehaviour
     {
         var taskGo = new GameObject("Task_PickPlace");
         var task = taskGo.AddComponent<PickPlaceTask>();
+        task.grasp = EnsureGrasp();
+    }
+
+    void CreateFreeMoveTask()
+    {
+        var taskGo = new GameObject("Task_FreeMove");
+        var task = taskGo.AddComponent<FreeMoveTask>();
         task.grasp = EnsureGrasp();
     }
 

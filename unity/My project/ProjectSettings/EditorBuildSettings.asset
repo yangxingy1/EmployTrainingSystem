@@ -24,8 +24,8 @@ EditorBuildSettings:
     path: Assets/HubWorld/Scenes/train1.unity
     guid: 03a1b729da6d3264cb73adf3105cf49e
   - enabled: 1
-    path: Assets/HubWorld/Scenes/lead-train1.unity
-    guid: 2861d16859ffbb649b1ce0be184acd18
+    path: Assets/HubWorld/Scenes/leadTrain1.unity
+    guid: 4ed0d8d8e0c94fb9b2d0b61ffca64a31
   - enabled: 1
     path: Assets/HubWorld/Scenes/train2.unity
     guid: fe2ae4b3640d61b4aac32053aebe377f

@@ -7,7 +7,7 @@ public class MockAssignedTaskSource : IAssignedTaskSource
         return new List<AssignedTask>
         {
             new AssignedTask("rotary_valve", "旋转阀门", "SampleScene", 0),
-            new AssignedTask("electric_switch", "拉杆电闸", "SampleScene", 1),
+            new AssignedTask("electric_switch", "拉杆电闸", "ElectricSwitch", 1),
             new AssignedTask("sort_line", "传送分拣", "SampleScene", 2),
             new AssignedTask("emergency_stop", "急停复位", "SampleScene", 3),
             new AssignedTask("button_press", "按钮点击", "SampleScene", 4),

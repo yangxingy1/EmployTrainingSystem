@@ -19,26 +19,71 @@ def is_training():
     return running_process.poll() is None
 
 
-def start_training(exe_path):
+def _launch_args(context):
+    args = []
+    mapping = {
+        "student_id": "--student-id",
+        "assignment_id": "--assignment-id",
+        "task_id": "--task-id",
+        "attempt_id": "--attempt-id",
+        "scene_name": "--scene-name",
+        "backend_url": "--backend-url",
+    }
+    for key, flag in mapping.items():
+        value = context.get(key)
+        if value is not None and value != "":
+            args.extend([flag, str(value)])
+    return args
+
+
+def start_training(exe_path, context=None):
     global running_process
+    context = context or {}
 
     if is_training():
         print("训练已在运行")
 
-        return False
+        return {
+            "success": False,
+            "running": True,
+            "error_code": "already_running",
+            "message": "训练已在运行",
+        }
 
     if not os.path.exists(exe_path):
         print("训练程序不存在")
 
-        return False
+        return {
+            "success": False,
+            "running": False,
+            "error_code": "exe_not_found",
+            "message": "训练程序不存在",
+        }
 
     print("启动训练")
 
-    running_process = subprocess.Popen(
-        exe_path
-    )
+    exe_dir = os.path.dirname(os.path.abspath(exe_path))
+    command = [exe_path] + _launch_args(context)
+    try:
+        running_process = subprocess.Popen(
+            command,
+            cwd=exe_dir if exe_dir else None
+        )
+    except Exception as e:
+        print("训练启动失败:", e)
+        running_process = None
+        return {
+            "success": False,
+            "running": False,
+            "error_code": "launch_failed",
+            "message": str(e),
+        }
 
-    return True
+    return {
+        "success": True,
+        "running": True,
+        "message": "训练已启动",
+    }
 
 
 def check_finished():
@@ -52,8 +97,10 @@ def check_finished():
 
         running_process = None
 
-        result = upload_result()
-        mark_done()
+        config = load_config()
+        if config.get("legacy_result_upload"):
+            result = upload_result()
+            mark_done()
 
         return True
 

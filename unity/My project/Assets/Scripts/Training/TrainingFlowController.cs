@@ -17,6 +17,7 @@ public class TrainingFlowController : MonoBehaviour
     float _startedAt;
     float _progress01;
     bool _completed;
+    bool _simpleReportUploaded;
     string _phase = "准备开始";
     string _detail = "";
     string _lastEvent = "暂无";
@@ -69,7 +70,7 @@ public class TrainingFlowController : MonoBehaviour
 
     void Update()
     {
-        if (Input.GetKeyDown(KeyCode.T))
+        if (taskId != LeadTrainCNCGestureTrainingController.TaskId && Input.GetKeyDown(KeyCode.T))
             RestartCurrentTraining();
     }
 
@@ -78,6 +79,7 @@ public class TrainingFlowController : MonoBehaviour
         taskId = string.IsNullOrEmpty(selectedTaskId) ? "rotary_valve" : selectedTaskId;
         ApplyTaskPreset(taskId);
         ResetFlow();
+        TrainingBackendClient.EnsureExists().PullActiveAttemptForCurrentScene();
     }
 
     public void ResetFlow()
@@ -94,6 +96,7 @@ public class TrainingFlowController : MonoBehaviour
         _externalScore = -1;
         _reportPath = "";
         _errorSummary = "";
+        _simpleReportUploaded = false;
     }
 
     public void ReportProgress(float progress01, string phase, string detail = "")
@@ -137,6 +140,7 @@ public class TrainingFlowController : MonoBehaviour
         _detail = string.IsNullOrEmpty(detail) ? "已达到本工位训练目标" : detail;
         _lastEvent = _detail;
         _lastEventAt = Time.time;
+        UploadSimpleReportIfNeeded();
     }
 
     public void AttachReportResult(int score, string reportPath, string errorSummary)
@@ -377,6 +381,64 @@ public class TrainingFlowController : MonoBehaviour
         return Mathf.RoundToInt(accuracyScore * 0.70f + timeScore * 0.30f);
     }
 
+    void UploadSimpleReportIfNeeded()
+    {
+        if (_simpleReportUploaded) return;
+        if (taskId == LeadTrainCNCGestureTrainingController.TaskId) return;
+        if (!ShouldUploadSimpleLeadTrainReport()) return;
+
+        _simpleReportUploaded = true;
+        var report = new TrainingReportPayload
+        {
+            taskId = taskId,
+            sceneName = SceneNameAliases.ToPublicSceneName(SceneManager.GetActiveScene().name),
+            score = CalculateScore(),
+            trainTime = Mathf.RoundToInt(Mathf.Max(0f, Elapsed)),
+            startedAt = System.DateTime.Now.AddSeconds(-Mathf.Max(0f, Elapsed)).ToString("o"),
+            finishedAt = System.DateTime.Now.ToString("o")
+        };
+
+        string[] names = SimpleStepNamesForTask(taskId);
+        string[] actions = SimpleExpectedActionsForTask(taskId);
+        for (int i = 0; i < names.Length; i++)
+        {
+            report.steps.Add(new TrainingStepReport
+            {
+                index = i,
+                name = names[i],
+                expectedAction = i < actions.Length ? actions[i] : "",
+                completed = true,
+                mistakeCount = _mistakeCount
+            });
+        }
+
+        TrainingBackendClient.EnsureExists().UploadReport(report);
+    }
+
+    string[] SimpleStepNamesForTask(string selectedTaskId)
+    {
+        if (selectedTaskId == LeadTrainElectricalCabinetGestureTrainingController.TaskId)
+            return new[] { "主断路器操作" };
+        if (selectedTaskId == LeadTrainGestureTrainingController.TaskId)
+            return new[] { "电闸 1", "电闸 2", "电闸 3", "电闸 4" };
+        return new[] { taskName };
+    }
+
+    string[] SimpleExpectedActionsForTask(string selectedTaskId)
+    {
+        if (selectedTaskId == LeadTrainElectricalCabinetGestureTrainingController.TaskId)
+            return new[] { "Grab + Rotate" };
+        if (selectedTaskId == LeadTrainGestureTrainingController.TaskId)
+            return new[] { "Grab + Slide", "Grab + Slide", "Grab + Slide", "Grab + Slide" };
+        return new[] { gestureHint };
+    }
+
+    bool ShouldUploadSimpleLeadTrainReport()
+    {
+        return taskId == LeadTrainElectricalCabinetGestureTrainingController.TaskId
+            || taskId == LeadTrainGestureTrainingController.TaskId;
+    }
+
     void EnsureStyles()
     {
         if (_panelStyle != null) return;
@@ -433,6 +495,12 @@ public class TrainingFlowController : MonoBehaviour
 
     void DrawLeadGestureCompactPanel()
     {
+        if (taskId == LeadTrainCNCGestureTrainingController.TaskId)
+        {
+            DrawCNCGestureCompactPanel();
+            return;
+        }
+
         float width = 340f;
         float height = 92f;
         var rect = new Rect(Screen.width - width - 18f, 18f, width, height);
@@ -444,6 +512,22 @@ public class TrainingFlowController : MonoBehaviour
         string recent = Time.time - _lastEventAt < 1.8f ? _lastEvent : _phase;
         GUILayout.Label(recent, _smallStyle);
         GUILayout.Label("T 重置    R/Esc 返回", _smallStyle);
+        GUILayout.EndArea();
+    }
+
+    void DrawCNCGestureCompactPanel()
+    {
+        float width = 360f;
+        float height = 76f;
+        var rect = new Rect((Screen.width - width) * 0.5f, 18f, width, height);
+        GUI.Box(rect, "", _panelStyle);
+
+        GUILayout.BeginArea(new Rect(rect.x + 16f, rect.y + 10f, rect.width - 32f, rect.height - 20f));
+        GUILayout.Label(taskName + "    " + _successCount + "/" + targetSuccessCount + "    误操作 " + _mistakeCount, _smallStyle);
+        DrawProgressBar(GUILayoutUtility.GetRect(1f, 12f), _progress01);
+        string recent = _phase;
+        if (!string.IsNullOrEmpty(recent))
+            GUILayout.Label(recent, _smallStyle);
         GUILayout.EndArea();
     }
 

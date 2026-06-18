@@ -63,16 +63,36 @@ public class SceneFlow : MonoBehaviour
     IEnumerator LoadSceneRoutine(string sceneName)
     {
         _isLoading = true;
-        Debug.Log($"[SceneFlow] Loading scene: {sceneName}");
+        string buildSceneName = SceneNameAliases.ToBuildSceneName(sceneName);
+        string buildScenePath = SceneNameAliases.ToBuildScenePath(buildSceneName);
+        int buildIndex = SceneUtility.GetBuildIndexByScenePath(buildScenePath);
+        bool canLoad = Application.CanStreamedLevelBeLoaded(buildSceneName);
 
-        var op = SceneManager.LoadSceneAsync(sceneName);
+        Debug.Log(
+            $"[SceneSwitch] About to load: requested={sceneName}, build={buildSceneName}, " +
+            $"path={buildScenePath}, buildIndex={buildIndex}, canLoad={canLoad}");
+
+        if (!canLoad && buildIndex < 0)
+        {
+            Debug.LogError(
+                $"[SceneSwitch] Scene is not in Build Settings or cannot be streamed: " +
+                $"requested={sceneName}, build={buildSceneName}, path={buildScenePath}");
+            _isLoading = false;
+            yield break;
+        }
+
+        Debug.Log(buildSceneName == sceneName
+            ? $"[SceneFlow] Loading scene: {sceneName}"
+            : $"[SceneFlow] Loading scene: {sceneName} -> {buildSceneName}");
+
+        var op = SceneManager.LoadSceneAsync(buildSceneName);
         while (!op.isDone)
         {
-            Debug.Log($"[SceneFlow] Loading {sceneName}: {op.progress:P0}");
+            Debug.Log($"[SceneFlow] Loading {buildSceneName}: {op.progress:P0}");
             yield return null;
         }
 
-        Debug.Log($"[SceneFlow] Loaded scene: {sceneName}");
+        Debug.Log($"[SceneFlow] Loaded scene: {buildSceneName}");
         _isLoading = false;
     }
 }

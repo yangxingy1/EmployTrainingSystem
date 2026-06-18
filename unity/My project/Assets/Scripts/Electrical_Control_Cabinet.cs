@@ -457,6 +457,7 @@ public class ElectricalControlCabinetBuilder : MonoBehaviour
     }
 }
 
+#if false
 public class MainBreakerToggle : MonoBehaviour
 {
     public bool enableMouseClick = false;
@@ -500,3 +501,4 @@ public class MainBreakerToggle : MonoBehaviour
         Debug.Log(isOn ? "Main breaker switched ON." : "Main breaker switched OFF.");
     }
 }
+#endif

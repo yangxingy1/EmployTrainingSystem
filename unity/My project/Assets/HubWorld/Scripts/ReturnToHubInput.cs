@@ -21,12 +21,18 @@ public class ReturnToHubInput : MonoBehaviour
         EnsureStyles();
 
         var label = ResolveReturnLabel();
+        bool compactCNC = TrainingFlowController.Active != null
+            && TrainingFlowController.Active.taskId == LeadTrainCNCGestureTrainingController.TaskId;
 
-        var buttonRect = new Rect(18f, 18f, 186f, 42f);
+        _buttonStyle.fontSize = compactCNC ? 13 : 16;
+        var buttonRect = compactCNC
+            ? new Rect(18f, 18f, 132f, 32f)
+            : new Rect(18f, 18f, 186f, 42f);
         if (GUI.Button(buttonRect, label, _buttonStyle))
             ReturnToResolvedScene();
 
-        GUI.Label(new Rect(214f, 27f, 260f, 24f), "快捷键 R / Esc", _hintStyle);
+        if (!compactCNC)
+            GUI.Label(new Rect(214f, 27f, 260f, 24f), "快捷键 R / Esc", _hintStyle);
     }
 
     void ReturnToResolvedScene()
@@ -56,7 +62,7 @@ public class ReturnToHubInput : MonoBehaviour
         }
 
         string activeScene = SceneManager.GetActiveScene().name;
-        if (activeScene == "lead-train1" || activeScene == "formalTrain1" || activeScene == "leadTrain1" || activeScene == "train2")
+        if (SceneNameAliases.IsLeadTrainScene(activeScene) || activeScene == "formalTrain1" || activeScene == "train2")
         {
             return "regTrain";
         }
@@ -80,7 +86,7 @@ public class ReturnToHubInput : MonoBehaviour
             return "返回常规训练区";
         if (sceneName == "train1")
             return "返回常规训练区";
-        if (sceneName == "lead-train1")
+        if (SceneNameAliases.IsLeadTrainScene(sceneName))
             return "返回引导式学习";
         if (sceneName == "HubWorld")
             return "返回大厅";

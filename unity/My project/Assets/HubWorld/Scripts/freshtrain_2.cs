@@ -832,6 +832,21 @@ public enum FreshTrain2TaskStationState
     Active
 }
 
+internal static class FreshTrain2SceneRouting
+{
+    public static string ResolvePracticeScene(string taskId, string requestedSceneName)
+    {
+        string cleanTaskId = string.IsNullOrEmpty(taskId) ? "" : taskId.ToLowerInvariant();
+        if (cleanTaskId.Contains("switch"))
+            return "ElectricSwitch";
+
+        if (string.IsNullOrEmpty(requestedSceneName) || requestedSceneName == "train2")
+            return "SampleScene";
+
+        return requestedSceneName;
+    }
+}
+
 public class FreshTrain2TaskStation : MonoBehaviour
 {
     public string taskId = "";
@@ -861,7 +876,7 @@ public class FreshTrain2TaskStation : MonoBehaviour
         this.anchorId = anchorId;
         taskId = task.taskId;
         displayName = task.displayName;
-        sceneName = task.sceneName;
+        sceneName = FreshTrain2SceneRouting.ResolvePracticeScene(task.taskId, task.sceneName);
         state = FreshTrain2TaskStationState.Active;
         BuildVisual();
     }
@@ -1005,8 +1020,8 @@ public class FreshTrain2TaskStation : MonoBehaviour
         label.text = text;
         label.anchor = TextAnchor.MiddleCenter;
         label.alignment = TextAlignment.Center;
-        label.characterSize = active ? (displayName.Length > 4 ? 0.105f : 0.125f) : 0.09f;
-        label.fontSize = active ? (displayName.Length > 4 ? 42 : 50) : 38;
+        label.characterSize = active ? (displayName.Length > 4 ? 0.082f : 0.096f) : 0.072f;
+        label.fontSize = active ? (displayName.Length > 4 ? 32 : 38) : 30;
         label.color = color;
     }
 
@@ -1486,7 +1501,7 @@ public class FreshTrain2InteractiveElement : MonoBehaviour
     {
         targetTaskId = taskId;
         targetTaskName = string.IsNullOrEmpty(taskName) ? displayName : taskName;
-        targetSceneName = string.IsNullOrEmpty(sceneName) ? "SampleScene" : sceneName;
+        targetSceneName = FreshTrain2SceneRouting.ResolvePracticeScene(taskId, sceneName);
         targetAnchorId = anchorId;
         actionText = "进入";
         activeStatus = "进入训练";

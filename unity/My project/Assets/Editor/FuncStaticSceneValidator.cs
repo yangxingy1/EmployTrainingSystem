@@ -13,23 +13,31 @@ public static class FuncStaticSceneValidator
 
         bool hasCnc = GameObject.Find(CNCTrainingMachineBuilder.StaticMachineName) != null;
         bool hasBreaker = GameObject.Find(BreakerShutdownStationBuilder.StaticStationName) != null;
+        bool hasCabinet = GameObject.Find(ElectricalControlCabinetBuilder.StaticCabinetName) != null;
+        bool hasExtinguisher = GameObject.Find(FireExtinguisherBuilder.StaticExtinguisherName) != null;
 
         Transform cncRuntime = FindGeneratedRoot(CNCTrainingMachineBuilder.StaticMachineName, CNCTrainingMachineBuilder.GeneratedModelName);
         Transform breakerRuntime = FindGeneratedRoot(BreakerShutdownStationBuilder.StaticStationName, BreakerShutdownStationBuilder.GeneratedModelName);
+        Transform cabinetRuntime = FindGeneratedRoot(ElectricalControlCabinetBuilder.StaticCabinetName, ElectricalControlCabinetBuilder.GeneratedModelName);
+        Transform extinguisherRuntime = FindGeneratedRoot(FireExtinguisherBuilder.StaticExtinguisherName, FireExtinguisherBuilder.GeneratedModelName);
 
         bool cncRuntimeReady = cncRuntime != null && cncRuntime.GetComponent<CNCTrainingMachineRuntime>() != null;
         bool breakerRuntimeReady = breakerRuntime != null && breakerRuntime.GetComponent<BreakerShutdownStationRuntime>() != null;
+        bool cabinetRuntimeReady = cabinetRuntime != null && cabinetRuntime.GetComponentInChildren<MainBreakerToggle>(true) != null;
+        bool extinguisherRuntimeReady = extinguisherRuntime != null && extinguisherRuntime.GetComponentInChildren<FireExtinguisherGaugeInteraction>(true) != null;
 
-        if (hasCnc && hasBreaker && cncRuntimeReady && breakerRuntimeReady)
+        if (hasCnc && hasBreaker && hasCabinet && hasExtinguisher && cncRuntimeReady && breakerRuntimeReady && cabinetRuntimeReady && extinguisherRuntimeReady)
         {
-            Debug.Log("[FuncStatics] Validation passed: CNC and Breaker stations are present with runtime components.");
+            Debug.Log("[FuncStatics] Validation passed: cabinet, extinguisher, CNC, and breaker stations are present with runtime components.");
             return;
         }
 
         Debug.LogWarning(
             "[FuncStatics] Validation failed. "
             + "CNC root=" + hasCnc + ", CNC runtime=" + cncRuntimeReady + ", "
-            + "Breaker root=" + hasBreaker + ", Breaker runtime=" + breakerRuntimeReady + ". "
+            + "Breaker root=" + hasBreaker + ", Breaker runtime=" + breakerRuntimeReady + ", "
+            + "Cabinet root=" + hasCabinet + ", Cabinet runtime=" + cabinetRuntimeReady + ", "
+            + "Extinguisher root=" + hasExtinguisher + ", Extinguisher runtime=" + extinguisherRuntimeReady + ". "
             + "Run Tools/Func/Regenerate All Func Statics In train1.");
     }
 

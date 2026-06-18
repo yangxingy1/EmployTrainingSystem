@@ -1,27 +1,49 @@
-# 任务相关 API 路由 —— Root 可全局 CRUD，Admin 查本公司项目
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
-from backend.models.user import User
-from backend.models.task import Task
 from backend.models.company_task import CompanyTask
+from backend.models.task import Task
 from backend.models.task_assignment import TaskAssignment
-from backend.schemas.task import TaskCreate
+from backend.models.user import User
 from backend.schemas.assignment import AssignmentCreate
+from backend.schemas.task import TaskCreate
+from backend.training_catalog import is_allowed_scene, normalize_scene_name
 
 router = APIRouter(prefix="/task", tags=["Task"])
 
+ALLOWED_SCENE_LIST = ["lead-train1", "train2"]
 
-# ============ 训练项目 CRUD ============
+
+def _task_payload(task: Task):
+    return {
+        "id": task.id,
+        "title": task.title,
+        "description": task.description,
+        "scene_name": task.scene_name,
+    }
+
+
+def _require_allowed_task(db: Session, task_id: int) -> Task:
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="训练项目不存在")
+    if not is_allowed_scene(task.scene_name):
+        raise HTTPException(status_code=400, detail="该训练项目不在当前可分配范围内")
+    return task
+
 
 @router.post("/create")
 def create_task(task: TaskCreate, db: Session = Depends(get_db)):
-    """Root 创建全局训练项目"""
     if not task.title or not task.title.strip():
         raise HTTPException(status_code=400, detail="训练名称不能为空")
+    scene_name = normalize_scene_name(task.scene_name)
+    if not is_allowed_scene(scene_name):
+        raise HTTPException(status_code=400, detail="当前只允许创建 lead-train1 或 train2")
+    if db.query(Task).filter(Task.scene_name == scene_name).first():
+        raise HTTPException(status_code=400, detail="该 Unity 场景已存在训练项目")
 
-    new_task = Task(title=task.title.strip(), description=task.description)
+    new_task = Task(title=task.title.strip(), description=task.description, scene_name=scene_name)
     db.add(new_task)
     db.commit()
     db.refresh(new_task)
@@ -30,13 +52,62 @@ def create_task(task: TaskCreate, db: Session = Depends(get_db)):
 
 @router.get("/list")
 def get_tasks(db: Session = Depends(get_db)):
-    """获取所有训练项目列表（按 ID 倒序）"""
-    return db.query(Task).order_by(Task.id.desc()).all()
+    tasks = (
+        db.query(Task)
+        .filter(Task.scene_name.in_(ALLOWED_SCENE_LIST))
+        .order_by(Task.id.desc())
+        .all()
+    )
+    return [_task_payload(t) for t in tasks]
+
+
+@router.get("/student-access/{student_id}")
+def get_student_training_access(student_id: int, db: Session = Depends(get_db)):
+    student = db.query(User).filter(User.id == student_id, User.role == "student").first()
+    if not student:
+        raise HTTPException(status_code=404, detail="student not found")
+
+    tasks_by_scene = {
+        task.scene_name: task
+        for task in db.query(Task).filter(Task.scene_name.in_(ALLOWED_SCENE_LIST)).all()
+    }
+
+    payload = []
+    for scene_name in ALLOWED_SCENE_LIST:
+        task = tasks_by_scene.get(scene_name)
+        company_link = None
+        assignment = None
+
+        if task and student.company_id:
+            company_link = db.query(CompanyTask).filter(
+                CompanyTask.company_id == student.company_id,
+                CompanyTask.task_id == task.id,
+            ).first()
+            assignment = db.query(TaskAssignment).filter(
+                TaskAssignment.user_id == student.id,
+                TaskAssignment.task_id == task.id,
+            ).order_by(TaskAssignment.id.desc()).first()
+
+        payload.append({
+            "scene_name": scene_name,
+            "task_id": task.id if task else None,
+            "title": task.title if task else scene_name,
+            "description": task.description if task else "",
+            "unlocked": company_link is not None,
+            "assigned": assignment is not None,
+            "assignment_id": assignment.id if assignment else None,
+            "status": assignment.status if assignment else "",
+        })
+
+    return {
+        "student_id": student.id,
+        "company_id": student.company_id,
+        "items": payload,
+    }
 
 
 @router.put("/{task_id}")
 def update_task(task_id: int, data: dict, db: Session = Depends(get_db)):
-    """Root 修改训练项目名称和说明"""
     task = db.query(Task).filter(Task.id == task_id).first()
     if not task:
         raise HTTPException(status_code=404, detail="训练项目不存在")
@@ -44,17 +115,23 @@ def update_task(task_id: int, data: dict, db: Session = Depends(get_db)):
         task.title = data["title"].strip()
     if "description" in data:
         task.description = data["description"]
+    if "scene_name" in data:
+        scene_name = normalize_scene_name(data["scene_name"])
+        if not is_allowed_scene(scene_name):
+            raise HTTPException(status_code=400, detail="当前只允许创建 lead-train1 或 train2")
+        existing = db.query(Task).filter(Task.scene_name == scene_name, Task.id != task_id).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="该 Unity 场景已存在训练项目")
+        task.scene_name = scene_name
     db.commit()
     return {"success": True, "message": "训练项目已更新"}
 
 
 @router.delete("/{task_id}")
 def delete_task(task_id: int, db: Session = Depends(get_db)):
-    """Root 删除训练项目（同时删除关联分配和公司绑定）"""
     task = db.query(Task).filter(Task.id == task_id).first()
     if not task:
         raise HTTPException(status_code=404, detail="训练项目不存在")
-    # 级联删除：company_tasks + task_assignments
     db.query(CompanyTask).filter(CompanyTask.task_id == task_id).delete()
     db.query(TaskAssignment).filter(TaskAssignment.task_id == task_id).delete()
     db.delete(task)
@@ -62,58 +139,54 @@ def delete_task(task_id: int, db: Session = Depends(get_db)):
     return {"success": True, "message": "训练项目已删除"}
 
 
-# ============ 公司-训练项目关联（Root） ============
-
 @router.get("/company/{company_id}")
 def get_company_tasks(company_id: int, db: Session = Depends(get_db)):
-    """获取某公司可用的训练项目列表（Admin 下拉用）"""
     rows = (
         db.query(Task)
         .join(CompanyTask, CompanyTask.task_id == Task.id)
         .filter(CompanyTask.company_id == company_id)
+        .filter(Task.scene_name.in_(ALLOWED_SCENE_LIST))
         .order_by(Task.id.desc())
         .all()
     )
-    return [{"id": t.id, "title": t.title, "description": t.description} for t in rows]
+    return [_task_payload(t) for t in rows]
 
 
 @router.post("/company/{company_id}/add")
 def add_task_to_company(company_id: int, data: dict, db: Session = Depends(get_db)):
-    """管理员从总库添加训练项目到本公司"""
     task_id = data.get("task_id")
     if not task_id:
         raise HTTPException(status_code=400, detail="缺少 task_id")
-    task = db.query(Task).filter(Task.id == task_id).first()
-    if not task:
-        raise HTTPException(status_code=404, detail="训练项目不存在")
+    task = _require_allowed_task(db, task_id)
     exist = db.query(CompanyTask).filter(
         CompanyTask.company_id == company_id,
-        CompanyTask.task_id == task_id
+        CompanyTask.task_id == task_id,
     ).first()
     if exist:
         raise HTTPException(status_code=400, detail="该公司已拥有此训练项目")
-    ct = CompanyTask(company_id=company_id, task_id=task_id)
-    db.add(ct)
+    db.add(CompanyTask(company_id=company_id, task_id=task_id))
     db.commit()
     return {"success": True, "message": f"已添加训练项目: {task.title}"}
 
 
 @router.get("/global/list")
 def get_global_tasks(db: Session = Depends(get_db)):
-    """获取全局训练项目总库（供管理员浏览选择）"""
-    tasks = db.query(Task).order_by(Task.id.desc()).all()
-    return [{"id": t.id, "title": t.title, "description": t.description} for t in tasks]
+    tasks = (
+        db.query(Task)
+        .filter(Task.scene_name.in_(ALLOWED_SCENE_LIST))
+        .order_by(Task.id.desc())
+        .all()
+    )
+    return [_task_payload(t) for t in tasks]
 
-
-# ============ 分配记录查询 ============
 
 @router.get("/assignments")
 def get_assignments(db: Session = Depends(get_db)):
-    """获取所有分配记录 —— 联表查询学员 + 训练信息"""
     rows = (
         db.query(TaskAssignment, User, Task)
         .join(User, TaskAssignment.user_id == User.id)
         .join(Task, TaskAssignment.task_id == Task.id)
+        .filter(Task.scene_name.in_(ALLOWED_SCENE_LIST))
         .order_by(TaskAssignment.id.desc())
         .all()
     )
@@ -125,7 +198,8 @@ def get_assignments(db: Session = Depends(get_db)):
             "task_id": task.id,
             "task_title": task.title,
             "task_description": task.description,
-            "status": assignment.status
+            "scene_name": task.scene_name,
+            "status": assignment.status,
         }
         for assignment, user, task in rows
     ]
@@ -133,42 +207,30 @@ def get_assignments(db: Session = Depends(get_db)):
 
 @router.post("/assign")
 def assign_task(data: AssignmentCreate, db: Session = Depends(get_db)):
-    """为学员分配训练任务 —— 已存在则跳过并修正状态"""
     if not data.user_id or not data.task_id:
         raise HTTPException(status_code=400, detail="缺少必要参数")
+    _require_allowed_task(db, data.task_id)
 
     existing = db.query(TaskAssignment).filter(
         TaskAssignment.user_id == data.user_id,
-        TaskAssignment.task_id == data.task_id
+        TaskAssignment.task_id == data.task_id,
     ).first()
-
     if existing:
-        if existing.status == "未开始":
-            existing.status = "pending"
-            db.commit()
         return {"success": True, "assignment_id": existing.id, "existing": True}
 
-    assignment = TaskAssignment(
-        user_id=data.user_id,
-        task_id=data.task_id,
-        status="pending"
-    )
+    assignment = TaskAssignment(user_id=data.user_id, task_id=data.task_id, status="pending")
     db.add(assignment)
     db.commit()
     db.refresh(assignment)
     return {"success": True, "assignment_id": assignment.id}
 
 
-# ============ Launcher 轮询接口 ============
-
 @router.get("/launcher/task/{user_id}")
 def get_launcher_task(user_id: int, db: Session = Depends(get_db)):
-    """Launcher 轮询: 查找 pending 任务 -> 标记 running -> 返回任务信息"""
     assignment = db.query(TaskAssignment).filter(
         TaskAssignment.user_id == user_id,
-        TaskAssignment.status == "pending"
+        TaskAssignment.status == "pending",
     ).first()
-
     if assignment:
         assignment.status = "running"
         db.commit()
@@ -176,22 +238,17 @@ def get_launcher_task(user_id: int, db: Session = Depends(get_db)):
         return {
             "start_training": True,
             "assignment_id": assignment.id,
-            "task_id": task.id if task else assignment.task_id
+            "task_id": task.id if task else assignment.task_id,
+            "scene_name": task.scene_name if task else None,
         }
-
     return {"start_training": False}
 
 
 @router.post("/finish")
 def finish_task(data: dict, db: Session = Depends(get_db)):
-    """Launcher 通知: 训练完成，标记 done"""
-    assignment = db.query(TaskAssignment).filter(
-        TaskAssignment.id == data["assignment_id"]
-    ).first()
-
+    assignment = db.query(TaskAssignment).filter(TaskAssignment.id == data["assignment_id"]).first()
     if assignment:
         assignment.status = "done"
         db.commit()
         return {"success": True}
-
     raise HTTPException(status_code=404, detail="分配记录不存在")

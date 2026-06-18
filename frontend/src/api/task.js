@@ -32,3 +32,19 @@ export function getAssignments() {
 export function getMyTasks(userId) {
   return axios.get(`${API}/my-tasks/${userId}`);
 }
+
+export function startTrainingAttempt(data) {
+  return axios.post(`${API}/training/start`, data);
+}
+
+export function cancelTrainingAttempt(attemptId, data) {
+  return axios.post(`${API}/training/${attemptId}/cancel`, data);
+}
+
+export function getStudentTrainingHistory(userId) {
+  return axios.get(`${API}/training/history/student/${userId}`);
+}
+
+export function getCompanyTrainingAnalytics(companyId) {
+  return axios.get(`${API}/training/analytics/company/${companyId}`);
+}

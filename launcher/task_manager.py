@@ -10,10 +10,12 @@ else:
 TASK_FILE = os.path.join(BASE_DIR, "current_task.json")
 
 
-def save_task(assignment_id, task_id, status="running"):
+def save_task(assignment_id, task_id, status="running", **extra):
+    payload = {"assignment_id": assignment_id, "task_id": task_id, "status": status}
+    payload.update({key: value for key, value in extra.items() if value is not None})
     with open(TASK_FILE, "w", encoding="utf-8") as f:
         json.dump(
-            {"assignment_id": assignment_id, "task_id": task_id, "status": status},
+            payload,
             f,
             indent=4
         )

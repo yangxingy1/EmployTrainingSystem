@@ -14,6 +14,13 @@ public static class FuncStaticSceneMigrationBatch
     public static void RegenerateTrain1FuncStatics()
     {
         EditorSceneManager.OpenScene(Train1ScenePath);
+        RegenerateFuncStaticsInCurrentScene();
+    }
+
+    public static void RegenerateFuncStaticsInCurrentScene()
+    {
+        ElectricalCabinetStaticSceneBuilder.CreateStaticElectricalCabinetInScene();
+        FireExtinguisherStaticSceneBuilder.CreateStaticFireExtinguisherInScene();
         CNCTrainingMachineStaticSceneBuilder.CreateStaticCNCTrainingMachineInScene();
         BreakerShutdownStationStaticSceneBuilder.CreateStaticBreakerShutdownStationInScene();
     }

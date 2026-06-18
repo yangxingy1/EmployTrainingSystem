@@ -7,6 +7,8 @@ public static class BreakerRuntimeScriptReferenceFixer
 {
     private const string MigrationKey = "EmployTraining.BreakerRuntimeScriptRef.v1";
     private const string RuntimeScriptPath = "Assets/Scripts/BreakerShutdownStationRuntime.cs";
+    private const string StartButtonScriptPath = "Assets/Scripts/BreakerStartButtonInteractable.cs";
+    private const string SwitchScriptPath = "Assets/Scripts/BreakerSwitchRuntime.cs";
     private const string Train1ScenePath = "Assets/HubWorld/Scenes/train1.unity";
 
     static BreakerRuntimeScriptReferenceFixer()
@@ -39,9 +41,11 @@ public static class BreakerRuntimeScriptReferenceFixer
     private static void FixSceneReferences(string scenePath)
     {
         MonoScript runtimeScript = AssetDatabase.LoadAssetAtPath<MonoScript>(RuntimeScriptPath);
-        if (runtimeScript == null)
+        MonoScript startButtonScript = AssetDatabase.LoadAssetAtPath<MonoScript>(StartButtonScriptPath);
+        MonoScript switchScript = AssetDatabase.LoadAssetAtPath<MonoScript>(SwitchScriptPath);
+        if (runtimeScript == null || startButtonScript == null || switchScript == null)
         {
-            Debug.LogWarning("[BreakerFix] Runtime script not found: " + RuntimeScriptPath);
+            Debug.LogWarning("[BreakerFix] Runtime script not found: " + RuntimeScriptPath + ", " + StartButtonScriptPath + ", or " + SwitchScriptPath);
             return;
         }
 
@@ -58,7 +62,7 @@ public static class BreakerRuntimeScriptReferenceFixer
 
         foreach (BreakerStartButtonInteractable interactable in UnityEngine.Object.FindObjectsByType<BreakerStartButtonInteractable>(FindObjectsInactive.Include, FindObjectsSortMode.None))
         {
-            if (FixComponentScript(interactable, runtimeScript))
+            if (FixComponentScript(interactable, startButtonScript))
             {
                 fixedCount++;
             }
@@ -66,7 +70,7 @@ public static class BreakerRuntimeScriptReferenceFixer
 
         foreach (BreakerSwitchRuntime breaker in UnityEngine.Object.FindObjectsByType<BreakerSwitchRuntime>(FindObjectsInactive.Include, FindObjectsSortMode.None))
         {
-            if (FixComponentScript(breaker, runtimeScript))
+            if (FixComponentScript(breaker, switchScript))
             {
                 fixedCount++;
             }

@@ -85,11 +85,12 @@
 
         <!-- 训练项目表格 -->
         <table class="data-table">
-          <thead><tr><th>ID</th><th>训练名称</th><th>说明</th><th>已分配公司</th><th>操作</th></tr></thead>
+          <thead><tr><th>ID</th><th>训练名称</th><th>Unity 场景</th><th>说明</th><th>已分配公司</th><th>操作</th></tr></thead>
           <tbody>
             <tr v-for="task in allTasks" :key="task.id">
               <td>{{ task.id }}</td>
               <td><strong>{{ task.title }}</strong></td>
+              <td>{{ task.scene_name || '-' }}</td>
               <td>{{ task.description || '暂无' }}</td>
               <td>{{ getTaskCompanies(task.id) }}</td>
               <td>
@@ -98,7 +99,7 @@
                 <button class="danger-btn" @click="deleteTaskItem(task)">删除</button>
               </td>
             </tr>
-            <tr v-if="!allTasks.length"><td colspan="5" class="empty-cell">暂无训练项目</td></tr>
+            <tr v-if="!allTasks.length"><td colspan="6" class="empty-cell">暂无训练项目</td></tr>
           </tbody>
         </table>
 
@@ -151,6 +152,13 @@
       <div class="dialog">
         <h3>{{ editingTask ? '编辑训练项目' : '新建训练项目' }}</h3>
         <div class="form-item"><span>训练名称</span><input v-model="taskForm.title" placeholder="例如：旋转阀门操作训练" /></div>
+        <div class="form-item">
+          <span>Unity 场景</span>
+          <select v-model="taskForm.scene_name">
+            <option value="lead-train1">lead-train1</option>
+            <option value="train2">train2</option>
+          </select>
+        </div>
         <div class="form-item"><span>训练说明</span><textarea v-model="taskForm.description" rows="3" placeholder="填写训练目标、标准动作等" /></div>
         <div class="dialog-actions">
           <button class="cancel-btn" @click="closeTaskDialog">取消</button>
@@ -205,7 +213,7 @@ const showTaskCreate = ref(false);
 const editingTask = ref(null);
 const assigningTask = ref(null);
 const assignCompanyId = ref(null);
-const taskForm = reactive({ title: "", description: "" });
+const taskForm = reactive({ title: "", description: "", scene_name: "lead-train1" });
 
 // ============ 数据加载 ============
 async function loadCompanies() {
@@ -255,20 +263,22 @@ function openEditTask(task) {
   editingTask.value = task;
   taskForm.title = task.title;
   taskForm.description = task.description || "";
+  taskForm.scene_name = task.scene_name || "lead-train1";
 }
 function closeTaskDialog() {
   showTaskCreate.value = false;
   editingTask.value = null;
   taskForm.title = "";
   taskForm.description = "";
+  taskForm.scene_name = "lead-train1";
 }
 async function saveTask() {
   if (!taskForm.title.trim()) return alert("训练名称不能为空");
   try {
     if (editingTask.value) {
-      await axios.put(`http://127.0.0.1:8000/task/${editingTask.value.id}`, { title: taskForm.title, description: taskForm.description });
+      await axios.put(`http://127.0.0.1:8000/task/${editingTask.value.id}`, { title: taskForm.title, description: taskForm.description, scene_name: taskForm.scene_name });
     } else {
-      await axios.post("http://127.0.0.1:8000/task/create", { title: taskForm.title, description: taskForm.description });
+      await axios.post("http://127.0.0.1:8000/task/create", { title: taskForm.title, description: taskForm.description, scene_name: taskForm.scene_name });
     }
     closeTaskDialog();
     await loadAllTasks();

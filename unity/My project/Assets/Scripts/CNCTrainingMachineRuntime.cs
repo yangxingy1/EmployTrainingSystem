@@ -5,23 +5,6 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 #endif
 
-public enum CNCInteractionType
-{
-    TogglePower,
-    ToggleDoor,
-    ToggleClamp,
-    CycleStart,
-    EmergencyStop,
-    Reset,
-    ToggleMode
-}
-
-public class CNCInteractablePart : MonoBehaviour
-{
-    public CNCTrainingMachineRuntime station;
-    public CNCInteractionType interactionType;
-}
-
 public class CNCTrainingMachineRuntime : MonoBehaviour
 {
     [Header("Keyboard Interaction")]

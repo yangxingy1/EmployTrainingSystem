@@ -528,6 +528,7 @@ public class FireExtinguisherBuilder : MonoBehaviour
     }
 }
 
+#if false
 public class FireExtinguisherGaugeInteraction : MonoBehaviour
 {
     public Transform needlePivot;
@@ -763,6 +764,8 @@ public class FireExtinguisherGaugeInteraction : MonoBehaviour
         suppressGuidedInput = false;
     }
 }
+
+#endif
 
 #if UNITY_EDITOR
 [UnityEditor.CustomEditor(typeof(FireExtinguisherBuilder))]

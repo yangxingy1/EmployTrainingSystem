@@ -38,15 +38,15 @@ public class FreshTrainBootstrap : MonoBehaviour
 
     readonly FreshTrainingTile[] _tiles =
     {
-        new FreshTrainingTile("fresh_switch_pull_down", "电闸拉下", "ElectricSwitch", "握拳后拉动电闸，将竖杆稳定拉到下方。", new Color(0.93f, 0.22f, 0.16f)),
-        new FreshTrainingTile("fresh_switch_push_up", "电闸推上", "ElectricSwitch", "握拳后推动电闸，将竖杆推到上方。", new Color(0.20f, 0.72f, 0.34f)),
-        new FreshTrainingTile("fresh_switch_reset", "电闸复位", "ElectricSwitch", "握拳抓住横杆，完成一次上推或下拉复位。", new Color(0.96f, 0.61f, 0.12f)),
-        new FreshTrainingTile("fresh_valve_clockwise", "阀门顺拧", "RotaryValve", "握拳后拧动阀门，将红色手轮旋转到目标角度。", new Color(0.86f, 0.08f, 0.07f)),
-        new FreshTrainingTile("fresh_valve_target", "阀门定点", "RotaryValve", "握拳抓住阀门手轮，缓慢旋转并停在目标位置。", new Color(0.12f, 0.52f, 0.82f)),
-        new FreshTrainingTile("fresh_valve_release", "阀门释放", "RotaryValve", "完成旋转后松开手势，确认阀门保持在目标角度。", new Color(0.28f, 0.62f, 0.88f)),
+        new FreshTrainingTile("electric_switch", "电闸拉下", "ElectricSwitch", "握拳后拉动电闸，将竖杆稳定拉到下方。", new Color(0.93f, 0.22f, 0.16f)),
+        new FreshTrainingTile("electric_switch", "电闸推上", "ElectricSwitch", "握拳后推动电闸，将竖杆推到上方。", new Color(0.20f, 0.72f, 0.34f)),
+        new FreshTrainingTile("electric_switch", "电闸复位", "ElectricSwitch", "握拳抓住横杆，完成一次上推或下拉复位。", new Color(0.96f, 0.61f, 0.12f)),
+        new FreshTrainingTile("rotary_valve", "阀门顺拧", "SampleScene", "握拳后拧动阀门，将红色手轮旋转到目标角度。", new Color(0.86f, 0.08f, 0.07f)),
+        new FreshTrainingTile("rotary_valve", "阀门定点", "SampleScene", "握拳抓住阀门手轮，缓慢旋转并停在目标位置。", new Color(0.12f, 0.52f, 0.82f)),
+        new FreshTrainingTile("rotary_valve", "阀门释放", "SampleScene", "完成旋转后松开手势，确认阀门保持在目标角度。", new Color(0.28f, 0.62f, 0.88f)),
         new FreshTrainingTile("fresh_pipe_switch", "管路断电", "ElectricSwitch", "靠近电闸后握拳拉动，模拟管路检修前断电。", new Color(0.58f, 0.46f, 0.32f)),
         new FreshTrainingTile("fresh_pipe_valve", "管路开阀", "RotaryValve", "握拳后旋转阀门，模拟打开管路阀门。", new Color(0.94f, 0.72f, 0.18f)),
-        new FreshTrainingTile("fresh_mixed_practice", "综合练习", "RotaryValve", "握拳后稳定拧动阀门，完成一次新手综合训练。", new Color(0.42f, 0.28f, 0.78f)),
+        new FreshTrainingTile("integrated_exam", "综合练习", "SampleScene", "完成一次新手综合训练。", new Color(0.42f, 0.28f, 0.78f)),
     };
 
     Transform _player;
@@ -147,8 +147,8 @@ public class FreshTrainBootstrap : MonoBehaviour
         label.text = (index + 1) + "\n" + tile.displayName;
         label.anchor = TextAnchor.MiddleCenter;
         label.alignment = TextAlignment.Center;
-        label.fontSize = 46;
-        label.characterSize = 0.10f;
+        label.fontSize = 34;
+        label.characterSize = 0.075f;
         label.color = Color.white;
 
         var tileMarker = cube.AddComponent<FreshTrainCubeMarker>();

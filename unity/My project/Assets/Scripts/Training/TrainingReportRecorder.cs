@@ -56,7 +56,7 @@ public class TrainingReportRecorder
         Report = new TrainingReportPayload
         {
             taskId = taskId,
-            sceneName = sceneName,
+            sceneName = SceneNameAliases.ToPublicSceneName(sceneName),
             score = 100,
             trainTime = 0,
             startedAt = DateTime.Now.ToString("o"),
@@ -131,6 +131,7 @@ public class TrainingReportRecorder
         Report.score = Mathf.Clamp(100 - _mistakePenalty - timePenalty, 0, 100);
         ErrorSummary = BuildErrorSummary();
         LastSavedPath = SaveLatestReport();
+        TrainingBackendClient.EnsureExists().UploadReport(Report);
         return Report.score;
     }
 
