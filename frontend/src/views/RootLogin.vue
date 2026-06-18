@@ -68,7 +68,7 @@
 <script setup>
 // Root 登录页 —— 平台级管理员专用登录入口
 import { ref } from "vue";
-import axios from "axios";
+import api from "../api/http";
 import { useRouter } from "vue-router";
 
 const router = useRouter();
@@ -81,8 +81,8 @@ const errorMsg = ref("");
 async function login() {
   errorMsg.value = "";
   try {
-    const res = await axios.post(
-      "http://127.0.0.1:8000/root/login",
+    const res = await api.post(
+      "/root/login",
       {
         username: username.value,
         password: password.value

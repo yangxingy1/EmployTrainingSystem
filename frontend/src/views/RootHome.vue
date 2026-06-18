@@ -185,7 +185,7 @@
 // Root 控制台 —— 平台级管理: 公司、管理员、训练项目总库
 import { onMounted, ref, reactive } from "vue";
 import { useRouter } from "vue-router";
-import axios from "axios";
+import api from "../api/http";
 
 const router = useRouter();
 const username = ref(localStorage.getItem("username") || "Root");
@@ -217,45 +217,45 @@ const taskForm = reactive({ title: "", description: "", scene_name: "lead-train1
 
 // ============ 数据加载 ============
 async function loadCompanies() {
-  try { const r = await axios.get("http://127.0.0.1:8000/root/companies"); companies.value = r.data || []; } catch (e) {}
+  try { const r = await api.get("/root/companies"); companies.value = r.data || []; } catch (e) {}
 }
 async function loadAdmins() {
-  try { const r = await axios.get("http://127.0.0.1:8000/root/admins"); admins.value = r.data || []; } catch (e) {}
+  try { const r = await api.get("/root/admins"); admins.value = r.data || []; } catch (e) {}
 }
 async function loadStatistics() {
   try {
-    const r = await axios.get("http://127.0.0.1:8000/root/statistics");
+    const r = await api.get("/root/statistics");
     companyCount.value = r.data.companies || 0;
     adminCount.value = r.data.admins || 0;
     studentCount.value = r.data.students || 0;
   } catch (e) {}
 }
 async function loadAllTasks() {
-  try { const r = await axios.get("http://127.0.0.1:8000/task/list"); allTasks.value = r.data || []; } catch (e) {}
+  try { const r = await api.get("/task/list"); allTasks.value = r.data || []; } catch (e) {}
 }
 async function loadCompanyTasks() {
-  try { const r = await axios.get("http://127.0.0.1:8000/root/company-tasks"); companyTasks.value = r.data || []; } catch (e) {}
+  try { const r = await api.get("/root/company-tasks"); companyTasks.value = r.data || []; } catch (e) {}
 }
 
 // ============ 公司操作 ============
 async function createCompany() {
-  try { await axios.post("http://127.0.0.1:8000/root/companies", newCompany.value); showCreate.value = false; newCompany.value = { name: "", code: "" }; await loadCompanies(); await loadStatistics(); } catch (e) { alert(e.response?.data?.detail || "创建失败"); }
+  try { await api.post("/root/companies", newCompany.value); showCreate.value = false; newCompany.value = { name: "", code: "" }; await loadCompanies(); await loadStatistics(); } catch (e) { alert(e.response?.data?.detail || "创建失败"); }
 }
 async function changeStatus(item) {
-  try { await axios.patch(`http://127.0.0.1:8000/root/companies/${item.id}`, { status: item.status === "active" ? "inactive" : "active" }); await loadCompanies(); } catch (e) { alert(e.response?.data?.detail || "操作失败"); }
+  try { await api.patch(`/root/companies/${item.id}`, { status: item.status === "active" ? "inactive" : "active" }); await loadCompanies(); } catch (e) { alert(e.response?.data?.detail || "操作失败"); }
 }
 async function deleteCompany(item) {
   if (!confirm(`确定删除公司"${item.name}"？`)) return;
-  try { await axios.delete(`http://127.0.0.1:8000/root/companies/${item.id}`); await loadCompanies(); await loadAdmins(); await loadStatistics(); await loadCompanyTasks(); } catch (e) { alert(e.response?.data?.detail || "删除失败"); }
+  try { await api.delete(`/root/companies/${item.id}`); await loadCompanies(); await loadAdmins(); await loadStatistics(); await loadCompanyTasks(); } catch (e) { alert(e.response?.data?.detail || "删除失败"); }
 }
 
 // ============ 管理员操作 ============
 async function createAdmin() {
-  try { await axios.post("http://127.0.0.1:8000/root/admins", newAdmin.value); showAdminCreate.value = false; newAdmin.value = { username: "", password: "", company_id: null }; await loadAdmins(); await loadStatistics(); } catch (e) { alert(e.response?.data?.detail || "创建失败"); }
+  try { await api.post("/root/admins", newAdmin.value); showAdminCreate.value = false; newAdmin.value = { username: "", password: "", company_id: null }; await loadAdmins(); await loadStatistics(); } catch (e) { alert(e.response?.data?.detail || "创建失败"); }
 }
 async function deleteAdmin(admin) {
   if (!confirm(`确定删除管理员"${admin.username}"吗？`)) return;
-  try { await axios.delete(`http://127.0.0.1:8000/root/admins/${admin.id}`); await loadAdmins(); await loadStatistics(); } catch (e) { alert(e.response?.data?.detail || "删除失败"); }
+  try { await api.delete(`/root/admins/${admin.id}`); await loadAdmins(); await loadStatistics(); } catch (e) { alert(e.response?.data?.detail || "删除失败"); }
 }
 
 // ============ 训练项目操作 ============
@@ -276,9 +276,9 @@ async function saveTask() {
   if (!taskForm.title.trim()) return alert("训练名称不能为空");
   try {
     if (editingTask.value) {
-      await axios.put(`http://127.0.0.1:8000/task/${editingTask.value.id}`, { title: taskForm.title, description: taskForm.description, scene_name: taskForm.scene_name });
+      await api.put(`/task/${editingTask.value.id}`, { title: taskForm.title, description: taskForm.description, scene_name: taskForm.scene_name });
     } else {
-      await axios.post("http://127.0.0.1:8000/task/create", { title: taskForm.title, description: taskForm.description, scene_name: taskForm.scene_name });
+      await api.post("/task/create", { title: taskForm.title, description: taskForm.description, scene_name: taskForm.scene_name });
     }
     closeTaskDialog();
     await loadAllTasks();
@@ -286,7 +286,7 @@ async function saveTask() {
 }
 async function deleteTaskItem(task) {
   if (!confirm(`确定删除训练项目"${task.title}"？`)) return;
-  try { await axios.delete(`http://127.0.0.1:8000/task/${task.id}`); await loadAllTasks(); await loadCompanyTasks(); } catch (e) { alert(e.response?.data?.detail || "删除失败"); }
+  try { await api.delete(`/task/${task.id}`); await loadAllTasks(); await loadCompanyTasks(); } catch (e) { alert(e.response?.data?.detail || "删除失败"); }
 }
 
 // ============ 公司-训练项目关联 ============
@@ -301,14 +301,14 @@ function openAssignCompany(task) {
 async function doAssignCompany() {
   if (!assignCompanyId.value) return alert("请选择公司");
   try {
-    await axios.post("http://127.0.0.1:8000/root/company-tasks", { company_id: assignCompanyId.value, task_id: assigningTask.value.id });
+    await api.post("/root/company-tasks", { company_id: assignCompanyId.value, task_id: assigningTask.value.id });
     assigningTask.value = null;
     await loadCompanyTasks();
   } catch (e) { alert(e.response?.data?.detail || "分配失败"); }
 }
 async function removeCompanyTask(ct) {
   if (!confirm("确定取消此分配？")) return;
-  try { await axios.delete(`http://127.0.0.1:8000/root/company-tasks/${ct.id}`); await loadCompanyTasks(); } catch (e) { alert(e.response?.data?.detail || "操作失败"); }
+  try { await api.delete(`/root/company-tasks/${ct.id}`); await loadCompanyTasks(); } catch (e) { alert(e.response?.data?.detail || "操作失败"); }
 }
 
 // ============ 退出 ============

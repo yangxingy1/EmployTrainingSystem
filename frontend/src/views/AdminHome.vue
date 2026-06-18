@@ -198,7 +198,7 @@
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { getUsers, getAssignments, getCompanyTrainingAnalytics } from "../api/task";
-import axios from "axios";
+import api from "../api/http";
 import AssignTraining from "../components/admin/AssignTraining.vue";
 
 const router = useRouter();
@@ -270,7 +270,7 @@ function toggleGlobalTask(taskId) {
 async function openTaskLibrary() {
   selectedGlobalTasks.value = [];
   try {
-    const r = await axios.get("http://127.0.0.1:8000/task/global/list");
+    const r = await api.get("/task/global/list");
     globalTasks.value = r.data || [];
   } catch (e) {
     alert("加载总库失败");
@@ -284,7 +284,7 @@ async function addSelectedTasks() {
   let ok = 0;
   for (const tid of selectedGlobalTasks.value) {
     try {
-      await axios.post(`http://127.0.0.1:8000/task/company/${adminCompanyId}/add`, { task_id: tid });
+      await api.post(`/task/company/${adminCompanyId}/add`, { task_id: tid });
       ok++;
     } catch (e) {}
   }
@@ -305,7 +305,7 @@ async function loadDashboard() {
     assignments.value = assignmentsRes.data || [];
     analytics.value = analyticsRes.data || analytics.value;
     if (adminCompanyId) {
-      const r = await axios.get(`http://127.0.0.1:8000/task/company/${adminCompanyId}`);
+      const r = await api.get(`/task/company/${adminCompanyId}`);
       companyTasks.value = r.data || [];
     }
   } catch (e) {
