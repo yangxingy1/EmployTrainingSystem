@@ -4,7 +4,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
-
+from typing import Optional
 from backend.database import get_db
 from backend.models.task import Task
 from backend.models.task_assignment import TaskAssignment
@@ -95,8 +95,8 @@ def _legacy_sub_result(attempt: TrainingAttempt):
 def _attempt_payload(
     db: Session,
     attempt: TrainingAttempt,
-    task: Task | None = None,
-    user: User | None = None,
+    task: Optional[Task]  = None,
+    user: Optional[User] = None,
 ):
     catalog = get_sub_items(attempt.scene_name)
     rows = db.query(TrainingSubResult).filter(

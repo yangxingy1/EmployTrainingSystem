@@ -1,9 +1,0 @@
-{
-    "server_url": "http://127.0.0.1:8000",
-    "student_id": 0,
-    "username": "",
-    "token": "",
-    "poll_interval": 5,
-    "trainer_exe": "unity/main.exe",
-    "legacy_result_upload": false
-}

@@ -1,3 +1,5 @@
+from typing import Optional
+
 ALLOWED_SCENES = {
     "lead-train1": "lead-train1",
     "train2": "train2",
@@ -46,19 +48,19 @@ SCENE_SUB_ITEMS = {
 }
 
 
-def normalize_scene_name(scene_name: str | None) -> str:
+def normalize_scene_name(scene_name: Optional[str])->str:
     return (scene_name or "").strip()
 
 
-def is_allowed_scene(scene_name: str | None) -> bool:
+def is_allowed_scene(scene_name: Optional[str]) -> bool:
     return normalize_scene_name(scene_name) in ALLOWED_SCENES
 
 
-def get_sub_items(scene_name: str | None) -> list[dict]:
+def get_sub_items(scene_name: Optional[str]) -> list[dict]:
     return SCENE_SUB_ITEMS.get(normalize_scene_name(scene_name), [])
 
 
-def find_sub_item(scene_name: str | None, sub_task_id: str | None) -> dict | None:
+def find_sub_item(scene_name: Optional[str], sub_task_id: Optional[str]) -> Optional[dict]:
     clean_id = (sub_task_id or "").strip()
     for item in get_sub_items(scene_name):
         if item["sub_task_id"] == clean_id:
@@ -66,7 +68,7 @@ def find_sub_item(scene_name: str | None, sub_task_id: str | None) -> dict | Non
     return None
 
 
-def sub_task_display_name(scene_name: str | None, sub_task_id: str | None) -> str:
+def sub_task_display_name(scene_name: Optional[str], sub_task_id: Optional[str]) -> str:
     item = find_sub_item(scene_name, sub_task_id)
     if item:
         return item["name"]
