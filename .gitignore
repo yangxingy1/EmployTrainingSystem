@@ -69,6 +69,8 @@ unity/My project/[Uu]ser[Ss]ettings/
 unity/My project/[Mm]emoryCaptures/
 unity/My project/.vs
 unity/release
+launcher/*
+unity/*
 # Unity generated IDE/project files.
 *.csproj
 *.sln
@@ -86,6 +88,7 @@ unity/release
 *.ilk
 *.meta~*
 sysinfo.txt
+*.log
 
 # -----------------------------
 # Optional legacy Unity client
