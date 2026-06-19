@@ -279,7 +279,21 @@ PrefabInstance:
       value: Factory Static
       objectReference: {fileID: 0}
     m_RemovedComponents: []
-    m_RemovedGameObjects: []
+    m_RemovedGameObjects:
+    - {fileID: -4646817675913980700, guid: bf3c7940f6b71a14bb16d3023766c0e8, type: 3}
+    - {fileID: 5977296591642736692, guid: bf3c7940f6b71a14bb16d3023766c0e8, type: 3}
+    - {fileID: -8438571680648979027, guid: bf3c7940f6b71a14bb16d3023766c0e8, type: 3}
+    - {fileID: 7467294774172321048, guid: bf3c7940f6b71a14bb16d3023766c0e8, type: 3}
+    - {fileID: -4475031469009049854, guid: bf3c7940f6b71a14bb16d3023766c0e8, type: 3}
+    - {fileID: 1826291066471662012, guid: bf3c7940f6b71a14bb16d3023766c0e8, type: 3}
+    - {fileID: -4667098734688881535, guid: bf3c7940f6b71a14bb16d3023766c0e8, type: 3}
+    - {fileID: -9122213160872730655, guid: bf3c7940f6b71a14bb16d3023766c0e8, type: 3}
+    - {fileID: -1097438937398414764, guid: bf3c7940f6b71a14bb16d3023766c0e8, type: 3}
+    - {fileID: 6219963181471148315, guid: bf3c7940f6b71a14bb16d3023766c0e8, type: 3}
+    - {fileID: -7516770168620384050, guid: bf3c7940f6b71a14bb16d3023766c0e8, type: 3}
+    - {fileID: 4605976768807821795, guid: bf3c7940f6b71a14bb16d3023766c0e8, type: 3}
+    - {fileID: 5321012814683066930, guid: bf3c7940f6b71a14bb16d3023766c0e8, type: 3}
+    - {fileID: -8786666336939024699, guid: bf3c7940f6b71a14bb16d3023766c0e8, type: 3}
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: bf3c7940f6b71a14bb16d3023766c0e8, type: 3}
@@ -413,6 +427,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   backendBaseUrl: http://127.0.0.1:8000
   studentId: 0
+  attemptId: 0
+  launchSceneName: 
 --- !u!4 &989341939
 Transform:
   m_ObjectHideFlags: 0
