@@ -1,10 +1,10 @@
 {
-    "assignment_id": 3,
+    "assignment_id": 7,
     "task_id": 5,
     "status": "running",
-    "student_id": 10,
-    "username": "cjf",
-    "attempt_id": 30,
+    "student_id": 12,
+    "username": "cjf1",
+    "attempt_id": 32,
     "scene_name": "train2",
     "backend_url": "http://huidongshou.top/api"
 }

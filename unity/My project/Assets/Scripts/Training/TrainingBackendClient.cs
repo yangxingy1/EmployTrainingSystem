@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.IO;
 using UnityEngine;
 using UnityEngine.Networking;
 using UnityEngine.SceneManagement;
@@ -26,6 +27,19 @@ public class TrainingBackendClient : MonoBehaviour
         public int student_id;
         public int task_id;
         public string scene_name;
+        public string status;
+    }
+
+    [Serializable]
+    class LauncherTaskContext
+    {
+        public int student_id;
+        public int assignment_id;
+        public int task_id;
+        public int attempt_id;
+        public string scene_name;
+        public string backend_url;
+        public string username;
         public string status;
     }
 
@@ -96,6 +110,8 @@ public class TrainingBackendClient : MonoBehaviour
         if (!string.IsNullOrEmpty(sceneArg))
             launchSceneName = sceneArg;
 
+        ApplyLauncherTaskFallback();
+
         if (studentId > 0)
             PlayerPrefs.SetInt("TrainingStudentId", studentId);
 
@@ -105,6 +121,64 @@ public class TrainingBackendClient : MonoBehaviour
             _activeSceneName = SceneNameAliases.ToPublicSceneName(launchSceneName);
             Debug.Log("[TrainingBackend] Launch context loaded: student=" + studentId + ", attempt=" + attemptId + ", scene=" + launchSceneName + ", backend=" + backendBaseUrl);
         }
+    }
+
+    void ApplyLauncherTaskFallback()
+    {
+        var context = LoadLauncherTaskContext();
+        if (context == null) return;
+
+        if (string.IsNullOrEmpty(GetArg(Environment.GetCommandLineArgs(), "--backend-url")) && !string.IsNullOrEmpty(context.backend_url))
+            backendBaseUrl = context.backend_url;
+
+        if (studentId <= 0 && context.student_id > 0)
+            studentId = context.student_id;
+
+        if (attemptId <= 0 && context.attempt_id > 0)
+            attemptId = context.attempt_id;
+
+        if (string.IsNullOrEmpty(launchSceneName) && !string.IsNullOrEmpty(context.scene_name))
+            launchSceneName = context.scene_name;
+    }
+
+    LauncherTaskContext LoadLauncherTaskContext()
+    {
+        foreach (var path in LauncherTaskContextCandidates())
+        {
+            try
+            {
+                if (!File.Exists(path)) continue;
+
+                string json = File.ReadAllText(path);
+                if (string.IsNullOrWhiteSpace(json)) continue;
+
+                var context = JsonUtility.FromJson<LauncherTaskContext>(json);
+                if (context != null)
+                {
+                    Debug.Log("[TrainingBackend] Launcher task context loaded: " + path);
+                    return context;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning("[TrainingBackend] Failed to read launcher task context: " + path + " | " + ex.Message);
+            }
+        }
+
+        return null;
+    }
+
+    string[] LauncherTaskContextCandidates()
+    {
+        string dataDir = Application.dataPath;
+        string exeDir = Directory.GetParent(dataDir)?.FullName ?? dataDir;
+        string launcherDir = Directory.GetParent(exeDir)?.FullName ?? exeDir;
+
+        return new[]
+        {
+            Path.Combine(exeDir, "current_task.json"),
+            Path.Combine(launcherDir, "current_task.json")
+        };
     }
 
     void AutoLoadLaunchSceneIfRequested()

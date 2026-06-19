@@ -1,18 +1,33 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 [DisallowMultipleComponent]
 public class EntryRegTrainPortal : MonoBehaviour
 {
+    [System.Serializable]
+    public class RegularTrainingBoxBinding
+    {
+        public string targetNameContains;
+    }
+
     public string regTrainSceneName = "regTrain";
     public float interactionDistance = 32f;
     public KeyCode interactKey = KeyCode.E;
     public Vector3 portalOffsetFromPlayer = new Vector3(7.5f, 0f, 10f);
 
-    Transform _target;
+    [Header("Regular Training Boxes")]
+    [SerializeField] RegularTrainingBoxBinding[] boxBindings;
+    [SerializeField] Color highlightColor = new Color(0.18f, 0.54f, 0.88f);
+
+    readonly List<Transform> _targets = new List<Transform>();
+    Transform _nearestTarget;
     Transform _player;
+    float _nextResolveTime;
     string _statusMessage = "";
     float _statusUntil;
     bool _loading;
+    bool _resolvedBoxes;
+    bool _createdAreaLabel;
 
     void Start()
     {
@@ -24,7 +39,8 @@ public class EntryRegTrainPortal : MonoBehaviour
         if (_loading) return;
 
         _player = ResolvePlayerTransform();
-        EnsurePortal();
+        ResolveTrainingBoxes();
+        RefreshNearestTarget();
 
         if (Input.GetKeyDown(interactKey))
             TryEnterRegTrain();
@@ -35,57 +51,105 @@ public class EntryRegTrainPortal : MonoBehaviour
         var text = BuildPromptText();
         if (string.IsNullOrEmpty(text)) return;
 
-        var width = Mathf.Min(680f, Screen.width - 40f);
-        var rect = new Rect((Screen.width - width) * 0.5f, Screen.height - 174f, width, 58f);
+        var width = Mathf.Min(420f, Screen.width - 40f);
+        var rect = new Rect((Screen.width - width) * 0.5f, Screen.height - 174f, width, 48f);
         GUI.Box(rect, text);
     }
 
-    void EnsurePortal()
+    void ResolveTrainingBoxes()
     {
-        if (_target != null) return;
+        if (_resolvedBoxes) return;
+        if (Time.time < _nextResolveTime) return;
 
-        var existing = GameObject.Find("Regular Training Entry");
-        if (existing != null)
+        _nextResolveTime = Time.time + 0.35f;
+
+        var bindings = GetBoxBindings();
+        var renderers = FindObjectsOfType<Renderer>();
+        foreach (var binding in bindings)
         {
-            _target = existing.transform;
-            return;
+            if (binding == null || string.IsNullOrWhiteSpace(binding.targetNameContains))
+                continue;
+
+            var renderer = FindRenderer(renderers, binding.targetNameContains);
+            if (renderer == null)
+                continue;
+
+            if (!_targets.Contains(renderer.transform))
+            {
+                _targets.Add(renderer.transform);
+                CreateMarker(renderer.transform, binding.targetNameContains, !_createdAreaLabel);
+                _createdAreaLabel = true;
+            }
         }
 
-        var root = new GameObject("Regular Training Entry");
-        var basePosition = _player != null ? _player.position : Vector3.zero;
-        root.transform.position = basePosition + portalOffsetFromPlayer;
-        _target = root.transform;
+        _resolvedBoxes = _targets.Count >= bindings.Length;
+    }
 
-        var pillar = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        pillar.name = "Regular Training Entry Highlight";
-        pillar.transform.SetParent(root.transform, false);
-        pillar.transform.localPosition = new Vector3(0f, 1.25f, 0f);
-        pillar.transform.localScale = new Vector3(4.4f, 2.5f, 0.32f);
-        SetColor(pillar, new Color(0.18f, 0.54f, 0.88f));
+    RegularTrainingBoxBinding[] GetBoxBindings()
+    {
+        if (boxBindings != null && boxBindings.Length > 0)
+            return boxBindings;
 
-        var labelGo = new GameObject("Regular Training Entry Label");
-        labelGo.transform.SetParent(root.transform, false);
-        labelGo.transform.localPosition = new Vector3(0f, 2.85f, -0.22f);
-        var label = labelGo.AddComponent<TextMesh>();
-        label.text = "按 E 进入常规训练区";
-        label.anchor = TextAnchor.MiddleCenter;
-        label.alignment = TextAlignment.Center;
-        label.fontSize = 48;
-        label.characterSize = 0.16f;
-        label.color = Color.white;
+        return new[]
+        {
+            new RegularTrainingBoxBinding { targetNameContains = "9g2pd_133" },
+            new RegularTrainingBoxBinding { targetNameContains = "9g2pd_132" },
+            new RegularTrainingBoxBinding { targetNameContains = "9g2pd_128" },
+            new RegularTrainingBoxBinding { targetNameContains = "9g2pd_129" }
+        };
+    }
+
+    static Renderer FindRenderer(Renderer[] renderers, string nameContains)
+    {
+        foreach (var renderer in renderers)
+        {
+            if (renderer == null) continue;
+            if (!renderer.name.StartsWith("Image Overlay -")) continue;
+            if (renderer.name.Contains(nameContains))
+                return renderer;
+        }
+
+        foreach (var renderer in renderers)
+        {
+            if (renderer == null) continue;
+            if (renderer.name.StartsWith("Regular Training Entry")) continue;
+            if (renderer.name.Contains(nameContains))
+                return renderer;
+        }
+
+        return null;
+    }
+
+    void RefreshNearestTarget()
+    {
+        _nearestTarget = null;
+        if (_player == null || _targets.Count == 0) return;
+
+        var bestDistance = float.MaxValue;
+        foreach (var target in _targets)
+        {
+            if (target == null) continue;
+
+            var distance = HorizontalDistance(_player.position, target.position);
+            if (distance > interactionDistance || distance >= bestDistance)
+                continue;
+
+            bestDistance = distance;
+            _nearestTarget = target;
+        }
     }
 
     void TryEnterRegTrain()
     {
-        if (_target == null)
+        if (_targets.Count == 0)
         {
-            ShowStatus("正在初始化常规训练入口，请稍后再试。", 1.4f);
+            ShowStatus("正在初始化常规训练区。", 1.4f);
             return;
         }
 
-        if (!IsPlayerNearTarget())
+        if (_nearestTarget == null)
         {
-            ShowStatus("请先靠近“常规训练区”入口。", 1.4f);
+            ShowStatus("常规训练区", 1.4f);
             return;
         }
 
@@ -96,19 +160,9 @@ public class EntryRegTrainPortal : MonoBehaviour
         session.returnSceneName = "entry";
 
         _loading = true;
-        ShowStatus("正在进入常规训练区...", 0.8f);
-        Debug.Log("[EntryRegTrainPortal] Enter " + regTrainSceneName);
+        ShowStatus("常规训练区", 0.8f);
+        Debug.Log("[EntryRegTrainPortal] Enter " + regTrainSceneName + " from " + _nearestTarget.name);
         SceneFlow.EnsureExists().LoadScene(regTrainSceneName);
-    }
-
-    bool IsPlayerNearTarget()
-    {
-        if (_player == null || _target == null) return false;
-        var playerPosition = _player.position;
-        var targetPosition = _target.position;
-        playerPosition.y = 0f;
-        targetPosition.y = 0f;
-        return Vector3.Distance(playerPosition, targetPosition) <= interactionDistance;
     }
 
     string BuildPromptText()
@@ -116,10 +170,18 @@ public class EntryRegTrainPortal : MonoBehaviour
         if (Time.time < _statusUntil && !string.IsNullOrEmpty(_statusMessage))
             return _statusMessage;
 
-        if (_target == null) return "";
-        if (!IsPlayerNearTarget()) return "";
+        return _nearestTarget == null ? "" : "常规训练区";
+    }
 
-        return "按 E 进入：常规训练区";
+    void CreateMarker(Transform target, string label, bool createLabel)
+    {
+        var markerRoot = new GameObject("Regular Training Entry Marker - " + label);
+        markerRoot.transform.SetParent(target, false);
+        markerRoot.transform.localPosition = new Vector3(0f, 1.75f, -0.05f);
+
+        if (!createLabel) return;
+
+        CreateStyledLabel(markerRoot.transform, "常规训练区", Color.white);
     }
 
     void ShowStatus(string message, float seconds)
@@ -139,6 +201,13 @@ public class EntryRegTrainPortal : MonoBehaviour
         return Camera.main != null ? Camera.main.transform : transform;
     }
 
+    static float HorizontalDistance(Vector3 a, Vector3 b)
+    {
+        a.y = 0f;
+        b.y = 0f;
+        return Vector3.Distance(a, b);
+    }
+
     static void SetColor(GameObject go, Color color)
     {
         var renderer = go.GetComponent<Renderer>();
@@ -147,5 +216,26 @@ public class EntryRegTrainPortal : MonoBehaviour
         var mat = renderer.material;
         mat.color = color;
         if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", color);
+    }
+
+    static void CreateStyledLabel(Transform parent, string text, Color color)
+    {
+        CreateLabelLayer(parent, text, new Vector3(0.035f, -0.035f, 0.012f), Color.black, 0.165f);
+        CreateLabelLayer(parent, text, Vector3.zero, color, 0.155f);
+    }
+
+    static void CreateLabelLayer(Transform parent, string text, Vector3 localPosition, Color color, float characterSize)
+    {
+        var labelGo = new GameObject("Regular Training Entry Label");
+        labelGo.transform.SetParent(parent, false);
+        labelGo.transform.localPosition = localPosition;
+        var label = labelGo.AddComponent<TextMesh>();
+        label.text = text;
+        label.anchor = TextAnchor.MiddleCenter;
+        label.alignment = TextAlignment.Center;
+        label.fontSize = 42;
+        label.characterSize = characterSize;
+        label.fontStyle = FontStyle.Bold;
+        label.color = color;
     }
 }

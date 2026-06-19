@@ -1,7 +1,5 @@
 import axios from "axios";
-
-export const LAUNCHER_API = "http://127.0.0.1:9000";
-export const BACKEND_API = "http://60.205.176.200:8000";
+import { BACKEND_API, LAUNCHER_API } from "./config";
 
 const launcher = axios.create({
   baseURL: LAUNCHER_API,

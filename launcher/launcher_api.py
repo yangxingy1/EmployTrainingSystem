@@ -116,6 +116,15 @@ def start(data: StartTrainingRequest):
 def start_entry(data: StartEntryRequest):
     config = load_config()
     backend_url = data.backend_url or config.get("server_url")
+    save_task(
+        0,
+        0,
+        status="entry",
+        student_id=data.student_id,
+        username=data.username,
+        scene_name="entry",
+        backend_url=backend_url,
+    )
     exe_abs = resolve_trainer_exe(config)
     return start_training(
         exe_abs,

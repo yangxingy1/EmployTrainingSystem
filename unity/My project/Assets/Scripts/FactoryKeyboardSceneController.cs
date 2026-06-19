@@ -409,8 +409,12 @@ public class FactoryKeyboardSceneController : MonoBehaviour
         {
             CreateDefaultOverlay("9g2pd_142", "HubPics/70e19bf7-8ef7-4064-89f9-dedc0045dab3"),
             CreateDefaultOverlay("9g2pd_141", "HubPics/808aafb0-5189-4670-9f70-286eec3d3607"),
-            CreateDefaultOverlay("9g2pd_145", "HubPics/b97801c0-ce09-4d2d-8e2f-bfd248407f57"),
+            CreateDefaultOverlay("9g2pd_144", "HubPics/b97801c0-ce09-4d2d-8e2f-bfd248407f57"),
             CreateDefaultOverlay("9g2pd_146", "HubPics/f9e6b115-be42-4518-89cb-121dd70135ce"),
+            CreateDefaultOverlay("9g2pd_133", "HubPics/reg1"),
+            CreateDefaultOverlay("9g2pd_132", "HubPics/reg2"),
+            CreateDefaultOverlay("9g2pd_128", "HubPics/reg3"),
+            CreateDefaultOverlay("9g2pd_129", "HubPics/reg4"),
             CreateDefaultOverlay("9g2pd_941", "HubPics/info1"),
             CreateFixedSurfaceOverlay("9g2pd_943", "HubPics/info3", OverlaySurface.Left),
             CreateFixedSurfaceOverlay("9g2pd_944", "HubPics/info4", OverlaySurface.Left),
