@@ -11,7 +11,7 @@ else:
 CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
 
 DEFAULT_CONFIG = {
-    "server_url": "http://127.0.0.1:8000",
+    "server_url": "http://60.205.176.200:8000",
     "student_id": 0,
     "username": "",
     "token": "",

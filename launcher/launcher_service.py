@@ -120,7 +120,12 @@ def start_training_with_task(assignment_id, task_id):
     config = load_config()
 
     start_training(
-        config["trainer_exe"]
+        config["trainer_exe"],
+        {
+            "assignment_id": assignment_id,
+            "task_id": task_id,
+            "backend_url": config.get("server_url"),
+        },
     )
 
 
