@@ -322,6 +322,17 @@ def create_admin(data: AdminCreate, db: Session = Depends(get_db)):
     return {"success": True, "message": "管理员创建成功"}
 
 
+@app.patch("/root/admins/{admin_id}/reset-password")
+def reset_admin_password(admin_id: int, db: Session = Depends(get_db)):
+    """Root reset an admin password to the default value: 123."""
+    admin = db.query(User).filter(User.id == admin_id, User.role == "admin").first()
+    if not admin:
+        raise HTTPException(status_code=404, detail="管理员不存在")
+    admin.password = hash_password("123")
+    db.commit()
+    return {"success": True, "message": "管理员密码已重置为123"}
+
+
 @app.delete("/root/admins/{admin_id}")
 def delete_admin(admin_id: int, db: Session = Depends(get_db)):
     """Root 删除管理员"""

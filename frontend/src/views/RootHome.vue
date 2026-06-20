@@ -70,7 +70,10 @@
           <tbody>
             <tr v-for="item in admins" :key="item.id">
               <td>{{ item.id }}</td><td>{{ item.username }}</td><td>{{ item.company_name }}</td>
-              <td><button class="danger-btn" @click="deleteAdmin(item)">删除</button></td>
+              <td>
+                <button class="action-btn" @click="resetAdminPassword(item)">重置密码</button>
+                <button class="danger-btn" @click="deleteAdmin(item)">删除</button>
+              </td>
             </tr>
           </tbody>
         </table>
@@ -256,6 +259,15 @@ async function createAdmin() {
 async function deleteAdmin(admin) {
   if (!confirm(`确定删除管理员"${admin.username}"吗？`)) return;
   try { await api.delete(`/root/admins/${admin.id}`); await loadAdmins(); await loadStatistics(); } catch (e) { alert(e.response?.data?.detail || "删除失败"); }
+}
+async function resetAdminPassword(admin) {
+  if (!confirm(`确定将管理员"${admin.username}"的密码重置为 123 吗？`)) return;
+  try {
+    await api.patch(`/root/admins/${admin.id}/reset-password`);
+    alert("密码已重置为 123");
+  } catch (e) {
+    alert(e.response?.data?.detail || "重置失败");
+  }
 }
 
 // ============ 训练项目操作 ============
