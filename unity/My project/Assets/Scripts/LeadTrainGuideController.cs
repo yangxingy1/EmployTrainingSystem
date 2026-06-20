@@ -23,6 +23,7 @@ public class LeadTrainGuideController : MonoBehaviour
     public KeyCode gestureTrainingKey = KeyCode.T;
 
     [Header("Screen GUI")]
+    public string heightAdjustHint = TrainingNavigationShortcuts.HeightAdjustHint;
     public string entryInstruction = "设备交互（回车）   E 引导式教学   T 手势训练";
     public Color panelBackgroundColor = new Color(0.55f, 0.82f, 1f, 0.78f);
     public Color panelTextColor = new Color(0.06f, 0.14f, 0.26f, 1f);
@@ -126,6 +127,13 @@ public class LeadTrainGuideController : MonoBehaviour
     IEnumerator Start()
     {
         yield return null;
+        LeadTrainRegularTrainingController.EnsureExists();
+
+        if (_factoryController != null)
+        {
+            _factoryController.RepositionCameraToTrainingDevice();
+        }
+
         _player = ResolvePlayerTransform();
         EnsureMovementAvatar();
         CacheStepMachineTransforms();
@@ -188,6 +196,8 @@ public class LeadTrainGuideController : MonoBehaviour
         _player = ResolvePlayerTransform();
         EnsureMovementAvatar();
         UpdateGuideVisuals();
+
+        TrainingNavigationShortcuts.HandleCtrlQ();
 
         if (_gestureTrainingStarted)
         {
@@ -591,9 +601,18 @@ public class LeadTrainGuideController : MonoBehaviour
     void DrawEntryPanel()
     {
         EnsurePanelStyle();
-        const float height = 64f;
+        const float lineHeight = 22f;
+        const int lineCount = 3;
+        float height = lineCount * lineHeight + 24f;
         Rect rect = BuildTopRightRect(height);
-        GUI.Box(rect, entryInstruction, _panelStyle);
+        GUI.Box(rect, BuildEntryPanelText(), _panelStyle);
+    }
+
+    string BuildEntryPanelText()
+    {
+        return heightAdjustHint + "\n"
+            + TrainingNavigationShortcuts.GetCtrlQHint() + "\n"
+            + entryInstruction;
     }
 
     void DrawPostInteractPanel(string message)
@@ -643,7 +662,7 @@ public class LeadTrainGuideController : MonoBehaviour
                 wordWrap = true,
                 fontSize = panelFontSize,
                 fontStyle = FontStyle.Bold,
-                alignment = TextAnchor.MiddleCenter,
+                alignment = TextAnchor.UpperLeft,
                 richText = true
             };
             _panelStyle.normal.textColor = panelTextColor;
@@ -695,13 +714,22 @@ public class LeadTrainGuideController : MonoBehaviour
 
         yield return guidedSequence;
 
+        int completedStepIndex = _currentStepIndex;
+        GuideStep completedStep = steps[completedStepIndex];
         _currentStepIndex++;
         _demoRunning = false;
         _postInteractPrompt = null;
 
+        LeadTrainRegularTrainingController regularTraining = FindObjectOfType<LeadTrainRegularTrainingController>();
+        if (regularTraining != null && completedStep != null)
+        {
+            regularTraining.NotifyGuideStepCompleted(completedStep.machineObjectName);
+        }
+
         if (_currentStepIndex >= steps.Length)
         {
             _guideCompleted = true;
+            regularTraining?.NotifyGuideFlowCompleted();
             HideGuideVisuals();
             yield break;
         }

@@ -12,6 +12,7 @@ public class TrainingBackendClient : MonoBehaviour
     public string backendBaseUrl = "http://127.0.0.1:8000";
     public int studentId = 0;
     public int attemptId = 0;
+    public int assignmentId = 0;
     public string launchSceneName = "";
 
     int _activeAttemptId;
@@ -22,6 +23,24 @@ public class TrainingBackendClient : MonoBehaviour
     class ActiveAttemptResponse
     {
         public bool active;
+        public int attempt_id;
+        public int assignment_id;
+        public int student_id;
+        public int task_id;
+        public string scene_name;
+        public string status;
+    }
+
+    [Serializable]
+    class StartAttemptRequest
+    {
+        public int student_id;
+        public int assignment_id;
+    }
+
+    [Serializable]
+    class StartAttemptResponse
+    {
         public int attempt_id;
         public int assignment_id;
         public int student_id;
@@ -107,10 +126,20 @@ public class TrainingBackendClient : MonoBehaviour
         if (int.TryParse(attemptArg, out int parsedAttemptId))
             attemptId = parsedAttemptId;
 
+        string assignmentArg = GetArg(args, "--assignment-id");
+        if (int.TryParse(assignmentArg, out int parsedAssignmentId))
+            assignmentId = parsedAssignmentId;
+
         if (!string.IsNullOrEmpty(sceneArg))
             launchSceneName = sceneArg;
 
         ApplyLauncherTaskFallback();
+
+        if (!string.IsNullOrEmpty(launchSceneName)
+            && SceneNameAliases.IsLeadTrainScene(SceneNameAliases.ToPublicSceneName(launchSceneName)))
+        {
+            FactoryOneSceneController.ClearOneShotStartCameraReturnOverride();
+        }
 
         if (studentId > 0)
             PlayerPrefs.SetInt("TrainingStudentId", studentId);
@@ -137,8 +166,75 @@ public class TrainingBackendClient : MonoBehaviour
         if (attemptId <= 0 && context.attempt_id > 0)
             attemptId = context.attempt_id;
 
+        if (assignmentId <= 0 && context.assignment_id > 0)
+            assignmentId = context.assignment_id;
+
         if (string.IsNullOrEmpty(launchSceneName) && !string.IsNullOrEmpty(context.scene_name))
             launchSceneName = context.scene_name;
+    }
+
+    public bool HasActiveAttemptForScene(string sceneName)
+    {
+        string normalized = SceneNameAliases.ToPublicSceneName(sceneName);
+        return _activeAttemptId > 0 && _activeSceneName == normalized;
+    }
+
+    public IEnumerator StartTrainingAttemptRoutine(int sid, int aid)
+    {
+        if (sid <= 0 || aid <= 0)
+        {
+            Debug.LogWarning("[TrainingBackend] Skip start attempt: invalid student_id or assignment_id.");
+            yield break;
+        }
+
+        string url = backendBaseUrl.TrimEnd('/') + "/training/start";
+        var payload = new StartAttemptRequest
+        {
+            student_id = sid,
+            assignment_id = aid
+        };
+        string json = JsonUtility.ToJson(payload);
+        byte[] body = System.Text.Encoding.UTF8.GetBytes(json);
+        Debug.Log("[TrainingBackend] Start attempt: " + url + " | " + json);
+
+        using (UnityWebRequest request = new UnityWebRequest(url, "POST"))
+        {
+            request.uploadHandler = new UploadHandlerRaw(body);
+            request.downloadHandler = new DownloadHandlerBuffer();
+            request.SetRequestHeader("Content-Type", "application/json");
+            yield return request.SendWebRequest();
+
+            if (request.result != UnityWebRequest.Result.Success)
+            {
+                Debug.LogWarning("[TrainingBackend] Start attempt failed: "
+                    + request.responseCode
+                    + " | "
+                    + request.error
+                    + " | "
+                    + request.downloadHandler.text);
+                yield break;
+            }
+
+            var response = JsonUtility.FromJson<StartAttemptResponse>(request.downloadHandler.text);
+            if (response == null || response.attempt_id <= 0)
+            {
+                Debug.LogWarning("[TrainingBackend] Start attempt returned invalid payload: " + request.downloadHandler.text);
+                yield break;
+            }
+
+            studentId = sid;
+            assignmentId = aid;
+            attemptId = response.attempt_id;
+            _activeAttemptId = response.attempt_id;
+            _activeSceneName = SceneNameAliases.ToPublicSceneName(response.scene_name);
+            PlayerPrefs.SetInt("TrainingStudentId", sid);
+            Debug.Log("[TrainingBackend] Attempt started: #"
+                + _activeAttemptId
+                + " scene="
+                + _activeSceneName
+                + " assignment="
+                + aid);
+        }
     }
 
     LauncherTaskContext LoadLauncherTaskContext()
@@ -191,13 +287,13 @@ public class TrainingBackendClient : MonoBehaviour
         string targetScene = SceneNameAliases.ToPublicSceneName(launchSceneName);
         if (!IsLauncherTrainingScene(targetScene)) return;
 
+        if (SceneNameAliases.IsLeadTrainScene(targetScene))
+            FactoryOneSceneController.ClearOneShotStartCameraReturnOverride();
+
         string activeScene = SceneNameAliases.ToPublicSceneName(SceneManager.GetActiveScene().name);
         if (activeScene == targetScene) return;
 
         Debug.Log("[TrainingBackend] Auto loading launch scene: " + targetScene);
-        if (SceneNameAliases.IsLeadTrainScene(targetScene))
-            FactoryOneSceneController.ClearOneShotStartCameraReturnOverride();
-
         SceneFlow.EnsureExists().LoadScene(targetScene);
     }
 
@@ -269,12 +365,13 @@ public class TrainingBackendClient : MonoBehaviour
     IEnumerator PullActiveAttemptRoutine(int sid, string sceneName)
     {
         string url = backendBaseUrl.TrimEnd('/') + "/training/active?student_id=" + sid + "&scene_name=" + UnityWebRequest.EscapeURL(sceneName);
+        Debug.Log("[TrainingBackend] Pull active attempt: " + url);
         using (UnityWebRequest request = UnityWebRequest.Get(url))
         {
             yield return request.SendWebRequest();
             if (request.result != UnityWebRequest.Result.Success)
             {
-                Debug.LogWarning("[TrainingBackend] Pull active attempt failed: " + request.error);
+                Debug.LogWarning("[TrainingBackend] Pull active attempt failed: " + request.responseCode + " | " + request.error + " | " + request.downloadHandler.text);
                 yield break;
             }
 
@@ -312,6 +409,7 @@ public class TrainingBackendClient : MonoBehaviour
         string json = JsonUtility.ToJson(payload);
         byte[] body = System.Text.Encoding.UTF8.GetBytes(json);
         string url = backendBaseUrl.TrimEnd('/') + "/training/result";
+        Debug.Log("[TrainingBackend] Upload report: " + url + " | " + json);
         using (UnityWebRequest request = new UnityWebRequest(url, "POST"))
         {
             request.uploadHandler = new UploadHandlerRaw(body);
@@ -321,11 +419,11 @@ public class TrainingBackendClient : MonoBehaviour
 
             if (request.result != UnityWebRequest.Result.Success)
             {
-                Debug.LogWarning("[TrainingBackend] Upload report failed: " + request.error + " | " + request.downloadHandler.text);
+                Debug.LogWarning("[TrainingBackend] Upload report failed: " + request.responseCode + " | " + request.error + " | " + request.downloadHandler.text);
                 yield break;
             }
 
-            Debug.Log("[TrainingBackend] Training report uploaded: attempt #" + attemptId);
+            Debug.Log("[TrainingBackend] Training report uploaded: attempt #" + attemptId + " | " + request.downloadHandler.text);
         }
     }
 }

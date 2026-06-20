@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 
 #if UNITY_EDITOR
@@ -9,7 +10,8 @@ public sealed class FactoryOneSceneController : MonoBehaviour
 {
     public const string StaticFactoryName = "Factory 1 Static";
     public const string DefaultFactoryAssetPath = "Assets/Factory/LimeExp_1.FBX";
-    public const float KnownGoodStartCameraWorldHeight = -71.32077f;
+    // Legacy editor-tuned value; device-ground alignment takes precedence at runtime.
+    public const float KnownGoodStartCameraWorldHeight = -85.59f;
     public const string OneShotStartCameraWorldHeightKey = "LeadTrain.OneShotStartCameraWorldHeight";
     public const string OneShotStartCameraPoseKey = "LeadTrain.OneShotStartCameraPose";
 
@@ -21,13 +23,17 @@ public sealed class FactoryOneSceneController : MonoBehaviour
 
     [Header("View")]
     public Camera playerCamera;
+    [Tooltip("优先使用该 Transform 定位出生点；留空则自动查找场景中的训练设备。")]
+    public Transform trainingSpawnDevice;
     public float eyeHeight = 1.7f;
     public float cameraHeightOffset;
-    public bool useFixedStartCameraWorldHeight = true;
+    public bool useFixedStartCameraWorldHeight;
     public bool forceKnownGoodStartCameraWorldHeight;
     public float startCameraWorldHeight = KnownGoodStartCameraWorldHeight;
     public float startDistanceRatio = 0.22f;
     public float startGroundClearance = 0.15f;
+    [Tooltip("进入 leadTrain1 时，与首台设备（配电柜）的水平距离，需大于引导交互距离才能显示引导线。")]
+    public float leadTrainFirstMachineSpawnDistance = 52f;
 
     [Header("Movement")]
     [Tooltip("为 false 时 E 键不再用于上升，便于引导场景用 E 与设备交互。仍可用 PageUp/Q 调整高度。")]
@@ -56,11 +62,39 @@ public sealed class FactoryOneSceneController : MonoBehaviour
     private static Vector3 _cachedCameraWorldPosition;
     private static Quaternion _cachedCameraWorldRotation;
 
+    private bool _pendingGestureReturnPose;
+    private bool _initialPlacementDone;
+
     private void Start()
     {
+        StartCoroutine(StartRoutine());
+    }
+
+    private IEnumerator StartRoutine()
+    {
+        _pendingGestureReturnPose = _hasOneShotStartCameraPose;
+
         ResolveFactory();
         EnsureCameraRig();
+
+        const int maxPlacementAttempts = 12;
+        for (int attempt = 0; attempt < maxPlacementAttempts; attempt++)
+        {
+            if (TryResolveLocalTrainingDeviceRoot(out _))
+            {
+                break;
+            }
+
+            yield return null;
+        }
+
         PlaceCameraForFactory();
+        yield return null;
+        yield return new WaitForFixedUpdate();
+        FinalizeInitialCameraPlacement("PostPhysics");
+
+        _initialPlacementDone = true;
+
         LogCameraHeight("Start");
 
         if (lockCursorOnPlay)
@@ -68,6 +102,18 @@ public sealed class FactoryOneSceneController : MonoBehaviour
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;
         }
+    }
+
+    public void RepositionCameraToTrainingDevice()
+    {
+        if (_pendingGestureReturnPose)
+        {
+            return;
+        }
+
+        PlaceCameraForFactory();
+        FinalizeInitialCameraPlacement("Manual Reposition");
+        LogCameraHeight("Reposition");
     }
 
     private void Update()
@@ -85,7 +131,10 @@ public sealed class FactoryOneSceneController : MonoBehaviour
         if (factoryInstance != null)
         {
             sceneFactoryRoot = factoryInstance;
-            PrepareFactoryInstance();
+            if (spawnFactoryAtRuntime)
+            {
+                PrepareFactoryInstance();
+            }
             return;
         }
 
@@ -161,11 +210,22 @@ public sealed class FactoryOneSceneController : MonoBehaviour
 
         if (playerCamera == null)
         {
+            GameObject sceneCameraObject = GameObject.Find("Main Camera");
+            if (sceneCameraObject != null)
+            {
+                playerCamera = sceneCameraObject.GetComponent<Camera>();
+            }
+        }
+
+        if (playerCamera == null)
+        {
             GameObject cameraObject = new GameObject("Factory First Person Camera");
             playerCamera = cameraObject.AddComponent<Camera>();
             cameraObject.AddComponent<AudioListener>();
             cameraObject.tag = "MainCamera";
         }
+
+        DisableExtraCameras();
 
         playerCamera.transform.SetParent(cameraRig, false);
         playerCamera.transform.localPosition = Vector3.up * actualEyeHeight;
@@ -178,37 +238,334 @@ public sealed class FactoryOneSceneController : MonoBehaviour
         cameraRig.rotation = Quaternion.Euler(0f, euler.y, 0f);
     }
 
+    private void DisableExtraCameras()
+    {
+        Camera[] cameras = FindObjectsOfType<Camera>(true);
+        for (int i = 0; i < cameras.Length; i++)
+        {
+            Camera cam = cameras[i];
+            if (cam == null || cam == playerCamera)
+            {
+                continue;
+            }
+
+            cam.enabled = false;
+            AudioListener listener = cam.GetComponent<AudioListener>();
+            if (listener != null)
+            {
+                listener.enabled = false;
+            }
+        }
+
+        if (playerCamera != null)
+        {
+            playerCamera.enabled = true;
+            AudioListener activeListener = playerCamera.GetComponent<AudioListener>();
+            if (activeListener == null)
+            {
+                activeListener = playerCamera.gameObject.AddComponent<AudioListener>();
+            }
+
+            activeListener.enabled = true;
+        }
+    }
+
     private void PlaceCameraForFactory()
     {
+        if (_pendingGestureReturnPose && TryApplyOneShotStartCameraPose(true))
+        {
+            _pendingGestureReturnPose = false;
+            return;
+        }
+
+        _pendingGestureReturnPose = false;
+
+        if (TryComputeLeadTrainEntrySpawn(out Vector3 rigPosition, out Vector3 lookTarget))
+        {
+            PlaceCameraAtLeadTrainEntry(rigPosition, lookTarget);
+            return;
+        }
+
+        if (TryResolveLeadTrainMachinesCentroid(out Vector3 centroid))
+        {
+            PlaceCameraNearAnchor(centroid, centroid);
+            return;
+        }
+
+        if (TryResolveLocalTrainingDeviceRoot(out GameObject deviceRoot))
+        {
+            PlaceCameraNearTrainingDevice(deviceRoot);
+            return;
+        }
+
+        Debug.LogWarning("[FactoryOne] Training device not found. Falling back to factory bounds or default spawn.");
+
         if (factoryInstance == null || !TryGetRenderBounds(factoryInstance, out Bounds bounds))
         {
-            cameraRig.position = new Vector3(0f, 2f, -10f);
-            cameraRig.rotation = Quaternion.identity;
-            TryApplyOneShotStartCameraPose(false);
+            ApplyRigWorldPosition(ResolveFallbackStartPosition(), Quaternion.identity, ActualEyeHeight, null);
             return;
         }
 
         float distance = Mathf.Clamp(bounds.extents.magnitude * startDistanceRatio, 12f, desiredFactorySize * 0.35f);
         Vector3 start = bounds.center - Vector3.forward * distance;
-        start.y = bounds.min.y + startGroundClearance;
+        start.y = ResolveStartRigWorldY(bounds);
 
-        cameraRig.position = start;
         float cameraWorldHeight = ResolveStartCameraWorldHeight(start.y, bounds);
-        playerCamera.transform.localPosition = Vector3.up * (cameraWorldHeight - start.y);
+        ApplyRigWorldPosition(start, Quaternion.identity, cameraWorldHeight - start.y, bounds.center, cameraWorldHeight);
+    }
 
-        Vector3 lookTarget = bounds.center;
-        lookTarget.y = cameraWorldHeight;
-        cameraRig.LookAt(lookTarget);
-        cameraRig.rotation = Quaternion.Euler(0f, cameraRig.eulerAngles.y, 0f);
+    private void FinalizeInitialCameraPlacement(string reason)
+    {
+        if (_pendingGestureReturnPose)
+        {
+            return;
+        }
+
+        Vector3 anchor;
+        Vector3 lookTarget;
+        if (TryComputeLeadTrainEntrySpawn(out Vector3 rigPosition, out lookTarget))
+        {
+            anchor = rigPosition;
+        }
+        else if (TryResolveLeadTrainMachinesCentroid(out Vector3 centroid))
+        {
+            anchor = centroid;
+            lookTarget = centroid;
+        }
+        else if (TryResolveLocalTrainingDeviceRoot(out GameObject deviceRoot))
+        {
+            anchor = deviceRoot.transform.position;
+            lookTarget = anchor;
+        }
+        else
+        {
+            return;
+        }
+
+        float expectedCameraY = ResolveDeviceAlignedCameraWorldHeight(anchor);
+        float currentCameraY = playerCamera != null ? playerCamera.transform.position.y : float.NaN;
+        if (!IsValidHeight(currentCameraY) || Mathf.Abs(currentCameraY - expectedCameraY) > 1.5f)
+        {
+            Debug.LogWarning(
+                $"[FactoryOne] Camera height mismatch after {reason}: current={currentCameraY:F3}, expected={expectedCameraY:F3}. Re-snapping.");
+            if (TryComputeLeadTrainEntrySpawn(out Vector3 retryRig, out Vector3 retryLook))
+            {
+                PlaceCameraAtLeadTrainEntry(retryRig, retryLook);
+            }
+            else if (TryResolveLeadTrainMachinesCentroid(out Vector3 recentroid))
+            {
+                PlaceCameraNearAnchor(recentroid, recentroid);
+            }
+            else if (TryResolveLocalTrainingDeviceRoot(out GameObject retryDevice))
+            {
+                PlaceCameraNearTrainingDevice(retryDevice);
+            }
+        }
+    }
+
+    private void PlaceCameraNearTrainingDevice(GameObject deviceRoot)
+    {
+        PlaceCameraNearAnchor(deviceRoot.transform.position, deviceRoot.transform.position);
+    }
+
+    private void PlaceCameraNearAnchor(Vector3 anchorPosition, Vector3 lookTarget)
+    {
+        float groundY = SampleGroundY(anchorPosition);
+        float rigY = groundY + startGroundClearance;
+        float cameraWorldHeight = rigY + ActualEyeHeight;
+
+        Vector3 start = new Vector3(anchorPosition.x, rigY, anchorPosition.z - 12f);
+        ApplyRigWorldPosition(start, null, ActualEyeHeight, lookTarget, cameraWorldHeight);
+
+        Debug.Log(
+            $"Factory Camera [Anchor Aligned]: anchor=({anchorPosition.x:F2}, {anchorPosition.z:F2}), groundY={groundY:F3}, rigY={rigY:F3}, cameraY={cameraWorldHeight:F3}");
+    }
+
+    private void PlaceCameraAtLeadTrainEntry(Vector3 rigPosition, Vector3 lookTarget)
+    {
+        float groundY = SampleGroundY(rigPosition);
+        float rigY = groundY + startGroundClearance;
+        float cameraWorldHeight = rigY + ActualEyeHeight;
+        Vector3 start = new Vector3(rigPosition.x, rigY, rigPosition.z);
+        ApplyRigWorldPosition(start, null, ActualEyeHeight, lookTarget, cameraWorldHeight);
+
+        Debug.Log(
+            $"Factory Camera [LeadTrain Entry]: rig=({start.x:F2}, {start.z:F2}), look=({lookTarget.x:F2}, {lookTarget.z:F2}), cameraY={cameraWorldHeight:F3}");
+    }
+
+    private bool TryComputeLeadTrainEntrySpawn(out Vector3 rigPosition, out Vector3 lookTarget)
+    {
+        rigPosition = Vector3.zero;
+        lookTarget = Vector3.zero;
+
+        if (!TryResolveLeadTrainMachinesCentroid(out Vector3 centroid))
+        {
+            return false;
+        }
+
+        GameObject firstMachine = GameObject.Find(ElectricalControlCabinetBuilder.StaticCabinetName);
+        if (!IsValidDeviceRoot(firstMachine))
+        {
+            return false;
+        }
+
+        float groundY = SampleGroundY(centroid);
+        float rigY = groundY + startGroundClearance;
+        Vector3 flatCentroid = new Vector3(centroid.x, rigY, centroid.z);
+        Vector3 flatFirst = new Vector3(firstMachine.transform.position.x, rigY, firstMachine.transform.position.z);
+
+        Vector3 awayFromFirst = flatCentroid - flatFirst;
+        if (awayFromFirst.sqrMagnitude < 4f)
+        {
+            awayFromFirst = new Vector3(0f, 0f, -1f);
+        }
+
+        awayFromFirst.Normalize();
+        float spawnDistance = Mathf.Max(leadTrainFirstMachineSpawnDistance, 12f);
+        Vector3 flatSpawn = flatFirst + awayFromFirst * spawnDistance;
+        rigPosition = new Vector3(flatSpawn.x, rigY, flatSpawn.z);
+        lookTarget = flatFirst;
+        return true;
+    }
+
+    private static bool TryResolveLeadTrainMachinesCentroid(out Vector3 centroid)
+    {
+        centroid = Vector3.zero;
+
+        string[] machineNames =
+        {
+            ElectricalControlCabinetBuilder.StaticCabinetName,
+            BreakerShutdownStationBuilder.StaticStationName,
+            CNCTrainingMachineBuilder.StaticMachineName
+        };
+
+        Vector3 sum = Vector3.zero;
+        int count = 0;
+        for (int i = 0; i < machineNames.Length; i++)
+        {
+            GameObject machine = GameObject.Find(machineNames[i]);
+            if (!IsValidDeviceRoot(machine))
+            {
+                continue;
+            }
+
+            sum += machine.transform.position;
+            count++;
+        }
+
+        if (count < machineNames.Length)
+        {
+            return false;
+        }
+
+        centroid = sum / count;
+        return IsValidVector(centroid);
+    }
+
+    private void ApplyRigWorldPosition(
+        Vector3 rigPosition,
+        Quaternion? rigRotation,
+        float cameraLocalY,
+        Vector3? lookTargetWorld,
+        float? lookTargetEyeHeight = null)
+    {
+        bool controllerWasEnabled = characterController != null && characterController.enabled;
+        if (controllerWasEnabled)
+        {
+            characterController.enabled = false;
+        }
+
+        cameraRig.position = rigPosition;
+        if (rigRotation.HasValue)
+        {
+            cameraRig.rotation = rigRotation.Value;
+        }
+
+        playerCamera.transform.localPosition = Vector3.up * cameraLocalY;
         playerCamera.transform.localRotation = Quaternion.identity;
         pitch = 0f;
 
-        TryApplyOneShotStartCameraPose(true, bounds);
+        if (lookTargetWorld.HasValue)
+        {
+            Vector3 lookTarget = lookTargetWorld.Value;
+            lookTarget.y = lookTargetEyeHeight ?? (rigPosition.y + cameraLocalY);
+            cameraRig.LookAt(lookTarget);
+            cameraRig.rotation = Quaternion.Euler(0f, cameraRig.eulerAngles.y, 0f);
+            playerCamera.transform.localRotation = Quaternion.identity;
+            pitch = 0f;
+        }
+
+        Physics.SyncTransforms();
+
+        if (controllerWasEnabled)
+        {
+            characterController.enabled = true;
+        }
+    }
+
+    private float ResolveDeviceAlignedCameraWorldHeight(GameObject deviceRoot)
+    {
+        return ResolveDeviceAlignedCameraWorldHeight(deviceRoot.transform.position);
+    }
+
+    private float ResolveDeviceAlignedCameraWorldHeight(Vector3 anchorPosition)
+    {
+        float groundY = SampleGroundY(anchorPosition);
+        return groundY + startGroundClearance + ActualEyeHeight;
+    }
+
+    private float SampleGroundY(Vector3 nearPosition)
+    {
+        Vector3 origin = nearPosition + Vector3.up * 80f;
+        RaycastHit[] hits = Physics.RaycastAll(
+            origin,
+            Vector3.down,
+            240f,
+            Physics.DefaultRaycastLayers,
+            QueryTriggerInteraction.Ignore);
+
+        if (hits.Length > 0)
+        {
+            float bestGroundY = nearPosition.y;
+            float bestScore = float.MaxValue;
+
+            for (int i = 0; i < hits.Length; i++)
+            {
+                float hitY = hits[i].point.y;
+                if (hitY > nearPosition.y + 2f)
+                {
+                    continue;
+                }
+
+                float score = Mathf.Abs(hitY - nearPosition.y);
+                if (score < bestScore)
+                {
+                    bestScore = score;
+                    bestGroundY = hitY;
+                }
+            }
+
+            if (bestScore < 25f)
+            {
+                return bestGroundY;
+            }
+        }
+
+        return nearPosition.y;
     }
 
     private float ResolveStartCameraWorldHeight(float rigWorldY, Bounds factoryBounds)
     {
         float boundsBasedHeight = rigWorldY + ActualEyeHeight;
+
+        if (TryResolveLocalTrainingDeviceRoot(out GameObject deviceRoot))
+        {
+            float deviceAlignedHeight = ResolveDeviceAlignedCameraWorldHeight(deviceRoot);
+            Debug.Log(
+                $"Factory Camera World Y [Device Ground]: {deviceAlignedHeight:F6} from {deviceRoot.name}");
+            return deviceAlignedHeight;
+        }
+
         if (TryConsumeOneShotStartCameraWorldHeight(out float savedCameraWorldHeight))
         {
             float savedEyeHeight = savedCameraWorldHeight - rigWorldY;
@@ -239,6 +596,95 @@ public sealed class FactoryOneSceneController : MonoBehaviour
             $"Ignored configured factory camera height {configuredHeight:F6}; " +
             $"using bounds-based height {boundsBasedHeight:F6} for rigY {rigWorldY:F6}.");
         return boundsBasedHeight;
+    }
+
+    private float ResolveStartRigWorldY(Bounds factoryBounds)
+    {
+        if (TryResolveLocalTrainingDeviceRoot(out GameObject deviceRoot))
+        {
+            float groundY = SampleGroundY(deviceRoot.transform.position);
+            float deviceGroundY = groundY + startGroundClearance;
+            Debug.Log(
+                $"Factory Camera Rig Y [Device Ground Aligned]: {deviceGroundY:F6} " +
+                $"from {deviceRoot.name} (cameraY={(deviceGroundY + ActualEyeHeight):F6})");
+            return deviceGroundY;
+        }
+
+        return factoryBounds.min.y + startGroundClearance;
+    }
+
+    private Vector3 ResolveFallbackStartPosition()
+    {
+        if (TryResolveLocalTrainingDeviceRoot(out GameObject deviceRoot))
+        {
+            Vector3 devicePosition = deviceRoot.transform.position;
+            float groundY = SampleGroundY(devicePosition);
+            return new Vector3(devicePosition.x, groundY + startGroundClearance, devicePosition.z - 12f);
+        }
+
+        return new Vector3(0f, startGroundClearance, -10f);
+    }
+
+    private bool TryResolveLocalTrainingDeviceRoot(out GameObject deviceRoot)
+    {
+        return TryResolveTrainingDeviceRoot(trainingSpawnDevice, out deviceRoot);
+    }
+
+    private static bool TryResolveTrainingDeviceRoot(out GameObject deviceRoot)
+    {
+        return TryResolveTrainingDeviceRoot(null, out deviceRoot);
+    }
+
+    private static bool TryResolveTrainingDeviceRoot(Transform preferredDevice, out GameObject deviceRoot)
+    {
+        deviceRoot = null;
+
+        if (preferredDevice != null && IsValidHeight(preferredDevice.position.y))
+        {
+            deviceRoot = preferredDevice.gameObject;
+            return true;
+        }
+
+        ElectricalControlCabinetBuilder cabinet = Object.FindObjectOfType<ElectricalControlCabinetBuilder>();
+        if (IsValidDeviceRoot(cabinet != null ? cabinet.gameObject : null))
+        {
+            deviceRoot = cabinet.gameObject;
+            return true;
+        }
+
+        BreakerShutdownStationBuilder breaker = Object.FindObjectOfType<BreakerShutdownStationBuilder>();
+        if (IsValidDeviceRoot(breaker != null ? breaker.gameObject : null))
+        {
+            deviceRoot = breaker.gameObject;
+            return true;
+        }
+
+        CNCTrainingMachineBuilder cnc = Object.FindObjectOfType<CNCTrainingMachineBuilder>();
+        if (IsValidDeviceRoot(cnc != null ? cnc.gameObject : null))
+        {
+            deviceRoot = cnc.gameObject;
+            return true;
+        }
+
+        deviceRoot = GameObject.Find(ElectricalControlCabinetBuilder.StaticCabinetName);
+        if (IsValidDeviceRoot(deviceRoot))
+        {
+            return true;
+        }
+
+        deviceRoot = GameObject.Find(BreakerShutdownStationBuilder.StaticStationName);
+        if (IsValidDeviceRoot(deviceRoot))
+        {
+            return true;
+        }
+
+        deviceRoot = GameObject.Find(CNCTrainingMachineBuilder.StaticMachineName);
+        return IsValidDeviceRoot(deviceRoot);
+    }
+
+    private static bool IsValidDeviceRoot(GameObject candidate)
+    {
+        return candidate != null && IsValidHeight(candidate.transform.position.y);
     }
 
     public static void RememberOneShotStartCameraWorldHeight(float cameraWorldHeight)
@@ -358,6 +804,13 @@ public sealed class FactoryOneSceneController : MonoBehaviour
         }
 
         if (normalizeFirstPersonPose
+            && hasCameraWorldPose
+            && !IsReturnPoseNearTrainingDevice(cameraWorldPosition))
+        {
+            return false;
+        }
+
+        if (normalizeFirstPersonPose
             && factoryBounds.size != Vector3.zero
             && !IsReturnPoseInsideFactory(factoryBounds, rigPosition, cameraLocalPosition, cameraWorldPosition))
         {
@@ -405,51 +858,27 @@ public sealed class FactoryOneSceneController : MonoBehaviour
         cameraWorldPosition = Vector3.zero;
         cameraWorldRotation = Quaternion.identity;
 
-        if (_hasOneShotStartCameraPose)
-        {
-            rigPosition = _cachedRigPosition;
-            rigRotation = _cachedRigRotation;
-            cameraLocalPosition = _cachedCameraLocalPosition;
-            cameraLocalRotation = _cachedCameraLocalRotation;
-            cameraWorldPosition = _cachedCameraWorldPosition;
-            cameraWorldRotation = _cachedCameraWorldRotation;
-            bool hasWorldPose = _hasCachedCameraWorldPose
-                && IsValidVector(cameraWorldPosition)
-                && IsValidQuaternion(cameraWorldRotation);
-            ClearOneShotStartCameraPose();
-
-            return IsValidVector(rigPosition)
-                && IsValidQuaternion(rigRotation)
-                && IsValidVector(cameraLocalPosition)
-                && IsValidQuaternion(cameraLocalRotation)
-                && hasWorldPose;
-        }
-
-        if (PlayerPrefs.GetInt(OneShotStartCameraPoseKey + ".HasPose", 0) != 1)
+        if (!_hasOneShotStartCameraPose)
         {
             return false;
         }
 
-        if (PlayerPrefs.GetInt(OneShotStartCameraPoseKey + ".HasWorldPose", 0) != 1)
-        {
-            ClearOneShotStartCameraPose();
-            return false;
-        }
-
-        rigPosition = GetVector3(OneShotStartCameraPoseKey + ".RigPosition");
-        rigRotation = GetQuaternion(OneShotStartCameraPoseKey + ".RigRotation");
-        cameraLocalPosition = GetVector3(OneShotStartCameraPoseKey + ".CameraLocalPosition");
-        cameraLocalRotation = GetQuaternion(OneShotStartCameraPoseKey + ".CameraLocalRotation");
-        cameraWorldPosition = GetVector3(OneShotStartCameraPoseKey + ".CameraWorldPosition");
-        cameraWorldRotation = GetQuaternion(OneShotStartCameraPoseKey + ".CameraWorldRotation");
+        rigPosition = _cachedRigPosition;
+        rigRotation = _cachedRigRotation;
+        cameraLocalPosition = _cachedCameraLocalPosition;
+        cameraLocalRotation = _cachedCameraLocalRotation;
+        cameraWorldPosition = _cachedCameraWorldPosition;
+        cameraWorldRotation = _cachedCameraWorldRotation;
+        bool hasWorldPose = _hasCachedCameraWorldPose
+            && IsValidVector(cameraWorldPosition)
+            && IsValidQuaternion(cameraWorldRotation);
         ClearOneShotStartCameraPose();
 
         return IsValidVector(rigPosition)
             && IsValidQuaternion(rigRotation)
             && IsValidVector(cameraLocalPosition)
             && IsValidQuaternion(cameraLocalRotation)
-            && IsValidVector(cameraWorldPosition)
-            && IsValidQuaternion(cameraWorldRotation);
+            && hasWorldPose;
     }
 
     private static void ClearOneShotStartCameraPose()
@@ -573,6 +1002,27 @@ public sealed class FactoryOneSceneController : MonoBehaviour
         float verticalPadding = Mathf.Max(2f, factoryBounds.size.y * 0.04f);
         padded.Expand(new Vector3(horizontalPadding, verticalPadding, horizontalPadding));
         return padded.Contains(cameraWorldPosition);
+    }
+
+    private static bool IsReturnPoseNearTrainingDevice(Vector3 cameraWorldPosition)
+    {
+        if (!TryResolveTrainingDeviceRoot(out GameObject deviceRoot))
+        {
+            Debug.LogWarning(
+                "[FactoryOne] Ignored return pose because training device was not found for validation.");
+            return false;
+        }
+
+        float deviceEye = cameraWorldPosition.y - deviceRoot.transform.position.y;
+        if (deviceEye >= 0.6f && deviceEye <= 3.2f)
+        {
+            return true;
+        }
+
+        Debug.LogWarning(
+            $"Ignored return pose outside training-device eye height: cameraY={cameraWorldPosition.y:F6}, " +
+            $"deviceY={deviceRoot.transform.position.y:F6}, deviceEye={deviceEye:F6}");
+        return false;
     }
 
     private static bool IsValidQuaternion(Quaternion value)

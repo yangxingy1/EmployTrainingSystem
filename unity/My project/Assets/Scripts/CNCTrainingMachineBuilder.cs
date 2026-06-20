@@ -35,7 +35,8 @@ internal static class CNCUiFont
         public const float MachineName = 0.040f;
         public const float DoorInstruction = 0.024f;
         public const float TeachingSequence = 0.032f;
-        public const float ButtonHint = 0.017f;
+        public const float ButtonHint = 0.017f * (2f / 3f);
+        public const float ModeHint = 0.010f;
         public const float Status = 0.020f;
         public const float PowerOnOff = 0.011f;
     }
@@ -44,7 +45,7 @@ internal static class CNCUiFont
     {
         public const float FrontTextZ = 0.935f;
         public const float PanelTextZ = 0.955f;
-        public static readonly Vector3 MachineName = new Vector3(-0.28f, 0.06f, 1.08f);
+        public static readonly Vector3 MachineName = new Vector3(-0.28f, 2.02f, 0.96f);
         public static readonly Vector3 DoorInstruction = new Vector3(-0.28f, 0.32f, FrontTextZ);
         public static readonly Vector3 TeachingSequence = new Vector3(-0.28f, 0.16f, FrontTextZ);
         public static readonly Vector3 Status = new Vector3(0.82f, 1.43f, PanelTextZ);
@@ -189,19 +190,21 @@ public class CNCTrainingMachineBuilder : MonoBehaviour
         transform.rotation = faceSouth ? Quaternion.identity : Quaternion.Euler(0f, 180f, 0f);
         transform.localScale = Vector3.one;
 
-        Material matMachineWhite = CreateLitMaterial("MAT_CNC_Machine_White", new Color(0.72f, 0.74f, 0.76f), 0.22f, 0.42f);
-        Material matDarkMetal = CreateLitMaterial("MAT_CNC_Dark_Metal", new Color(0.10f, 0.11f, 0.12f), 0.82f, 0.52f);
-        Material matLightMetal = CreateLitMaterial("MAT_CNC_Light_Metal", new Color(0.38f, 0.40f, 0.41f), 0.85f, 0.58f);
+        Material matMachineWhite = CreateLitMaterial("MAT_CNC_Machine_White", new Color(0.84f, 0.86f, 0.88f), 0.18f, 0.48f);
+        Material matDarkMetal = CreateLitMaterial("MAT_CNC_Dark_Metal", new Color(0.14f, 0.15f, 0.16f), 0.78f, 0.54f);
+        Material matLightMetal = CreateLitMaterial("MAT_CNC_Light_Metal", new Color(0.46f, 0.48f, 0.50f), 0.82f, 0.60f);
         Material matBlack = CreateLitMaterial("MAT_CNC_Black_Rubber", new Color(0.02f, 0.02f, 0.02f), 0.15f, 0.28f);
-        Material matGlass = CreateTransparentMaterial("MAT_CNC_Blue_Glass", new Color(0.18f, 0.42f, 0.72f, 0.22f));
-        Material matScreenOn = CreateEmissionMaterial("MAT_CNC_Screen_ON", new Color(0.04f, 0.72f, 0.62f), 1.6f);
+        Material matGlass = CreateTransparentMaterial("MAT_CNC_Blue_Glass", new Color(0.22f, 0.48f, 0.78f, 0.18f));
+        Material matScreenOn = CreateEmissionMaterial("MAT_CNC_Screen_ON", new Color(0.58f, 0.82f, 0.96f), 0.38f);
         Material matScreenOff = CreateLitMaterial("MAT_CNC_Screen_OFF", new Color(0.008f, 0.012f, 0.015f), 0f, 0.12f);
         Material matButtonGreen = CreateEmissionMaterial("MAT_Button_Green", new Color(0.05f, 1.0f, 0.25f), 1.7f);
+        Material matKnobGreen = CreateLitMaterial("MAT_Mode_Knob_Green", new Color(0.14f, 0.78f, 0.32f), 0.12f, 0.42f);
         Material matButtonRed = CreateEmissionMaterial("MAT_Button_Red", new Color(1.0f, 0.04f, 0.02f), 2.0f);
         Material matButtonYellow = CreateEmissionMaterial("MAT_Button_Yellow", new Color(1.0f, 0.72f, 0.04f), 1.6f);
         Material matButtonGray = CreateLitMaterial("MAT_Button_Gray", new Color(0.20f, 0.21f, 0.21f), 0.35f, 0.32f);
         Material matLedOff = CreateLitMaterial("MAT_LED_Off_Dark", new Color(0.04f, 0.04f, 0.04f), 0f, 0.15f);
         Material matWorkpiece = CreateLitMaterial("MAT_Workpiece_Aluminum", new Color(0.65f, 0.66f, 0.62f), 0.9f, 0.48f);
+        Material matClampOrange = CreateLitMaterial("MAT_Clamp_Orange", new Color(0.88f, 0.42f, 0.10f), 0.35f, 0.40f);
         Material matWarningYellow = CreateLitMaterial("MAT_Warning_Yellow", new Color(1.0f, 0.78f, 0.03f), 0f, 0.35f);
 
         GameObject root = new GameObject(RootName);
@@ -226,10 +229,11 @@ public class CNCTrainingMachineBuilder : MonoBehaviour
         runtime.matLedOff = matLedOff;
 
         BuildMachineBody(root.transform, matMachineWhite, matDarkMetal, matGlass, matWarningYellow, matBlack);
-        BuildWorkChamber(root.transform, runtime, matDarkMetal, matLightMetal, matWorkpiece, matBlack);
-        BuildControlPanel(root.transform, runtime, matDarkMetal, matLightMetal, matScreenOn, matScreenOff, matButtonGreen, matButtonRed, matButtonYellow, matButtonGray, matBlack);
+        BuildWorkChamber(root.transform, runtime, matDarkMetal, matLightMetal, matWorkpiece, matClampOrange, matBlack);
+        BuildControlPanel(root.transform, runtime, matDarkMetal, matLightMetal, matScreenOn, matScreenOff, matButtonGreen, matKnobGreen, matButtonRed, matButtonYellow, matButtonGray, matBlack);
         BuildStackLight(root.transform, runtime, matButtonGreen, matButtonRed, matButtonYellow, matLedOff, matBlack);
         BuildLabels(root.transform);
+        BuildFrontFillLight(root.transform);
 
         runtime.ApplyInitialState();
 
@@ -333,13 +337,24 @@ public class CNCTrainingMachineBuilder : MonoBehaviour
         _runtime.rightDoor = doorRight;
     }
 
-    private void BuildWorkChamber(Transform parent, CNCTrainingMachineRuntime runtime, Material matDarkMetal, Material matLightMetal, Material matWorkpiece, Material matBlack)
+    private void BuildWorkChamber(Transform parent, CNCTrainingMachineRuntime runtime, Material matDarkMetal, Material matLightMetal, Material matWorkpiece, Material matClampOrange, Material matBlack)
     {
+        float enclosureCenterY = 0.15f + (height * 0.82f) * 0.5f;
+        Vector3 doorCenter = new Vector3(-0.28f, enclosureCenterY, 0.78f);
+
         CreateCube(
             "Machine_Table",
             parent,
             new Vector3(-0.28f, 0.64f, 0.25f),
             new Vector3(0.92f, 0.12f, 0.50f),
+            matLightMetal
+        );
+
+        CreateCube(
+            "Clamp_Base",
+            parent,
+            doorCenter + new Vector3(0f, -0.08f, 0f),
+            new Vector3(0.62f, 0.08f, 0.30f),
             matLightMetal
         );
 
@@ -359,8 +374,8 @@ public class CNCTrainingMachineBuilder : MonoBehaviour
         GameObject workpiece = CreateCube(
             "Workpiece_Aluminum_Block",
             parent,
-            new Vector3(-0.28f, 0.80f, 0.25f),
-            new Vector3(0.32f, 0.18f, 0.24f),
+            doorCenter + new Vector3(0f, 0.02f, 0f),
+            new Vector3(0.28f, 0.14f, 0.20f),
             matWorkpiece
         );
 
@@ -369,27 +384,27 @@ public class CNCTrainingMachineBuilder : MonoBehaviour
         GameObject leftJaw = CreateCube(
             "Clamp_Jaw_Left",
             parent,
-            new Vector3(-0.53f, 0.82f, 0.25f),
+            doorCenter + new Vector3(-0.25f, 0.04f, 0f),
             new Vector3(0.08f, 0.16f, 0.28f),
-            matDarkMetal
+            matClampOrange
         );
-        CreateCube("Clamp_Jaw_Left_Bevel", parent, new Vector3(-0.49f, 0.82f, 0.38f), new Vector3(0.04f, 0.12f, 0.06f), matLightMetal);
+        CreateCube("Clamp_Jaw_Left_Bevel", parent, doorCenter + new Vector3(-0.21f, 0.04f, 0.10f), new Vector3(0.04f, 0.12f, 0.06f), matLightMetal);
 
         GameObject rightJaw = CreateCube(
             "Clamp_Jaw_Right",
             parent,
-            new Vector3(-0.03f, 0.82f, 0.25f),
+            doorCenter + new Vector3(0.25f, 0.04f, 0f),
             new Vector3(0.08f, 0.16f, 0.28f),
-            matDarkMetal
+            matClampOrange
         );
-        CreateCube("Clamp_Jaw_Right_Bevel", parent, new Vector3(-0.07f, 0.82f, 0.38f), new Vector3(0.04f, 0.12f, 0.06f), matLightMetal);
+        CreateCube("Clamp_Jaw_Right_Bevel", parent, doorCenter + new Vector3(0.21f, 0.04f, 0.10f), new Vector3(0.04f, 0.12f, 0.06f), matLightMetal);
 
         runtime.leftClampJaw = leftJaw.transform;
         runtime.rightClampJaw = rightJaw.transform;
 
         GameObject clampHandlePivot = new GameObject("Clamp_Handle_Pivot");
         clampHandlePivot.transform.SetParent(parent, false);
-        clampHandlePivot.transform.localPosition = new Vector3(0.19f, 0.82f, 0.47f);
+        clampHandlePivot.transform.localPosition = doorCenter + new Vector3(0.47f, 0.04f, 0.06f);
 
         GameObject clampHandleStem = CreateCube(
             "Clamp_Handle_Clickable",
@@ -399,9 +414,12 @@ public class CNCTrainingMachineBuilder : MonoBehaviour
             matBlack
         );
         CreateCube("Clamp_Handle_Grip", clampHandlePivot.transform, new Vector3(0f, 0.18f, 0.03f), new Vector3(0.12f, 0.035f, 0.035f), matBlack);
+        CreateCube("Clamp_Lever_Bar", clampHandlePivot.transform, new Vector3(0.06f, 0.14f, 0.02f), new Vector3(0.14f, 0.025f, 0.025f), matClampOrange);
 
         runtime.clampHandlePivot = clampHandlePivot.transform;
         AddInteractable(clampHandleStem, CNCInteractionType.ToggleClamp);
+
+        CreateTextLabel("Clamp_Label", parent, "夹具", doorCenter + new Vector3(0f, 0.44f, 0.06f), CNCUiFont.Sizes.DoorInstruction, Color.white);
 
         CreateCube(
             "Spindle_Head_Housing",
@@ -448,6 +466,7 @@ public class CNCTrainingMachineBuilder : MonoBehaviour
         Material matScreenOn,
         Material matScreenOff,
         Material matGreen,
+        Material matKnobGreen,
         Material matRed,
         Material matYellow,
         Material matGray,
@@ -491,7 +510,7 @@ public class CNCTrainingMachineBuilder : MonoBehaviour
         screenText.characterSize = CNCUiFont.Sizes.Status;
         screenText.anchor = TextAnchor.MiddleCenter;
         screenText.alignment = TextAlignment.Center;
-        screenText.color = new Color(0.2f, 0.95f, 0.85f);
+        screenText.color = CNCTrainingMachineRuntime.StatusTextPoweredOn;
         screenText.lineSpacing = 0.82f;
         CNCUiFont.Apply(screenText, CNCUiFont.Sizes.Status);
         runtime.statusText = screenText;
@@ -566,18 +585,39 @@ public class CNCTrainingMachineBuilder : MonoBehaviour
         AddInteractable(reset, CNCInteractionType.Reset);
         CreateTextLabel("Label_Reset", parent, "6 复位", CNCUiFont.Positions.Reset, CNCUiFont.Sizes.ButtonHint, Color.white);
 
-        GameObject modeKnob = CreateCylinder(
+        BuildModeSelector(parent, runtime, matKnobGreen, matYellow, matGray, matBlack);
+    }
+
+    private void BuildModeSelector(
+        Transform parent,
+        CNCTrainingMachineRuntime runtime,
+        Material matKnobGreen,
+        Material matYellow,
+        Material matGray,
+        Material matBlack)
+    {
+        Vector3 knobCenter = new Vector3(0.94f, 0.63f, 0.945f);
+
+        GameObject pivot = new GameObject("Mode_Select_Knob_Pivot");
+        pivot.transform.SetParent(parent, false);
+        pivot.transform.localPosition = knobCenter;
+
+        CreateCylinder("Mode_Select_Knob_Base", pivot.transform, new Vector3(0f, 0f, -0.004f), 0.095f, 0.012f, matGray, CylinderAxis.Z);
+
+        GameObject knobClickable = CreateCylinder(
             "Mode_Select_Knob_Clickable",
-            parent,
-            new Vector3(0.94f, 0.63f, 0.945f),
-            0.075f,
-            0.035f,
-            matBlack,
+            pivot.transform,
+            Vector3.zero,
+            0.088f,
+            0.028f,
+            matKnobGreen,
             CylinderAxis.Z
         );
 
-        runtime.modeKnob = modeKnob.transform;
-        AddInteractable(modeKnob, CNCInteractionType.ToggleMode);
+        runtime.modeKnob = pivot.transform;
+        AddInteractable(knobClickable, CNCInteractionType.ToggleMode);
+
+        CreateCube("Mode_Select_Knob_Pointer", pivot.transform, new Vector3(0f, 0.042f, 0.012f), new Vector3(0.018f, 0.048f, 0.012f), matYellow);
         CreateTextLabel("Label_Mode", parent, "7 模式", CNCUiFont.Positions.Mode, CNCUiFont.Sizes.ButtonHint, Color.white);
     }
 
@@ -612,6 +652,22 @@ public class CNCTrainingMachineBuilder : MonoBehaviour
         runtime.stackRedRenderer = red.GetComponent<Renderer>();
         runtime.stackYellowRenderer = yellow.GetComponent<Renderer>();
         runtime.stackGreenRenderer = green.GetComponent<Renderer>();
+    }
+
+    private static void BuildFrontFillLight(Transform parent)
+    {
+        GameObject keyGo = new GameObject("CNC_Front_Fill_Light");
+        keyGo.transform.SetParent(parent, false);
+        keyGo.transform.localPosition = new Vector3(-0.05f, 1.18f, 2.65f);
+        keyGo.transform.localRotation = Quaternion.Euler(10f, 180f, 0f);
+
+        Light key = keyGo.AddComponent<Light>();
+        key.type = LightType.Spot;
+        key.color = new Color(1f, 0.98f, 0.94f);
+        key.intensity = 1.45f;
+        key.range = 9f;
+        key.spotAngle = 72f;
+        key.shadows = LightShadows.None;
     }
 
     private void BuildLabels(Transform parent)

@@ -150,6 +150,8 @@ public class LeadTrainCNCGestureTrainingController : MonoBehaviour
     Vector3 _grabStart;
     float _grabStartAngle;
     bool _grabActionFired;
+    bool _modeGestureHasDesired;
+    bool _modeGestureDesiredAuto;
     float _countdownStartedAt = -99f;
 
     readonly Color _panelDark = new Color(0.11f, 0.13f, 0.15f);
@@ -205,6 +207,7 @@ public class LeadTrainCNCGestureTrainingController : MonoBehaviour
         _flashZone = -1;
         _grabZone = -1;
         _grabActionFired = false;
+        _modeGestureHasDesired = false;
         ResetTap();
         ResetButtonPressTimers();
 
@@ -235,7 +238,6 @@ public class LeadTrainCNCGestureTrainingController : MonoBehaviour
         }
 
         UpdateCursor();
-        HandleStartHotkey();
         UpdateStartCountdown();
         RefreshButtons();
         RefreshVisuals();
@@ -250,24 +252,6 @@ public class LeadTrainCNCGestureTrainingController : MonoBehaviour
         UpdateTapInteraction();
         UpdateGrabInteraction();
         TrainingFlowController.Active?.ReportProgress(Progress01(), PhaseName(), CurrentHint());
-    }
-
-    void HandleStartHotkey()
-    {
-        if (!Input.GetKeyDown(KeyCode.T))
-        {
-            return;
-        }
-
-        if (_phase == TrainingPhase.Completed)
-        {
-            RestartTraining(true);
-        }
-
-        if (_phase == TrainingPhase.WaitingStart)
-        {
-            BeginStartCountdown();
-        }
     }
 
     void BeginStartCountdown()
@@ -319,9 +303,9 @@ public class LeadTrainCNCGestureTrainingController : MonoBehaviour
         }
 
         cam.transform.SetParent(null, true);
-        cam.transform.position = new Vector3(0f, GestureCameraHeight, -6.75f);
+        cam.transform.position = new Vector3(0f, GestureCameraHeight, -7.05f);
         cam.transform.rotation = Quaternion.identity;
-        cam.fieldOfView = 45f;
+        cam.fieldOfView = 46f;
         cam.nearClipPlane = 0.05f;
         cam.farClipPlane = 100f;
         cam.clearFlags = CameraClearFlags.SolidColor;
@@ -366,8 +350,8 @@ public class LeadTrainCNCGestureTrainingController : MonoBehaviour
         hand.url = "ws://127.0.0.1:8765";
         hand.planeWidth = 6.35f;
         hand.planeHeight = 4.05f;
-        hand.planeOrigin = new Vector3(0f, 0f, -0.58f);
-        hand.gain = 1.24f;
+        hand.planeOrigin = new Vector3(0f, 0f, -0.52f);
+        hand.gain = 1.26f;
         hand.smoothing = 0.66f;
         hand.graceTime = 0.45f;
 
@@ -382,7 +366,7 @@ public class LeadTrainCNCGestureTrainingController : MonoBehaviour
             return;
         }
 
-        handVisual.jointRadius = 0.016f;
+        handVisual.jointRadius = 0.043f;
         handVisual.skinColor = new Color(0.96f, 0.78f, 0.62f);
         handVisual.gripColor = new Color(0.20f, 0.92f, 0.48f);
         handVisual.enablePhysicalColliders = false;
@@ -395,8 +379,8 @@ public class LeadTrainCNCGestureTrainingController : MonoBehaviour
         root.transform.localPosition = Vector3.zero;
         _stageRoot = root.transform;
 
-        CreateBox(_stageRoot, "TrainingBackdrop", new Vector3(0f, 0.02f, 0.46f), new Vector3(8.35f, 4.35f, 0.18f), new Color(0.09f, 0.11f, 0.13f));
-        CreateBox(_stageRoot, "WorkbenchDeck", new Vector3(0f, -1.80f, 0.08f), new Vector3(7.55f, 0.24f, 0.58f), new Color(0.20f, 0.22f, 0.24f));
+        CreateBox(_stageRoot, "TrainingBackdrop", new Vector3(0.12f, 0.02f, 0.46f), new Vector3(8.80f, 4.35f, 0.18f), new Color(0.09f, 0.11f, 0.13f));
+        CreateBox(_stageRoot, "WorkbenchDeck", new Vector3(0.12f, -1.80f, 0.08f), new Vector3(8.10f, 0.24f, 0.58f), new Color(0.20f, 0.22f, 0.24f));
 
         BuildMachineBody();
         BuildControlPanel();
@@ -443,49 +427,49 @@ public class LeadTrainCNCGestureTrainingController : MonoBehaviour
 
     void BuildControlPanel()
     {
-        CreateBox(_stageRoot, "ControlPanelBack", new Vector3(2.16f, -0.15f, 0.02f), new Vector3(2.58f, 3.02f, 0.18f), _panelMid);
-        CreateBox(_stageRoot, "ControlPanelFace", new Vector3(2.16f, -0.15f, -0.12f), new Vector3(2.36f, 2.78f, 0.10f), _panelDark);
-        CreateBox(_stageRoot, "ControlPanelTopLip", new Vector3(2.16f, 1.35f, -0.20f), new Vector3(2.50f, 0.08f, 0.13f), _metal);
+        CreateBox(_stageRoot, "ControlPanelBack", new Vector3(2.24f, -0.15f, 0.02f), new Vector3(2.96f, 3.02f, 0.18f), _panelMid);
+        CreateBox(_stageRoot, "ControlPanelFace", new Vector3(2.24f, -0.15f, -0.12f), new Vector3(2.74f, 2.78f, 0.10f), _panelDark);
+        CreateBox(_stageRoot, "ControlPanelTopLip", new Vector3(2.24f, 1.35f, -0.20f), new Vector3(2.88f, 0.08f, 0.13f), _metal);
 
-        GameObject screen = CreateBox(_stageRoot, "CNCStatusScreen", new Vector3(2.16f, 0.82f, -0.26f), new Vector3(1.72f, 0.56f, 0.08f), new Color(0.02f, 0.09f, 0.11f));
+        GameObject screen = CreateBox(_stageRoot, "CNCStatusScreen", new Vector3(2.20f, 0.86f, -0.26f), new Vector3(1.90f, 0.56f, 0.08f), new Color(0.58f, 0.82f, 0.96f));
         _screenRenderer = screen.GetComponent<Renderer>();
-        _screenText = CreateText(_stageRoot, "CNCStatusScreenText", "", new Vector3(2.16f, 0.82f, -0.34f), 0.030f, new Color(0.78f, 1f, 0.88f), TextAnchor.MiddleCenter, false);
+        _screenText = CreateText(_stageRoot, "CNCStatusScreenText", "", new Vector3(2.20f, 0.86f, -0.34f), 0.030f, new Color(0.78f, 1f, 0.88f), TextAnchor.MiddleCenter, false);
         _screenText.lineSpacing = 0.82f;
 
         BuildTowerLights();
-        BuildPanelButton(ZonePower, "POWER\n电源", new Vector3(1.48f, 0.18f, -0.30f), new Vector3(0.64f, 0.42f, 0.11f), new Color(0.14f, 0.58f, 0.28f));
-        BuildPanelButton(ZoneStart, "START\n启动", new Vector3(2.24f, 0.18f, -0.30f), new Vector3(0.64f, 0.42f, 0.11f), new Color(0.10f, 0.62f, 0.26f));
-        BuildRoundPanelButton(ZoneEStop, "急停", new Vector3(2.86f, 0.16f, -0.34f), 0.56f, _red);
-        BuildPanelButton(ZoneReset, "RESET\n复位", new Vector3(2.52f, -0.58f, -0.30f), new Vector3(0.90f, 0.48f, 0.11f), new Color(0.15f, 0.46f, 0.86f));
+        BuildPanelButton(ZonePower, "POWER\n电源", new Vector3(1.34f, 0.22f, -0.30f), new Vector3(0.66f, 0.42f, 0.11f), new Color(0.14f, 0.58f, 0.28f));
+        BuildPanelButton(ZoneStart, "START\n启动", new Vector3(2.14f, 0.22f, -0.30f), new Vector3(0.66f, 0.42f, 0.11f), new Color(0.10f, 0.62f, 0.26f));
+        BuildRoundPanelButton(ZoneEStop, "急停", new Vector3(3.08f, 0.20f, -0.34f), 0.54f, _red);
+        BuildPanelButton(ZoneReset, "RESET\n复位", new Vector3(3.02f, -0.70f, -0.30f), new Vector3(0.78f, 0.44f, 0.11f), new Color(0.15f, 0.46f, 0.86f));
         BuildModeSelector();
 
-        _powerLamp = CreateLamp(_stageRoot, "PowerLamp", new Vector3(1.48f, 0.54f, -0.34f), 0.105f);
-        _autoLamp = CreateLamp(_stageRoot, "AutoLamp", new Vector3(1.78f, -0.18f, -0.34f), 0.085f);
-        CreateText(_stageRoot, "ModeLabel", "MODE", new Vector3(1.78f, -0.88f, -0.34f), 0.038f, Color.white, TextAnchor.MiddleCenter, true);
-        _modeValueText = CreateText(_stageRoot, "ModeValue", "MANUAL", new Vector3(1.78f, -1.12f, -0.34f), 0.040f, _yellow, TextAnchor.MiddleCenter, true);
+        _powerLamp = CreateLamp(_stageRoot, "PowerLamp", new Vector3(1.34f, 0.56f, -0.34f), 0.105f);
+        _autoLamp = CreateLamp(_stageRoot, "AutoLamp", new Vector3(1.54f, -0.20f, -0.34f), 0.085f);
+        CreateText(_stageRoot, "ModeLabel", "MODE", new Vector3(1.54f, -0.96f, -0.34f), 0.038f, Color.white, TextAnchor.MiddleCenter, true);
+        _modeValueText = CreateText(_stageRoot, "ModeValue", "MANUAL", new Vector3(1.54f, -1.18f, -0.34f), 0.040f, _yellow, TextAnchor.MiddleCenter, true);
     }
 
     void BuildTowerLights()
     {
-        CreateBox(_stageRoot, "TowerStem", new Vector3(3.48f, 0.75f, -0.20f), new Vector3(0.07f, 0.90f, 0.07f), _metal);
-        _towerRed = CreateLamp(_stageRoot, "TowerRed", new Vector3(3.48f, 1.30f, -0.30f), 0.18f);
-        _towerYellow = CreateLamp(_stageRoot, "TowerYellow", new Vector3(3.48f, 1.06f, -0.30f), 0.18f);
-        _towerGreen = CreateLamp(_stageRoot, "TowerGreen", new Vector3(3.48f, 0.82f, -0.30f), 0.18f);
+        CreateBox(_stageRoot, "TowerStem", new Vector3(3.62f, 0.75f, -0.20f), new Vector3(0.07f, 0.90f, 0.07f), _metal);
+        _towerRed = CreateLamp(_stageRoot, "TowerRed", new Vector3(3.62f, 1.30f, -0.30f), 0.18f);
+        _towerYellow = CreateLamp(_stageRoot, "TowerYellow", new Vector3(3.62f, 1.06f, -0.30f), 0.18f);
+        _towerGreen = CreateLamp(_stageRoot, "TowerGreen", new Vector3(3.62f, 0.82f, -0.30f), 0.18f);
     }
 
     void BuildModeSelector()
     {
-        GameObject knob = CreateCylinder(_stageRoot, "ModeSelectorKnob", new Vector3(1.78f, -0.56f, -0.34f), 0.56f, 0.13f, new Color(0.42f, 0.44f, 0.45f), Axis.Z);
+        GameObject knob = CreateCylinder(_stageRoot, "ModeSelectorKnob", new Vector3(1.54f, -0.60f, -0.34f), 0.62f, 0.13f, new Color(0.14f, 0.78f, 0.32f), Axis.Z);
         GameObject pointerRoot = new GameObject("ModeSelectorPointerPivot");
         pointerRoot.transform.parent = _stageRoot;
-        pointerRoot.transform.localPosition = new Vector3(1.78f, -0.56f, -0.42f);
+        pointerRoot.transform.localPosition = new Vector3(1.54f, -0.60f, -0.42f);
         _modePointer = pointerRoot.transform;
-        GameObject pointer = CreateBox(_modePointer, "ModeSelectorPointer", new Vector3(0f, 0.16f, 0f), new Vector3(0.09f, 0.34f, 0.05f), _yellow);
-        _targets[ZoneMode] = CreateTarget("ModeRotateTarget", new Vector3(1.78f, -0.56f, -0.54f));
+        GameObject pointer = CreateBox(_modePointer, "ModeSelectorPointer", new Vector3(0f, 0.18f, 0f), new Vector3(0.09f, 0.38f, 0.05f), _yellow);
+        _targets[ZoneMode] = CreateTarget("ModeRotateTarget", new Vector3(1.54f, -0.60f, -0.54f));
         _zoneRenderers[ZoneMode] = RenderersOf(knob, pointer);
 
-        CreateText(_stageRoot, "ManualText", "MANUAL", new Vector3(1.30f, -0.47f, -0.34f), 0.034f, Color.white, TextAnchor.MiddleCenter, false);
-        CreateText(_stageRoot, "AutoText", "AUTO", new Vector3(2.30f, -0.47f, -0.34f), 0.034f, Color.white, TextAnchor.MiddleCenter, false);
+        CreateText(_stageRoot, "ManualText", "MANUAL", new Vector3(1.06f, -0.50f, -0.34f), 0.034f, Color.white, TextAnchor.MiddleCenter, false);
+        CreateText(_stageRoot, "AutoText", "AUTO", new Vector3(2.08f, -0.50f, -0.34f), 0.034f, Color.white, TextAnchor.MiddleCenter, false);
     }
 
     void BuildPanelButton(int zone, string label, Vector3 center, Vector3 size, Color color)
@@ -534,7 +518,7 @@ public class LeadTrainCNCGestureTrainingController : MonoBehaviour
     void BuildTrainingButtons()
     {
         _startTrainingButton = CreateTrainingButton("StartTraining", new Vector3(-3.55f, -0.92f, -0.24f), new Vector3(0.72f, 0.36f, 0.10f), "START\n启动", new Color(0.10f, 0.62f, 0.26f));
-        _resetTrainingButton = CreateTrainingButton("ResetTraining", new Vector3(3.58f, -0.92f, -0.24f), new Vector3(0.72f, 0.36f, 0.10f), "RESET\n重置", new Color(0.10f, 0.62f, 0.26f));
+        _resetTrainingButton = CreateTrainingButton("ResetTraining", new Vector3(-3.55f, -1.34f, -0.24f), new Vector3(0.72f, 0.36f, 0.10f), "RESET\n重置", new Color(0.10f, 0.62f, 0.26f));
 
         _startTrainingButton.Clicked += HandleStartTrainingClicked;
         _resetTrainingButton.Clicked += () => RestartTraining(true);
@@ -572,10 +556,6 @@ public class LeadTrainCNCGestureTrainingController : MonoBehaviour
         SetSceneText("ManualText", "手动");
         SetSceneText("AutoText", "自动");
 
-        if (_startTrainingButton != null)
-        {
-            _startTrainingButton.gameObject.SetActive(false);
-        }
     }
 
     void SetSceneText(string name, string value)
@@ -672,7 +652,7 @@ public class LeadTrainCNCGestureTrainingController : MonoBehaviour
         float signal = hand.PinchOnlyStrength;
         if (_grabZone < 0)
         {
-            if (signal < 0.48f)
+            if (signal < 0.42f)
             {
                 return;
             }
@@ -687,6 +667,7 @@ public class LeadTrainCNCGestureTrainingController : MonoBehaviour
             _grabStart = grip;
             _grabStartAngle = hand.PalmAngle;
             _grabActionFired = false;
+            _modeGestureHasDesired = false;
             HandleGrabStart(zone);
             return;
         }
@@ -737,7 +718,18 @@ public class LeadTrainCNCGestureTrainingController : MonoBehaviour
         if (_grabZone == ZoneMode)
         {
             AnimateModePreview(delta, angleDelta);
-            if (angleDelta >= 26f || Mathf.Abs(delta.x) >= 0.34f || Mathf.Abs(delta.y) >= 0.32f)
+            if (Mathf.Abs(delta.x) >= 0.10f)
+            {
+                _modeGestureHasDesired = true;
+                _modeGestureDesiredAuto = delta.x > 0f;
+            }
+            else if (angleDelta >= 12f)
+            {
+                _modeGestureHasDesired = true;
+                _modeGestureDesiredAuto = !_autoMode;
+            }
+
+            if (_modeGestureHasDesired)
             {
                 _grabActionFired = true;
                 HandleCNCAction(CNCAction.ModeRotate);
@@ -767,6 +759,7 @@ public class LeadTrainCNCGestureTrainingController : MonoBehaviour
     {
         _grabZone = -1;
         _grabActionFired = false;
+        _modeGestureHasDesired = false;
     }
 
     void HandleCNCAction(CNCAction action)
@@ -884,7 +877,7 @@ public class LeadTrainCNCGestureTrainingController : MonoBehaviour
             return false;
         }
 
-        ToggleMode();
+        ApplyModeGesture();
         if (_autoMode)
         {
             _feedback = "已切回 AUTO，可继续当前步骤";
@@ -924,7 +917,7 @@ public class LeadTrainCNCGestureTrainingController : MonoBehaviour
                 CompleteCurrentStep("已上电，请确认加工模式");
                 break;
             case CNCAction.ModeRotate:
-                ToggleMode();
+                ApplyModeGesture();
                 if (_autoMode)
                 {
                     CompleteCurrentStep("AUTO 模式确认完成");
@@ -1012,6 +1005,17 @@ public class LeadTrainCNCGestureTrainingController : MonoBehaviour
     void ToggleMode()
     {
         _autoMode = !_autoMode;
+    }
+
+    void ApplyModeGesture()
+    {
+        if (_modeGestureHasDesired)
+        {
+            _autoMode = _modeGestureDesiredAuto;
+            return;
+        }
+
+        ToggleMode();
     }
 
     void RecordMistake(string message, int zone = -1)
@@ -1210,7 +1214,7 @@ public class LeadTrainCNCGestureTrainingController : MonoBehaviour
 
     int HitTestGrabZone(Vector3 grip)
     {
-        if (IsInsideCircle(grip, TargetPosition(ZoneMode), 0.46f)) return ZoneMode;
+        if (IsInsideCircle(grip, TargetPosition(ZoneMode), 0.68f)) return ZoneMode;
         if (IsInsideRect(grip, TargetPosition(ZoneDoor), new Vector2(1.20f, 1.34f))) return ZoneDoor;
         if (IsInsideRect(grip, TargetPosition(ZoneClamp), new Vector2(0.96f, 0.78f))) return ZoneClamp;
         if (IsInsideRect(grip, TargetPosition(ZonePower), new Vector2(0.70f, 0.52f))) return ZonePower;
@@ -1336,7 +1340,7 @@ public class LeadTrainCNCGestureTrainingController : MonoBehaviour
 
         Vector3 grip = hand.GripPoint + new Vector3(0f, 0f, -0.08f);
         _cursor.transform.position = grip;
-        _cursor.transform.localScale = Vector3.one * Mathf.Lerp(0.045f, 0.105f, hand.PinchOnlyStrength);
+        _cursor.transform.localScale = Vector3.one * Mathf.Lerp(0.11f, 0.23f, hand.PinchOnlyStrength);
 
         int zone = HitTestGrabZone(hand.GripPoint);
         Color color = _grabZone >= 0 ? _green : zone >= 0 ? _yellow : _blue;
@@ -1405,7 +1409,13 @@ public class LeadTrainCNCGestureTrainingController : MonoBehaviour
             return;
         }
 
-        float preview = Mathf.Clamp(delta.x * 65f + Mathf.Sign(delta.y) * angleDelta * 0.35f, -30f, 30f);
+        if (Mathf.Abs(delta.x) >= 0.06f)
+        {
+            _modePointer.localRotation = Quaternion.Euler(0f, 0f, delta.x > 0f ? -48f : 48f);
+            return;
+        }
+
+        float preview = Mathf.Clamp(Mathf.Sign(delta.y) * angleDelta * 0.35f, -24f, 24f);
         float baseAngle = _autoMode ? -48f : 48f;
         _modePointer.localRotation = Quaternion.Euler(0f, 0f, baseAngle + preview);
     }
@@ -1534,7 +1544,8 @@ public class LeadTrainCNCGestureTrainingController : MonoBehaviour
     {
         return _phase == TrainingPhase.Training
             && _stepIndex >= 0
-            && _stepIndex < _mistakesByStep.Length;
+            && _stepIndex < _mistakesByStep.Length
+            && _mistakesByStep[_stepIndex] >= 4;
     }
 
     bool IsZoneCompleted(int zone)
@@ -1610,7 +1621,7 @@ public class LeadTrainCNCGestureTrainingController : MonoBehaviour
 
     string PhaseName()
     {
-        if (_phase == TrainingPhase.WaitingStart) return "按 T 准备";
+        if (_phase == TrainingPhase.WaitingStart) return "点击启动按钮";
         if (_phase == TrainingPhase.Countdown) return "准备中";
         if (_phase == TrainingPhase.Training) return _stepIndex >= 0 ? (_stepIndex + 1) + "/8" : "";
         if (_phase == TrainingPhase.Completed) return "完成";
@@ -1632,7 +1643,7 @@ public class LeadTrainCNCGestureTrainingController : MonoBehaviour
     {
         if (_phase == TrainingPhase.WaitingStart)
         {
-            return "按 T 后 3 秒自动开始";
+            return "点击启动按钮开始训练";
         }
 
         if (_phase == TrainingPhase.Countdown)

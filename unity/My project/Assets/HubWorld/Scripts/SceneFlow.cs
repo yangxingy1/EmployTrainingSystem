@@ -85,6 +85,11 @@ public class SceneFlow : MonoBehaviour
             ? $"[SceneFlow] Loading scene: {sceneName}"
             : $"[SceneFlow] Loading scene: {sceneName} -> {buildSceneName}");
 
+        if (SceneNameAliases.IsLeadTrainScene(sceneName) || SceneNameAliases.IsLeadTrainScene(buildSceneName))
+        {
+            FactoryOneSceneController.ClearOneShotStartCameraReturnOverride();
+        }
+
         var op = SceneManager.LoadSceneAsync(buildSceneName);
         while (!op.isDone)
         {

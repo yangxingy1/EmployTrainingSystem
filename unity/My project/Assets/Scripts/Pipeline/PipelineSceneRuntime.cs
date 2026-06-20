@@ -42,6 +42,18 @@ public class PipelineSceneRuntime : MonoBehaviour
     public float playerRadius = 2f;
     public bool useCollisionWalking = true;
 
+    [Header("Navigation Hints")]
+    public bool showNavigationHints = true;
+    public bool showHeightAdjustHint;
+    public string navigationExtraInstruction = "";
+    public Color navigationPanelBackgroundColor = new Color(0.55f, 0.82f, 1f, 0.72f);
+    public Color navigationPanelTextColor = new Color(0.06f, 0.14f, 0.26f, 1f);
+    public int navigationPanelFontSize = 15;
+    public float navigationPanelRightMargin = 16f;
+    public float navigationPanelTopMargin = 16f;
+    public float navigationPanelWidth = 460f;
+    public float navigationLineHeight = 22f;
+
     [Header("Simulation Parameters")]
     public float maxPressure = 1.0f;       // MPa
     public float maxFlow = 60f;            // L/min
@@ -78,6 +90,8 @@ public class PipelineSceneRuntime : MonoBehaviour
     private float _cameraPitch;
     private float _cameraYaw;
     private bool _playerCreatedByUs;
+    private GUIStyle _navigationPanelStyle;
+    private Texture2D _navigationPanelTexture;
 
     // 材质颜色缓存
     private Color _normalEStopColor = PipelineBuilder.EStopRed;
@@ -262,6 +276,8 @@ public class PipelineSceneRuntime : MonoBehaviour
 
     void Update()
     {
+        TrainingNavigationShortcuts.HandleCtrlQ();
+
         if (!_playerInScene)
         {
             FindPlayer();
@@ -273,6 +289,24 @@ public class PipelineSceneRuntime : MonoBehaviour
         UpdateSimulation();
         UpdateVisuals();
         ReportToTrainingManager();
+    }
+
+    void OnGUI()
+    {
+        TrainingNavigationShortcuts.DrawTopRightHintsPanel(
+            showNavigationHints,
+            showHeightAdjustHint,
+            false,
+            navigationExtraInstruction,
+            navigationPanelBackgroundColor,
+            navigationPanelTextColor,
+            navigationPanelFontSize,
+            navigationPanelRightMargin,
+            navigationPanelTopMargin,
+            navigationPanelWidth,
+            navigationLineHeight,
+            ref _navigationPanelStyle,
+            ref _navigationPanelTexture);
     }
 
     // ═══════════════════════════════════════════════════════════

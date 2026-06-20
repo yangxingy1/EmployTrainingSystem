@@ -255,6 +255,25 @@ public class RegTrainBootstrap : MonoBehaviour
         ShowStatus("正在进入: " + option.sceneName, 0.8f);
         yield return new WaitForSeconds(0.25f);
 
+        var backend = TrainingBackendClient.EnsureExists();
+        int studentId = ResolveStudentId(backend);
+        if (studentId > 0 && option.assignmentId > 0)
+        {
+            yield return backend.StartTrainingAttemptRoutine(studentId, option.assignmentId);
+            if (!backend.HasActiveAttemptForScene(option.sceneName))
+            {
+                ShowStatus("训练记录创建失败，完成后成绩可能无法上报。", 2.5f);
+            }
+        }
+        else if (studentId <= 0)
+        {
+            ShowStatus("未绑定学员账号，完成后成绩可能无法上报。", 2.0f);
+        }
+        else if (option.assignmentId <= 0)
+        {
+            ShowStatus("当前任务未分配 assignment，完成后成绩可能无法上报。", 2.0f);
+        }
+
         if (SceneNameAliases.IsLeadTrainScene(option.sceneName))
             FactoryOneSceneController.ClearOneShotStartCameraReturnOverride();
 
@@ -275,6 +294,7 @@ public class RegTrainBootstrap : MonoBehaviour
         }
 
         string url = backend.backendBaseUrl.TrimEnd('/') + "/task/student-access/" + studentId;
+        Debug.Log("[RegTrain] Access query: " + url);
         using (var request = UnityWebRequest.Get(url))
         {
             yield return request.SendWebRequest();
@@ -287,6 +307,7 @@ public class RegTrainBootstrap : MonoBehaviour
             }
 
             var response = JsonUtility.FromJson<StudentAccessResponse>(request.downloadHandler.text);
+            Debug.Log("[RegTrain] Access response: " + request.downloadHandler.text);
             ApplyAccessResponse(response);
             ApplyLaunchContextFallback();
             ShowStatus("训练权限已同步。", 2.0f);
@@ -313,6 +334,13 @@ public class RegTrainBootstrap : MonoBehaviour
     void ApplyAccessResponse(StudentAccessResponse response)
     {
         if (response == null || response.items == null) return;
+
+        var backend = TrainingBackendClient.EnsureExists();
+        if (response.student_id > 0)
+        {
+            backend.studentId = response.student_id;
+            PlayerPrefs.SetInt("TrainingStudentId", response.student_id);
+        }
 
         for (int i = 0; i < response.items.Length; i++)
         {
@@ -342,6 +370,10 @@ public class RegTrainBootstrap : MonoBehaviour
         option.unlocked = true;
         option.assigned = true;
         option.assignmentStatus = "running";
+        if (backend.assignmentId > 0)
+        {
+            option.assignmentId = backend.assignmentId;
+        }
     }
 
     RegularTrainingOption FindOptionByScene(string sceneName)

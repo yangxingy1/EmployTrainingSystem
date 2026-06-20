@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 /// <summary>
 /// 化工厂管道培训流程管理器。
@@ -71,6 +72,8 @@ public class PipelineTrainingManager : MonoBehaviour
 
     private bool _flowMeterObserved = false;
     private float _flowMeterObservedTime = 0f;
+    private float _startedAtTime;
+    private bool _resultUploaded;
 
     // ── 事件 ───────────────────────────────────────────────────
     public event Action<PipelineStep> OnStepCompleted;
@@ -294,6 +297,8 @@ public class PipelineTrainingManager : MonoBehaviour
     public void ResetTraining()
     {
         _currentStep = PipelineStep.NotStarted;
+        _startedAtTime = Time.time;
+        _resultUploaded = false;
         _stepCompleted.Clear();
         _valveAngles.Clear();
         _gaugeValues.Clear();
@@ -402,6 +407,48 @@ public class PipelineTrainingManager : MonoBehaviour
         _currentStep = step;
         OnStepChanged?.Invoke(step);
         Debug.Log("[PipelineTraining] Advanced to: " + (step == PipelineStep.AllComplete ? "ALL COMPLETE" : GetStepDef(step).name));
+        if (step == PipelineStep.AllComplete)
+            UploadPipelineReportIfNeeded();
+    }
+
+    void UploadPipelineReportIfNeeded()
+    {
+        if (_resultUploaded) return;
+        _resultUploaded = true;
+
+        int totalSteps = 0;
+        int completedSteps = 0;
+        var report = new TrainingReportPayload
+        {
+            taskId = "train2_pipeline",
+            sceneName = SceneNameAliases.ToPublicSceneName(SceneManager.GetActiveScene().name),
+            trainTime = Mathf.RoundToInt(Mathf.Max(0f, Time.time - _startedAtTime)),
+            startedAt = DateTime.Now.AddSeconds(-Mathf.Max(0f, Time.time - _startedAtTime)).ToString("o"),
+            finishedAt = DateTime.Now.ToString("o")
+        };
+
+        for (int i = 0; i < steps.Count; i++)
+        {
+            var def = steps[i];
+            if (def.step == PipelineStep.NotStarted || def.step == PipelineStep.AllComplete)
+                continue;
+
+            bool completed = IsStepCompleted(def.step);
+            totalSteps++;
+            if (completed) completedSteps++;
+            report.steps.Add(new TrainingStepReport
+            {
+                index = totalSteps - 1,
+                name = def.name,
+                expectedAction = def.instruction,
+                completed = completed,
+                mistakeCount = 0
+            });
+        }
+
+        report.score = totalSteps > 0 ? Mathf.RoundToInt(completedSteps * 100f / totalSteps) : 100;
+        Debug.Log("[PipelineTraining] Uploading training report: scene=" + report.sceneName + ", score=" + report.score + ", steps=" + completedSteps + "/" + totalSteps);
+        TrainingBackendClient.EnsureExists().UploadReport(report);
     }
 
     PipelineStep GetNextStep(PipelineStep current)

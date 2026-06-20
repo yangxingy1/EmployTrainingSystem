@@ -52808,6 +52808,17 @@ MonoBehaviour:
   createInteriorFloorCollider: 1
   createGround: 1
   groundSize: 1200
+  showNavigationHints: 0
+  showHeightAdjustHint: 1
+  alwaysQuitOnCtrlQ: 0
+  navigationExtraInstruction: 
+  navigationPanelBackgroundColor: {r: 0.55, g: 0.82, b: 1, a: 0.72}
+  navigationPanelTextColor: {r: 0.06, g: 0.14, b: 0.26, a: 1}
+  navigationPanelFontSize: 15
+  navigationPanelRightMargin: 16
+  navigationPanelTopMargin: 16
+  navigationPanelWidth: 460
+  navigationLineHeight: 22
 --- !u!4 &1842932010
 Transform:
   m_ObjectHideFlags: 0

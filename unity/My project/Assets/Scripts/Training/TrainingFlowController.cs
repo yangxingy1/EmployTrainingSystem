@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -15,6 +16,7 @@ public class TrainingFlowController : MonoBehaviour
     int _successCount;
     int _mistakeCount;
     float _startedAt;
+    float _finishedElapsed;
     float _progress01;
     bool _completed;
     bool _simpleReportUploaded;
@@ -27,16 +29,22 @@ public class TrainingFlowController : MonoBehaviour
     string _errorSummary = "";
 
     GUIStyle _panelStyle;
+    GUIStyle _cncPanelStyle;
     GUIStyle _titleStyle;
     GUIStyle _labelStyle;
     GUIStyle _smallStyle;
+    GUIStyle _cncSmallStyle;
     GUIStyle _resultTitleStyle;
     GUIStyle _buttonStyle;
+    Texture2D _cncPanelTexture;
 
-    public float Elapsed => Time.time - _startedAt;
+    public float Elapsed => _completed ? _finishedElapsed : Time.time - _startedAt;
     public int SuccessCount => _successCount;
     public int MistakeCount => _mistakeCount;
     public bool IsCompleted => _completed;
+    public string CompletedTaskId => taskId;
+
+    public event Action<string> TrainingCompleted;
 
     public static TrainingFlowController EnsureExists(string selectedTaskId)
     {
@@ -89,6 +97,7 @@ public class TrainingFlowController : MonoBehaviour
         _progress01 = 0f;
         _completed = false;
         _startedAt = Time.time;
+        _finishedElapsed = 0f;
         _phase = "等待操作";
         _detail = objective;
         _lastEvent = "训练已开始";
@@ -134,6 +143,7 @@ public class TrainingFlowController : MonoBehaviour
     {
         if (_completed) return;
 
+        _finishedElapsed = Mathf.Max(0f, Time.time - _startedAt);
         _completed = true;
         _progress01 = 1f;
         _phase = "训练完成";
@@ -141,6 +151,7 @@ public class TrainingFlowController : MonoBehaviour
         _lastEvent = _detail;
         _lastEventAt = Time.time;
         UploadSimpleReportIfNeeded();
+        TrainingCompleted?.Invoke(taskId);
     }
 
     public void AttachReportResult(int score, string reportPath, string errorSummary)
@@ -230,6 +241,13 @@ public class TrainingFlowController : MonoBehaviour
                 gestureHint = "食指点按启动，捏合横杆向下拉，最后点击确认";
                 targetSuccessCount = 5;
                 targetSeconds = 120f;
+                break;
+            case LeadTrainRegularTrainingController.TaskId:
+                taskName = "正式训练一";
+                objective = "完成配电柜、紧急停机作业区、CNC 三台设备训练";
+                gestureHint = "按 E 进入引导式教学，按 T 进入手势训练";
+                targetSuccessCount = 3;
+                targetSeconds = 600f;
                 break;
             case "electric_switch":
                 taskName = "拉杆电闸训练";
@@ -464,6 +482,14 @@ public class TrainingFlowController : MonoBehaviour
         _smallStyle.normal.textColor = new Color(0.70f, 0.78f, 0.86f);
         _smallStyle.wordWrap = true;
 
+        _cncPanelTexture = MakeGuiTexture(new Color(0.22f, 0.62f, 1f, 0.30f));
+        _cncPanelStyle = new GUIStyle(_panelStyle);
+        _cncPanelStyle.normal.background = _cncPanelTexture;
+        _cncPanelStyle.normal.textColor = new Color(0.92f, 0.98f, 1f);
+
+        _cncSmallStyle = new GUIStyle(_smallStyle);
+        _cncSmallStyle.normal.textColor = new Color(0.90f, 0.98f, 1f);
+
         _resultTitleStyle = new GUIStyle(_titleStyle);
         _resultTitleStyle.fontSize = 28;
         _resultTitleStyle.alignment = TextAnchor.MiddleCenter;
@@ -518,16 +544,16 @@ public class TrainingFlowController : MonoBehaviour
     void DrawCNCGestureCompactPanel()
     {
         float width = 360f;
-        float height = 76f;
-        var rect = new Rect((Screen.width - width) * 0.5f, 18f, width, height);
-        GUI.Box(rect, "", _panelStyle);
+        float height = 86f;
+        var rect = new Rect((Screen.width - width) * 0.5f, 42f, width, height);
+        GUI.Box(rect, "", _cncPanelStyle);
 
-        GUILayout.BeginArea(new Rect(rect.x + 16f, rect.y + 10f, rect.width - 32f, rect.height - 20f));
-        GUILayout.Label(taskName + "    " + _successCount + "/" + targetSuccessCount + "    误操作 " + _mistakeCount, _smallStyle);
-        DrawProgressBar(GUILayoutUtility.GetRect(1f, 12f), _progress01);
-        string recent = _phase;
+        GUILayout.BeginArea(new Rect(rect.x + 14f, rect.y + 11f, rect.width - 28f, rect.height - 22f));
+        GUILayout.Label(taskName + "    " + _successCount + "/" + targetSuccessCount + "    误操作 " + _mistakeCount, _cncSmallStyle);
+        DrawCNCProgressBar(GUILayoutUtility.GetRect(1f, 12f), _progress01);
+        string recent = Time.time - _lastEventAt < 1.8f ? _lastEvent : _phase;
         if (!string.IsNullOrEmpty(recent))
-            GUILayout.Label(recent, _smallStyle);
+            GUILayout.Label(recent, _cncSmallStyle);
         GUILayout.EndArea();
     }
 
@@ -598,5 +624,23 @@ public class TrainingFlowController : MonoBehaviour
         GUI.color = _completed ? new Color(0.25f, 0.95f, 0.42f) : new Color(0.20f, 0.58f, 1f);
         GUI.DrawTexture(fill, Texture2D.whiteTexture);
         GUI.color = previous;
+    }
+
+    void DrawCNCProgressBar(Rect rect, float value)
+    {
+        var previous = GUI.color;
+        GUI.color = new Color(0.78f, 0.93f, 1f, 0.28f);
+        GUI.DrawTexture(rect, Texture2D.whiteTexture);
+        GUI.color = _completed ? new Color(0.50f, 1f, 0.70f, 0.80f) : new Color(0.35f, 0.78f, 1f, 0.82f);
+        GUI.DrawTexture(new Rect(rect.x + 2f, rect.y + 2f, Mathf.Max(0f, rect.width - 4f) * Mathf.Clamp01(value), rect.height - 4f), Texture2D.whiteTexture);
+        GUI.color = previous;
+    }
+
+    Texture2D MakeGuiTexture(Color color)
+    {
+        Texture2D texture = new Texture2D(1, 1);
+        texture.SetPixel(0, 0, color);
+        texture.Apply();
+        return texture;
     }
 }

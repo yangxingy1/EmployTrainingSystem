@@ -94,6 +94,22 @@ public class FactoryKeyboardSceneController : MonoBehaviour
     [SerializeField] private bool createGround = true;
     [SerializeField] private float groundSize = 1200f;
 
+    [Header("Navigation Hints")]
+    [SerializeField] private bool showNavigationHints;
+    [SerializeField] private bool showHeightAdjustHint = true;
+    [SerializeField] private bool alwaysQuitOnCtrlQ;
+    [SerializeField] private string navigationExtraInstruction = "";
+    [SerializeField] private Color navigationPanelBackgroundColor = new Color(0.55f, 0.82f, 1f, 0.72f);
+    [SerializeField] private Color navigationPanelTextColor = new Color(0.06f, 0.14f, 0.26f, 1f);
+    [SerializeField] private int navigationPanelFontSize = 15;
+    [SerializeField] private float navigationPanelRightMargin = 16f;
+    [SerializeField] private float navigationPanelTopMargin = 16f;
+    [SerializeField] private float navigationPanelWidth = 460f;
+    [SerializeField] private float navigationLineHeight = 22f;
+
+    private GUIStyle _navigationPanelStyle;
+    private Texture2D _navigationPanelTexture;
+
     private Transform factoryInstance;
     private Transform invisibleInteriorFloor;
     private CharacterController controller;
@@ -114,6 +130,8 @@ public class FactoryKeyboardSceneController : MonoBehaviour
 
     private void Update()
     {
+        TrainingNavigationShortcuts.HandleCtrlQ(alwaysQuitOnCtrlQ);
+
         if (Input.GetKeyDown(KeyCode.R))
         {
             ResetVisitorToInterior();
@@ -127,6 +145,24 @@ public class FactoryKeyboardSceneController : MonoBehaviour
 
         MovePlayer();
         LookAround();
+    }
+
+    private void OnGUI()
+    {
+        TrainingNavigationShortcuts.DrawTopRightHintsPanel(
+            showNavigationHints,
+            showHeightAdjustHint,
+            alwaysQuitOnCtrlQ,
+            navigationExtraInstruction,
+            navigationPanelBackgroundColor,
+            navigationPanelTextColor,
+            navigationPanelFontSize,
+            navigationPanelRightMargin,
+            navigationPanelTopMargin,
+            navigationPanelWidth,
+            navigationLineHeight,
+            ref _navigationPanelStyle,
+            ref _navigationPanelTexture);
     }
 
     private void InitializeFactory()

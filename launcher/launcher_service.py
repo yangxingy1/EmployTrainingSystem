@@ -64,6 +64,7 @@ def start_training(exe_path, context=None):
 
     exe_dir = os.path.dirname(os.path.abspath(exe_path))
     command = [exe_path] + _launch_args(context)
+    print("启动命令:", command)
     try:
         running_process = subprocess.Popen(
             command,

@@ -422,9 +422,9 @@ MonoBehaviour:
   playerCamera: {fileID: 0}
   eyeHeight: 1.7
   cameraHeightOffset: 0
-  useFixedStartCameraWorldHeight: 1
-  forceKnownGoodStartCameraWorldHeight: 1
-  startCameraWorldHeight: -71.32077
+  useFixedStartCameraWorldHeight: 0
+  forceKnownGoodStartCameraWorldHeight: 0
+  startCameraWorldHeight: -85.59
   startDistanceRatio: 0.22
   startGroundClearance: 0.15
   moveSpeed: 12

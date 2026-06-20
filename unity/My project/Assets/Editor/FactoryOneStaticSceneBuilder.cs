@@ -77,8 +77,8 @@ public static class FactoryOneStaticSceneBuilder
         controller.factoryCenter = Vector3.zero;
         controller.eyeHeight = 1.7f;
         controller.cameraHeightOffset = 0f;
-        controller.useFixedStartCameraWorldHeight = true;
-        controller.forceKnownGoodStartCameraWorldHeight = true;
+        controller.useFixedStartCameraWorldHeight = false;
+        controller.forceKnownGoodStartCameraWorldHeight = false;
         controller.startCameraWorldHeight = FactoryOneSceneController.KnownGoodStartCameraWorldHeight;
         controller.startGroundClearance = 0.15f;
         controller.verticalMoveSpeed = 1f;
