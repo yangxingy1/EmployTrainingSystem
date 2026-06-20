@@ -11,15 +11,31 @@ const loading = ref(false);
 const startingId = ref(null);
 const errorMsg = ref("");
 const activeAttempt = ref(null);
-const expandedAttempts = ref(new Set());
-const expandedSubResults = ref(new Set());
+const expandedHistorySubs = ref(new Set());
 const username = localStorage.getItem("username") || "学员";
 const userId = Number(localStorage.getItem("user_id"));
+
+const DEMO_CONFIGS = [
+  { key: "demo01", title: "Demo 01", subtitle: "lead-train1", sceneName: "lead-train1" },
+  { key: "demo02", title: "Demo 02", subtitle: "train2", sceneName: "train2" },
+];
+
+const DEMO_SUBPROJECT_FALLBACKS = {
+  "lead-train1": [
+    { sub_task_id: "lead_train1_electrical_cabinet_gesture", name: "配电柜主断路器" },
+    { sub_task_id: "lead_train1_gesture", name: "Breaker Shutdown" },
+    { sub_task_id: "lead_train1_cnc_gesture", name: "CNC 标准加工" },
+  ],
+  train2: [
+    { sub_task_id: "default_sub_task", name: "Demo 02 综合训练" },
+  ],
+};
 
 const doneCount = computed(() => tasks.value.filter((task) => normalizeStatus(task.status) === "done").length);
 const runningCount = computed(() => tasks.value.filter((task) => normalizeStatus(task.status) === "running").length);
 const pendingCount = computed(() => tasks.value.filter((task) => normalizeStatus(task.status) === "pending").length);
 const completionRate = computed(() => tasks.value.length ? Math.round((doneCount.value / tasks.value.length) * 100) : 0);
+const historyDemos = computed(() => DEMO_CONFIGS.map((demo) => buildDemoHistory(demo)));
 
 function normalizeStatus(status) {
   if (["done", "completed", "已完成"].includes(status)) return "done";
@@ -48,22 +64,6 @@ function formatTime(value) {
   return value ? new Date(value).toLocaleString() : "-";
 }
 
-function attemptKey(item) {
-  return `attempt-${item.attempt_id}`;
-}
-
-function subKey(item, sub) {
-  return `${item.attempt_id}-${sub.sub_task_id}`;
-}
-
-function isAttemptExpanded(item) {
-  return expandedAttempts.value.has(attemptKey(item));
-}
-
-function isSubExpanded(item, sub) {
-  return expandedSubResults.value.has(subKey(item, sub));
-}
-
 function toggleSet(target, key) {
   const next = new Set(target.value);
   if (next.has(key)) next.delete(key);
@@ -71,12 +71,82 @@ function toggleSet(target, key) {
   target.value = next;
 }
 
-function toggleAttempt(item) {
-  toggleSet(expandedAttempts, attemptKey(item));
+function buildDemoHistory(demo) {
+  const attempts = history.value.filter((item) => item.scene_name === demo.sceneName);
+  const subMap = new Map();
+
+  for (const fallback of DEMO_SUBPROJECT_FALLBACKS[demo.sceneName] || []) {
+    ensureHistorySub(subMap, fallback.sub_task_id, fallback.name, fallback.description);
+  }
+
+  for (const attempt of attempts) {
+    for (const item of attempt.sub_items || []) {
+      ensureHistorySub(subMap, item.sub_task_id, item.name, item.description);
+    }
+
+    for (const sub of attempt.sub_results || []) {
+      const subItem = ensureHistorySub(
+        subMap,
+        sub.sub_task_id,
+        sub.sub_task_name,
+        sub.catalog?.description
+      );
+      if (sub.status === "done") {
+        subItem.records.push({ attempt, sub });
+      }
+    }
+  }
+
+  const subProjects = Array.from(subMap.values()).map((item) => ({
+    ...item,
+    records: item.records.sort((a, b) => b.attempt.attempt_id - a.attempt.attempt_id),
+  }));
+  const records = subProjects.flatMap((item) => item.records);
+
+  return {
+    ...demo,
+    attempts,
+    subProjects,
+    recordCount: records.length,
+    averageScore: averageScore(records.map((record) => record.sub.score)),
+  };
 }
 
-function toggleSub(item, sub) {
-  toggleSet(expandedSubResults, subKey(item, sub));
+function ensureHistorySub(map, id, name, description = "") {
+  const key = id || "default_sub_task";
+  if (!map.has(key)) {
+    map.set(key, {
+      id: key,
+      name: name || key,
+      description: description || "",
+      records: [],
+    });
+  }
+  return map.get(key);
+}
+
+function averageScore(values) {
+  const valid = values.filter((value) => typeof value === "number");
+  if (!valid.length) return null;
+  return Math.round(valid.reduce((sum, value) => sum + value, 0) / valid.length);
+}
+
+function historySubKey(demo, subProject) {
+  return `${demo.key}-${subProject.id}`;
+}
+
+function isHistorySubExpanded(demo, subProject) {
+  return expandedHistorySubs.value.has(historySubKey(demo, subProject));
+}
+
+function toggleHistorySub(demo, subProject) {
+  toggleSet(expandedHistorySubs, historySubKey(demo, subProject));
+}
+
+function durationText(seconds) {
+  if (!seconds) return "-";
+  if (seconds < 60) return `${seconds}s`;
+  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
 }
 
 async function loadTasks() {
@@ -109,7 +179,6 @@ async function startTraining(task) {
       assignment_id: task.assignment_id,
     });
     activeAttempt.value = res.data;
-    expandedAttempts.value = new Set([attemptKey(res.data)]);
     await loadTasks();
   } catch (error) {
     alert(error.response?.data?.detail || "创建训练记录失败");
@@ -162,7 +231,6 @@ async function launchTraining(task) {
     }
 
     activeAttempt.value = createdAttempt;
-    expandedAttempts.value = new Set([attemptKey(createdAttempt)]);
     await loadTasks();
   } catch (error) {
     if (createdAttempt) {
@@ -333,67 +401,91 @@ onMounted(loadTasks);
         <div class="panel-heading">
           <div>
             <h2>学习历史</h2>
-            <p>点击一条历史记录查看子项目成绩，再展开子项目查看每一步错误详情。</p>
+            <p>按 Demo 查看所有子项目，展开子项目后可逐次查看评价、分数和步骤错误。</p>
           </div>
         </div>
 
-        <div class="history-list">
-          <article v-for="item in history" :key="item.attempt_id" class="history-card">
-            <button class="history-main" @click="toggleAttempt(item)">
+        <div class="demo-history-grid">
+          <article v-for="demo in historyDemos" :key="demo.key" class="demo-history-card">
+            <header class="demo-history-head">
               <div>
-                <strong>#{{ item.attempt_id }} {{ item.task_title || item.scene_name }}</strong>
-                <span>{{ item.scene_name }} · {{ item.completed_sub_count || 0 }}/{{ item.total_sub_count || item.sub_results?.length || 0 }} 子项目完成</span>
+                <span>{{ demo.subtitle }}</span>
+                <strong>{{ demo.title }}</strong>
               </div>
-              <div class="score-box">
-                <strong>{{ item.score ?? "-" }}</strong>
-                <span>{{ formatTime(item.finished_at || item.started_at) }}</span>
+              <div class="demo-history-stats">
+                <strong>{{ demo.recordCount }}</strong>
+                <small>次子项目记录</small>
               </div>
-            </button>
+            </header>
 
-            <div v-if="isAttemptExpanded(item)" class="sub-list">
-              <section v-for="sub in item.sub_results" :key="sub.sub_task_id" class="sub-card" :class="{ pending: sub.status !== 'done' }">
-                <button class="sub-main" @click="toggleSub(item, sub)">
+            <div class="demo-average">
+              <span>平均分</span>
+              <strong>{{ demo.averageScore ?? "-" }}</strong>
+              <small>{{ demo.attempts.length }} 次训练会话</small>
+            </div>
+
+            <div class="sub-project-list">
+              <section v-for="subProject in demo.subProjects" :key="subProject.id" class="sub-project-card">
+                <button class="sub-project-main" @click="toggleHistorySub(demo, subProject)">
                   <div>
-                    <strong>{{ sub.sub_task_name }}</strong>
-                    <span>{{ subStatusText(sub.status) }} · 错误 {{ sub.error_count || 0 }} / 安全 {{ sub.safety_error_count || 0 }}</span>
+                    <strong>{{ subProject.name }}</strong>
+                    <span>{{ subProject.description || "暂无子项目说明" }}</span>
                   </div>
-                  <div class="sub-score">
-                    <strong>{{ sub.score ?? "-" }}</strong>
-                    <span>{{ sub.train_time ? `${sub.train_time}s` : "-" }}</span>
+                  <div class="sub-project-stat">
+                    <strong>{{ subProject.records.length }}</strong>
+                    <span>次</span>
                   </div>
                 </button>
 
-                <div v-if="isSubExpanded(item, sub)" class="detail-box">
-                  <div class="detail-actions">
-                    <p>{{ sub.summary || "暂无摘要" }}</p>
-                    <button disabled>AI 分析</button>
-                  </div>
-
-                  <div class="step-grid">
-                    <div v-for="step in sub.steps" :key="`${sub.sub_task_id}-step-${step.index}`" class="step-row">
-                      <strong>{{ Number(step.index) + 1 }}. {{ step.name || step.stepName || "未命名步骤" }}</strong>
-                      <span>{{ step.expectedAction || step.expected_action || "未记录期望动作" }}</span>
-                      <small>{{ step.completed ? "已完成" : "未完成" }} · 错误 {{ step.mistakeCount || step.mistake_count || 0 }}</small>
-                    </div>
-                  </div>
-
-                  <div class="error-list">
-                    <article v-for="(error, index) in sub.errors" :key="`${sub.sub_task_id}-error-${index}`" class="error-item">
+                <div v-if="isHistorySubExpanded(demo, subProject)" class="sub-record-list">
+                  <article v-for="record in subProject.records" :key="`${record.attempt.attempt_id}-${record.sub.id || record.sub.sub_task_id}`" class="sub-record-card">
+                    <div class="record-summary">
                       <div>
-                        <strong>{{ error.stepName || error.step_name || `错误 ${index + 1}` }}</strong>
-                        <span>{{ error.reason || "未记录原因" }}</span>
+                        <strong>#{{ record.attempt.attempt_id }} {{ record.attempt.task_title || demo.title }}</strong>
+                        <span>{{ formatTime(record.sub.finished_at || record.attempt.finished_at || record.attempt.started_at) }}</span>
                       </div>
-                      <p>{{ error.consequence || "暂无后果说明" }}</p>
-                      <small>{{ severityText(error.severity) }} · {{ error.time ? `${Number(error.time).toFixed(1)}s` : "-" }}</small>
-                    </article>
-                    <div v-if="!sub.errors?.length" class="muted-box">暂无错误详情。</div>
-                  </div>
+                      <div class="record-score">
+                        <strong>{{ record.sub.score ?? "-" }}</strong>
+                        <span>{{ durationText(record.sub.train_time) }}</span>
+                      </div>
+                    </div>
+
+                    <p class="record-comment">{{ record.sub.summary || "暂无学习评价" }}</p>
+
+                    <div class="record-meta">
+                      <span>错误 {{ record.sub.error_count || 0 }}</span>
+                      <span>安全错误 {{ record.sub.safety_error_count || 0 }}</span>
+                      <span>{{ subStatusText(record.sub.status) }}</span>
+                    </div>
+
+                    <div class="step-grid">
+                      <div v-for="step in record.sub.steps" :key="`${record.attempt.attempt_id}-${record.sub.sub_task_id}-step-${step.index}`" class="step-row">
+                        <strong>{{ Number(step.index) + 1 }}. {{ step.name || step.stepName || "未命名步骤" }}</strong>
+                        <span>{{ step.expectedAction || step.expected_action || "未记录期望动作" }}</span>
+                        <small>{{ step.completed ? "已完成" : "未完成" }} · 错误 {{ step.mistakeCount || step.mistake_count || 0 }}</small>
+                      </div>
+                    </div>
+
+                    <div class="error-list compact">
+                      <article v-for="(error, index) in record.sub.errors" :key="`${record.attempt.attempt_id}-${record.sub.sub_task_id}-error-${index}`" class="error-item">
+                        <div>
+                          <strong>{{ error.stepName || error.step_name || `错误 ${index + 1}` }}</strong>
+                          <span>{{ error.reason || "未记录原因" }}</span>
+                        </div>
+                        <p>{{ error.consequence || "暂无后果说明" }}</p>
+                        <small>{{ severityText(error.severity) }} · {{ error.time ? `${Number(error.time).toFixed(1)}s` : "-" }}</small>
+                      </article>
+                      <div v-if="!record.sub.errors?.length" class="muted-box">暂无错误详情。</div>
+                    </div>
+                  </article>
+
+                  <div v-if="!subProject.records.length" class="muted-box">这个子项目还没有训练记录。</div>
                 </div>
               </section>
+
+              <div v-if="!demo.subProjects.length" class="empty-box">暂无子项目记录。</div>
             </div>
           </article>
-
-          <div v-if="!history.length && !loading" class="empty-box">暂无学习历史。</div>
         </div>
       </section>
     </main>
@@ -447,6 +539,36 @@ onMounted(loadTasks);
 .status-pill.done { color: #16653f; background: #dbf7e8; }
 .task-actions { display: flex; align-items: center; gap: 12px; }
 .history-panel { margin-top: 18px; }
+.demo-history-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.demo-history-card { min-width: 0; border: 1px solid var(--border); border-radius: var(--radius-lg); background: #fff; overflow: hidden; }
+.demo-history-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px; border-bottom: 1px solid var(--border); background: #f8fbfb; }
+.demo-history-head span { display: block; margin-bottom: 4px; color: var(--accent); font-size: 12px; font-weight: 900; }
+.demo-history-head strong { display: block; color: var(--heading); font-size: 20px; }
+.demo-history-stats { text-align: right; }
+.demo-history-stats strong { font-size: 28px; line-height: 1; }
+.demo-history-stats small { display: block; margin-top: 4px; color: var(--text-muted); white-space: nowrap; }
+.demo-average { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: end; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+.demo-average span, .demo-average small { color: var(--text-muted); }
+.demo-average strong { grid-row: span 2; color: var(--heading); font-size: 32px; line-height: 1; }
+.sub-project-list { display: grid; gap: 10px; padding: 14px; }
+.sub-project-card { border: 1px solid var(--border); border-radius: var(--radius); background: #fff; overflow: hidden; }
+.sub-project-main { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 64px; gap: 12px; align-items: center; padding: 14px; text-align: left; background: transparent; }
+.sub-project-main:hover { background: #f6faf9; }
+.sub-project-main strong { display: block; color: var(--heading); }
+.sub-project-main span { display: block; margin-top: 4px; color: var(--text-muted); font-size: 12px; line-height: 1.5; }
+.sub-project-stat { text-align: right; }
+.sub-project-stat strong { display: block; color: var(--primary-strong); font-size: 26px; line-height: 1; }
+.sub-project-stat span { margin-top: 3px; }
+.sub-record-list { display: grid; gap: 10px; padding: 0 12px 12px; }
+.sub-record-card { display: grid; gap: 12px; padding: 14px; border: 1px solid #dce8e8; border-radius: var(--radius); background: #fbfdfd; }
+.record-summary { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.record-summary strong { display: block; color: var(--heading); }
+.record-summary span { display: block; margin-top: 4px; color: var(--text-muted); font-size: 12px; }
+.record-score { min-width: 64px; text-align: right; }
+.record-score strong { color: var(--heading); font-size: 30px; line-height: 1; }
+.record-comment { padding: 10px 12px; border-radius: var(--radius); color: var(--text); background: #f2f7f7; line-height: 1.6; white-space: pre-line; }
+.record-meta { display: flex; flex-wrap: wrap; gap: 8px; }
+.record-meta span { padding: 5px 10px; border-radius: var(--radius-full); color: var(--text-muted); background: #eef3f5; font-size: 12px; font-weight: 800; }
 .history-card { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-lg); background: #fff; }
 .history-main, .sub-main { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 120px; gap: 12px; align-items: center; padding: 16px; text-align: left; background: transparent; }
 .history-main:hover, .sub-main:hover { background: #f8fbfb; }
@@ -467,12 +589,14 @@ onMounted(loadTasks);
 .step-row span, .step-row small { margin-top: 4px; color: var(--text-muted); }
 .error-item { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 1.2fr) 88px; gap: 12px; padding: 12px; border: 1px solid #f0c9c2; border-radius: var(--radius); background: #fffafa; }
 .error-item span, .error-item p, .error-item small { color: var(--text-muted); line-height: 1.5; }
+.error-list.compact { gap: 8px; }
 @media (max-width: 760px) {
   .student-header, .user-area { align-items: stretch; flex-direction: column; text-align: left; }
-  .overview, .stat-row, .task-row, .active-attempt, .history-main, .sub-main, .error-item { grid-template-columns: 1fr; }
+  .overview, .stat-row, .task-row, .active-attempt, .history-main, .sub-main, .error-item, .demo-history-grid, .sub-project-main { grid-template-columns: 1fr; }
   .task-title, .step-grid { grid-template-columns: 1fr; }
   .training-system-entry { align-items: stretch; flex-direction: column; }
   .task-actions { align-items: stretch; flex-direction: column; }
-  .score-box, .sub-score { text-align: left; }
+  .score-box, .sub-score, .demo-history-stats, .sub-project-stat, .record-score { text-align: left; }
+  .record-summary { flex-direction: column; }
 }
 </style>
