@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { cancelTrainingAttempt, getMyTasks, getStudentTrainingHistory, startTrainingAttempt } from "../api/task";
 import { BACKEND_API, getLauncherStatus, getTrainingStatus, launcherErrorMessage, startUnityEntry, startUnityTraining } from "../api/launcher";
+import ChangePasswordModal from "../components/ChangePasswordModal.vue";
 
 const router = useRouter();
 const tasks = ref([]);
@@ -12,6 +13,7 @@ const startingId = ref(null);
 const errorMsg = ref("");
 const activeAttempt = ref(null);
 const expandedHistorySubs = ref(new Set());
+const showChangePassword = ref(false);
 const username = localStorage.getItem("username") || "学员";
 const userId = Number(localStorage.getItem("user_id"));
 
@@ -320,6 +322,7 @@ onMounted(loadTasks);
           <strong>{{ username }}</strong>
         </div>
         <button class="ghost-btn" @click="loadTasks">刷新</button>
+        <button class="ghost-btn" @click="showChangePassword=true">修改密码</button>
         <button class="logout-btn" @click="logout">退出</button>
       </div>
     </header>
@@ -489,6 +492,8 @@ onMounted(loadTasks);
         </div>
       </section>
     </main>
+
+    <ChangePasswordModal v-if="showChangePassword" @close="showChangePassword=false" />
   </div>
 </template>
 

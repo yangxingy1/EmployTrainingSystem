@@ -23,6 +23,7 @@
         <div class="user-area">
           <div><span>管理员</span><strong>{{ username }}</strong></div>
           <button class="ghost-btn" @click="loadDashboard">刷新</button>
+          <button class="ghost-btn" @click="showChangePassword=true">修改密码</button>
           <button class="logout-btn" @click="logout">退出</button>
         </div>
       </header>
@@ -63,7 +64,10 @@
       </section>
 
       <section v-else-if="currentMenu === 'student'" class="workspace-panel">
-        <div class="panel-header"><div><h2>学员总览</h2><p>按学员查看任务分配与完成进度。</p></div></div>
+        <div class="panel-header">
+          <div><h2>学员总览</h2><p>按学员查看任务分配与完成进度。</p></div>
+          <button class="primary-btn" @click="showStudentCreate=true">注册学员</button>
+        </div>
         <div class="table-wrap">
           <table>
             <thead><tr><th>学员</th><th>已完成</th><th>完成率</th><th>近期任务</th></tr></thead>
@@ -191,15 +195,39 @@
         </div>
       </div>
     </div>
+
+    <div v-if="showStudentCreate" class="dialog-mask" @click.self="showStudentCreate=false">
+      <div class="dialog">
+        <h3>注册学员</h3>
+        <p class="dialog-desc">新学员会自动归属到当前管理员所在公司。</p>
+        <label class="form-item">
+          <span>学员账号</span>
+          <input v-model.trim="newStudent.username" type="text" placeholder="请输入学员账号" />
+        </label>
+        <label class="form-item">
+          <span>初始密码</span>
+          <input v-model="newStudent.password" type="password" placeholder="请输入初始密码" />
+        </label>
+        <div class="dialog-actions">
+          <button class="cancel-btn" @click="showStudentCreate=false">取消</button>
+          <button class="confirm-btn" :disabled="creatingStudent" @click="createStudent">
+            {{ creatingStudent ? "注册中..." : "确认注册" }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <ChangePasswordModal v-if="showChangePassword" @close="showChangePassword=false" />
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
 import { getUsers, getAssignments, getCompanyTrainingAnalytics } from "../api/task";
 import api from "../api/http";
 import AssignTraining from "../components/admin/AssignTraining.vue";
+import ChangePasswordModal from "../components/ChangePasswordModal.vue";
 
 const router = useRouter();
 const students = ref([]);
@@ -215,6 +243,10 @@ const username = localStorage.getItem("username") || "管理员";
 const adminCompanyId = Number(localStorage.getItem("company_id"));
 const expandedAttempts = ref(new Set());
 const expandedSubResults = ref(new Set());
+const showStudentCreate = ref(false);
+const creatingStudent = ref(false);
+const newStudent = reactive({ username: "", password: "" });
+const showChangePassword = ref(false);
 
 const menus = [
   { key: "assign", title: "训练分配", desc: "学员训练派发", mark: "分" },
@@ -313,6 +345,28 @@ async function loadDashboard() {
   }
 }
 
+async function createStudent() {
+  if (!newStudent.username || !newStudent.password) {
+    alert("请输入学员账号和密码");
+    return;
+  }
+  creatingStudent.value = true;
+  try {
+    await api.post("/admin/students", {
+      username: newStudent.username,
+      password: newStudent.password,
+    });
+    newStudent.username = "";
+    newStudent.password = "";
+    showStudentCreate.value = false;
+    await loadDashboard();
+  } catch (error) {
+    alert(error.response?.data?.detail || "注册失败");
+  } finally {
+    creatingStudent.value = false;
+  }
+}
+
 function logout() {
   localStorage.removeItem("token");
   localStorage.removeItem("username");
@@ -403,6 +457,10 @@ tr:last-child td { border-bottom: 0; }
 .dialog.wide { width: 680px; max-height: 80vh; display: flex; flex-direction: column; }
 .dialog h3 { margin: 0 0 8px; }
 .dialog-desc { color: var(--text-muted); font-size: 13px; margin-bottom: 16px; }
+.form-item { display: grid; gap: 7px; margin-bottom: 14px; }
+.form-item span { color: var(--heading); font-size: 13px; font-weight: 800; }
+.form-item input { height: 42px; border: 1px solid var(--border); border-radius: var(--radius); padding: 0 12px; font-size: 14px; outline: none; }
+.form-item input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(20,112,111,0.10); }
 .dialog-table-wrap { overflow: auto; flex: 1; border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 16px; max-height: 360px; }
 .dialog-table-wrap table { width: 100%; }
 .dialog-table-wrap tbody tr { cursor: pointer; transition: background var(--transition-fast); }

@@ -18,6 +18,11 @@
     </aside>
 
     <main class="content">
+      <header class="top-account">
+        <div><span>当前账号</span><strong>{{ username }}</strong></div>
+        <button class="account-btn" @click="showChangePassword=true">修改密码</button>
+      </header>
+
       <!-- 首页 -->
       <div v-if="currentMenu==='dashboard'">
         <div class="header-card">
@@ -181,6 +186,8 @@
         </div>
       </div>
     </div>
+
+    <ChangePasswordModal v-if="showChangePassword" @close="showChangePassword=false" />
   </div>
 </template>
 
@@ -189,10 +196,12 @@
 import { onMounted, ref, reactive } from "vue";
 import { useRouter } from "vue-router";
 import api from "../api/http";
+import ChangePasswordModal from "../components/ChangePasswordModal.vue";
 
 const router = useRouter();
 const username = ref(localStorage.getItem("username") || "Root");
 const currentMenu = ref("dashboard");
+const showChangePassword = ref(false);
 
 // ---- 公司 ----
 const companies = ref([]);
@@ -350,6 +359,12 @@ onMounted(async () => {
 .logout-btn:hover { background: #a83a3a; }
 
 .content { flex: 1; min-width: 0; padding: 32px; }
+.top-account { display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin-bottom: 18px; }
+.top-account div { text-align: right; }
+.top-account span { display: block; color: #777; font-size: 12px; }
+.top-account strong { display: block; color: #23395d; }
+.account-btn { height: 38px; padding: 0 16px; border-radius: var(--radius); color: #2c4f8f; background: #edf3ff; font-weight: 700; transition: all var(--transition); }
+.account-btn:hover { background: #dfeaff; }
 .header-card { padding: 28px; border-radius: var(--radius-lg); background: white; box-shadow: 0 8px 20px rgba(0,0,0,0.05); margin-bottom: 24px; }
 .header-card h1 { margin: 0 0 8px; }
 .header-card p { margin: 0; color: #666; }

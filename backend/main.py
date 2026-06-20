@@ -43,6 +43,16 @@ class AdminCreate(BaseModel):
     company_id: int
 
 
+class AdminStudentCreate(BaseModel):
+    username: str
+    password: str
+
+
+class PasswordChange(BaseModel):
+    new_password: str
+    confirm_password: str
+
+
 # 自动建表 —— 启动时根据 ORM 模型创建/更新数据库表结构
 Base.metadata.create_all(bind=engine)
 
@@ -73,6 +83,16 @@ app.add_middleware(
 def hash_password(password: str) -> str:
     """SHA256 哈希加密 —— 所有密码入库前均由此函数处理"""
     return hashlib.sha256(password.encode()).hexdigest()
+
+
+def require_current_user(authorization: str = Header(None)) -> dict:
+    if not authorization:
+        raise HTTPException(status_code=401, detail="未登录")
+    token = authorization.replace("Bearer ", "")
+    payload = verify_token(token)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Token失效")
+    return payload
 
 
 # =================================================================
@@ -138,6 +158,21 @@ def get_me(authorization: str = Header(None)):
     if not payload:
         raise HTTPException(status_code=401, detail="Token失效")
     return payload
+
+
+@app.patch("/change-password")
+def change_password(data: PasswordChange, payload: dict = Depends(require_current_user), db: Session = Depends(get_db)):
+    if not data.new_password or len(data.new_password) < 3:
+        raise HTTPException(status_code=400, detail="密码至少需要3位")
+    if data.new_password != data.confirm_password:
+        raise HTTPException(status_code=400, detail="两次输入的密码不一致")
+
+    user = db.query(User).filter(User.id == payload.get("user_id")).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    user.password = hash_password(data.new_password)
+    db.commit()
+    return {"success": True, "message": "密码修改成功"}
 
 
 @app.post("/login")
@@ -431,6 +466,41 @@ def get_users(db: Session = Depends(get_db)):
     """获取所有用户列表 —— Admin 前端按 company_id 过滤"""
     users = db.query(User).order_by(User.id.asc()).all()
     return [{"id": u.id, "username": u.username, "role": u.role, "company_id": u.company_id} for u in users]
+
+
+@app.post("/admin/students")
+def create_company_student(
+    data: AdminStudentCreate,
+    payload: dict = Depends(require_current_user),
+    db: Session = Depends(get_db),
+):
+    if payload.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="仅管理员可注册学员")
+    company_id = payload.get("company_id")
+    if not company_id:
+        raise HTTPException(status_code=400, detail="管理员未绑定公司")
+    if not data.username or not data.username.strip():
+        raise HTTPException(status_code=400, detail="用户名不能为空")
+    if not data.password or len(data.password) < 3:
+        raise HTTPException(status_code=400, detail="密码至少需要3位")
+
+    existing = db.query(User).filter(
+        User.username == data.username.strip(),
+        User.company_id == company_id,
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="该公司下用户已存在")
+
+    student = User(
+        username=data.username.strip(),
+        password=hash_password(data.password),
+        role="student",
+        company_id=company_id,
+    )
+    db.add(student)
+    db.commit()
+    db.refresh(student)
+    return {"success": True, "message": "学员注册成功", "user_id": student.id}
 
 
 @app.get("/my-tasks/{user_id}")
