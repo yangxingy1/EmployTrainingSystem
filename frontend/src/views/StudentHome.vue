@@ -448,16 +448,19 @@ onMounted(loadTasks);
                 </button>
 
                 <div v-if="isHistorySubExpanded(demo, subProject)" class="sub-record-list">
-                  <article v-for="record in subProject.records" :key="`${record.attempt.attempt_id}-${record.sub.id || record.sub.sub_task_id}`" class="sub-record-card">
+                  <article v-for="record in subProject.records" :key="`${record.attempt.attempt_id}-${record.sub.id || record.sub.sub_task_id}`" class="sub-record-card" :class="{ active: isHistoryRecordExpanded(record) }">
                     <button class="record-summary" @click="toggleHistoryRecord(record)">
-                      <div>
-                        <strong>#{{ record.attempt.attempt_id }} {{ record.attempt.task_title || demo.title }}</strong>
+                      <div class="record-title">
+                        <span class="record-badge">训练 #{{ record.attempt.attempt_id }}</span>
+                        <strong>{{ record.attempt.task_title || demo.title }}</strong>
                         <span>{{ formatTime(record.sub.finished_at || record.attempt.finished_at || record.attempt.started_at) }}</span>
                       </div>
                       <div class="record-score">
+                        <small>得分</small>
                         <strong>{{ record.sub.score ?? "-" }}</strong>
                         <span>{{ durationText(record.sub.train_time) }}</span>
                       </div>
+                      <span class="record-toggle">{{ isHistoryRecordExpanded(record) ? "收起详情" : "查看详情" }}</span>
                     </button>
 
                     <div v-if="isHistoryRecordExpanded(record)" class="record-detail">
@@ -570,16 +573,21 @@ onMounted(loadTasks);
 .sub-project-stat { text-align: right; }
 .sub-project-stat strong { display: block; color: var(--primary-strong); font-size: 26px; line-height: 1; }
 .sub-project-stat span { margin-top: 3px; white-space: nowrap; }
-.sub-record-list { display: grid; gap: 10px; padding: 0 12px 12px; }
-.sub-record-card { display: grid; gap: 12px; padding: 14px; border: 1px solid #dce8e8; border-radius: var(--radius); background: #fbfdfd; }
-.record-summary { width: 100%; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 0; border: 0; background: transparent; text-align: left; }
-.record-summary:hover strong { color: var(--primary-strong); }
-.record-summary strong { display: block; color: var(--heading); }
-.record-summary span { display: block; margin-top: 4px; color: var(--text-muted); font-size: 12px; }
-.record-score { min-width: 64px; text-align: right; }
-.record-score strong { color: var(--heading); font-size: 30px; line-height: 1; }
-.record-detail { display: grid; gap: 12px; }
-.record-comment { padding: 10px 12px; border-radius: var(--radius); color: var(--text); background: #f2f7f7; line-height: 1.6; white-space: pre-line; }
+.sub-record-list { display: grid; gap: 12px; padding: 0 12px 12px; }
+.sub-record-card { display: grid; gap: 12px; padding: 12px; border: 1px solid #d7e5e4; border-radius: var(--radius); background: linear-gradient(180deg, #ffffff 0%, #f8fbfb 100%); box-shadow: 0 8px 18px rgba(16, 52, 52, 0.06); transition: border-color var(--transition), box-shadow var(--transition), transform var(--transition); }
+.sub-record-card:hover { border-color: #b9d8d5; box-shadow: 0 12px 24px rgba(16, 52, 52, 0.09); transform: translateY(-1px); }
+.sub-record-card.active { border-color: var(--primary); box-shadow: 0 12px 26px rgba(20, 112, 111, 0.14); }
+.record-summary { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 82px auto; gap: 14px; align-items: center; padding: 0; border: 0; background: transparent; text-align: left; }
+.record-title { min-width: 0; display: grid; gap: 5px; }
+.record-badge { width: fit-content; padding: 4px 8px; border-radius: var(--radius-full); color: var(--primary-strong); background: var(--primary-soft); font-size: 12px; font-weight: 900; }
+.record-summary strong { display: block; color: var(--heading); font-size: 15px; }
+.record-summary span { display: block; color: var(--text-muted); font-size: 12px; }
+.record-score { min-width: 74px; padding: 8px 10px; border-radius: var(--radius); text-align: center; background: #eef8f6; }
+.record-score small { display: block; color: var(--text-muted); font-size: 11px; font-weight: 900; }
+.record-score strong { display: block; color: var(--primary-strong); font-size: 30px; line-height: 1; }
+.record-toggle { justify-self: end; min-width: 74px; color: var(--accent); font-size: 12px; font-weight: 900; text-align: right; }
+.record-detail { display: grid; gap: 12px; padding-top: 12px; border-top: 1px dashed #c9dedd; }
+.record-comment { padding: 12px 14px; border-left: 3px solid var(--primary); border-radius: var(--radius); color: var(--text); background: #f2f7f7; line-height: 1.6; white-space: pre-line; }
 .record-meta { display: flex; flex-wrap: wrap; gap: 8px; }
 .record-meta span { padding: 5px 10px; border-radius: var(--radius-full); color: var(--text-muted); background: #eef3f5; font-size: 12px; font-weight: 800; }
 .history-card { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-lg); background: #fff; }
@@ -609,7 +617,9 @@ onMounted(loadTasks);
   .task-title, .step-grid { grid-template-columns: 1fr; }
   .training-system-entry { align-items: stretch; flex-direction: column; }
   .task-actions { align-items: stretch; flex-direction: column; }
-  .score-box, .sub-score, .demo-history-stats, .sub-project-stat, .record-score { text-align: left; }
-  .record-summary { flex-direction: column; }
+  .score-box, .sub-score, .demo-history-stats, .sub-project-stat { text-align: left; }
+  .record-summary { grid-template-columns: 1fr; }
+  .record-score { text-align: left; }
+  .record-toggle { justify-self: start; text-align: left; }
 }
 </style>

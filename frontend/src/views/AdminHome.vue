@@ -95,13 +95,6 @@
             <h2>训练数据分析</h2>
             <p>按学员查看 Demo 学习历史，并汇总本公司训练完成情况。</p>
           </div>
-          <label class="analysis-select">
-            <span>选择学员</span>
-            <select v-model="selectedAnalyticsStudentId">
-              <option value="" disabled>请选择学员</option>
-              <option v-for="student in students" :key="student.id" :value="String(student.id)">{{ student.username }}</option>
-            </select>
-          </label>
         </div>
 
         <section class="analysis-grid">
@@ -155,6 +148,20 @@
           </article>
         </section>
 
+        <div class="analysis-picker-panel">
+          <div>
+            <strong>学员学习历史</strong>
+            <span>选择本公司学员后查看 Demo 与子项目训练记录</span>
+          </div>
+          <label class="analysis-select">
+            <span>选择学员</span>
+            <select v-model="selectedAnalyticsStudentId">
+              <option value="" disabled>请选择学员</option>
+              <option v-for="student in students" :key="student.id" :value="String(student.id)">{{ student.username }}</option>
+            </select>
+          </label>
+        </div>
+
         <div v-if="selectedAnalyticsStudent" class="selected-student-title">
           <strong>{{ selectedAnalyticsStudent.username }}</strong>
           <span>学习历史</span>
@@ -187,16 +194,19 @@
                 </button>
 
                 <div v-if="isAnalysisSubExpanded(demo, subProject)" class="sub-record-list">
-                  <article v-for="record in subProject.records" :key="analysisRecordKey(record)" class="sub-record-card">
+                  <article v-for="record in subProject.records" :key="analysisRecordKey(record)" class="sub-record-card" :class="{ active: isAnalysisRecordExpanded(record) }">
                     <button class="record-summary" @click="toggleAnalysisRecord(record)">
-                      <div>
-                        <strong>#{{ record.attempt.attempt_id }} {{ record.attempt.task_title || demo.title }}</strong>
+                      <div class="record-title">
+                        <span class="record-badge">训练 #{{ record.attempt.attempt_id }}</span>
+                        <strong>{{ record.attempt.task_title || demo.title }}</strong>
                         <span>{{ formatTime(record.sub.finished_at || record.attempt.finished_at || record.attempt.started_at) }}</span>
                       </div>
                       <div class="record-score">
+                        <small>得分</small>
                         <strong>{{ record.sub.score ?? "-" }}</strong>
                         <span>{{ durationText(record.sub.train_time) }}</span>
                       </div>
+                      <span class="record-toggle">{{ isAnalysisRecordExpanded(record) ? "收起详情" : "查看详情" }}</span>
                     </button>
 
                     <div v-if="isAnalysisRecordExpanded(record)" class="record-detail">
@@ -663,7 +673,10 @@ tr:last-child td { border-bottom: 0; }
 .analysis-grid > div { padding: 14px; border: 1px solid var(--border); border-radius: var(--radius); background: #f8fbfc; }
 .analysis-grid span { display: block; color: var(--text-muted); font-size: 12px; }
 .analysis-grid strong { display: block; margin-top: 6px; color: var(--heading); font-size: 26px; }
-.analysis-select { min-width: 220px; display: grid; gap: 6px; }
+.analysis-picker-panel { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; padding: 14px 16px; border: 1px solid #d7e5e4; border-radius: var(--radius); background: #fbfdfd; }
+.analysis-picker-panel strong { display: block; color: var(--heading); font-size: 16px; }
+.analysis-picker-panel div span { display: block; margin-top: 4px; color: var(--text-muted); font-size: 12px; }
+.analysis-select { min-width: 240px; display: grid; gap: 6px; }
 .analysis-select span { color: var(--text-muted); font-size: 12px; font-weight: 800; }
 .analysis-select select { height: 40px; padding: 0 12px; border: 1px solid var(--border); border-radius: var(--radius); background: #fff; color: var(--heading); font-weight: 800; outline: none; }
 .analysis-select select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(20,112,111,0.10); }
@@ -698,16 +711,21 @@ tr:last-child td { border-bottom: 0; }
 .sub-project-stat { text-align: right; }
 .sub-project-stat strong { display: block; color: var(--primary-strong); font-size: 26px; line-height: 1; }
 .sub-project-stat span { margin-top: 3px; white-space: nowrap; }
-.sub-record-list { display: grid; gap: 10px; padding: 0 12px 12px; }
-.sub-record-card { display: grid; gap: 12px; padding: 14px; border: 1px solid #dce8e8; border-radius: var(--radius); background: #fbfdfd; }
-.record-summary { width: 100%; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 0; border: 0; background: transparent; text-align: left; }
-.record-summary:hover strong { color: var(--primary-strong); }
-.record-summary strong { display: block; color: var(--heading); }
-.record-summary span { display: block; margin-top: 4px; color: var(--text-muted); font-size: 12px; }
-.record-score { min-width: 64px; text-align: right; }
-.record-score strong { color: var(--heading); font-size: 30px; line-height: 1; }
-.record-detail { display: grid; gap: 12px; }
-.record-comment { padding: 10px 12px; border-radius: var(--radius); color: var(--text); background: #f2f7f7; line-height: 1.6; white-space: pre-line; }
+.sub-record-list { display: grid; gap: 12px; padding: 0 12px 12px; }
+.sub-record-card { display: grid; gap: 12px; padding: 12px; border: 1px solid #d7e5e4; border-radius: var(--radius); background: linear-gradient(180deg, #ffffff 0%, #f8fbfb 100%); box-shadow: 0 8px 18px rgba(16, 52, 52, 0.06); transition: border-color var(--transition), box-shadow var(--transition), transform var(--transition); }
+.sub-record-card:hover { border-color: #b9d8d5; box-shadow: 0 12px 24px rgba(16, 52, 52, 0.09); transform: translateY(-1px); }
+.sub-record-card.active { border-color: var(--primary); box-shadow: 0 12px 26px rgba(20, 112, 111, 0.14); }
+.record-summary { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 82px auto; gap: 14px; align-items: center; padding: 0; border: 0; background: transparent; text-align: left; }
+.record-title { min-width: 0; display: grid; gap: 5px; }
+.record-badge { width: fit-content; padding: 4px 8px; border-radius: var(--radius-full); color: var(--primary-strong); background: var(--primary-soft); font-size: 12px; font-weight: 900; }
+.record-summary strong { display: block; color: var(--heading); font-size: 15px; }
+.record-summary span { display: block; color: var(--text-muted); font-size: 12px; }
+.record-score { min-width: 74px; padding: 8px 10px; border-radius: var(--radius); text-align: center; background: #eef8f6; }
+.record-score small { display: block; color: var(--text-muted); font-size: 11px; font-weight: 900; }
+.record-score strong { display: block; color: var(--primary-strong); font-size: 30px; line-height: 1; }
+.record-toggle { justify-self: end; min-width: 74px; color: var(--accent); font-size: 12px; font-weight: 900; text-align: right; }
+.record-detail { display: grid; gap: 12px; padding-top: 12px; border-top: 1px dashed #c9dedd; }
+.record-comment { padding: 12px 14px; border-left: 3px solid var(--primary); border-radius: var(--radius); color: var(--text); background: #f2f7f7; line-height: 1.6; white-space: pre-line; }
 .record-meta { display: flex; flex-wrap: wrap; gap: 8px; }
 .record-meta span { padding: 5px 10px; border-radius: var(--radius-full); color: var(--text-muted); background: #eef3f5; font-size: 12px; font-weight: 800; }
 .error-list.compact { gap: 8px; }
@@ -762,11 +780,14 @@ tr:last-child td { border-bottom: 0; }
 }
 @media (max-width: 760px) {
   .content-area { padding: 18px; }
-  .top-bar, .user-area, .panel-header { align-items: stretch; flex-direction: column; }
+  .top-bar, .user-area, .panel-header, .analysis-picker-panel { align-items: stretch; flex-direction: column; }
   .user-area div { text-align: left; }
   .side-menu, .stat-grid, .analysis-grid, .chart-grid, .demo-history-grid, .sub-project-main, .bar-row, .attempt-main, .sub-main, .error-item, .step-grid { grid-template-columns: 1fr; }
   .dialog.wide { width: 95vw; }
-  .attempt-score, .sub-score, .demo-history-stats, .sub-project-stat, .record-score { text-align: left; }
-  .record-summary { flex-direction: column; }
+  .analysis-select { min-width: 0; }
+  .attempt-score, .sub-score, .demo-history-stats, .sub-project-stat { text-align: left; }
+  .record-summary { grid-template-columns: 1fr; }
+  .record-score { text-align: left; }
+  .record-toggle { justify-self: start; text-align: left; }
 }
 </style>
