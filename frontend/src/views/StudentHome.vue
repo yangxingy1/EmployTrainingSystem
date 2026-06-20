@@ -13,6 +13,7 @@ const startingId = ref(null);
 const errorMsg = ref("");
 const activeAttempt = ref(null);
 const expandedHistorySubs = ref(new Set());
+const expandedHistoryRecords = ref(new Set());
 const showChangePassword = ref(false);
 const username = localStorage.getItem("username") || "学员";
 const userId = Number(localStorage.getItem("user_id"));
@@ -143,6 +144,18 @@ function isHistorySubExpanded(demo, subProject) {
 
 function toggleHistorySub(demo, subProject) {
   toggleSet(expandedHistorySubs, historySubKey(demo, subProject));
+}
+
+function historyRecordKey(record) {
+  return `${record.attempt.attempt_id}-${record.sub.id || record.sub.sub_task_id}`;
+}
+
+function isHistoryRecordExpanded(record) {
+  return expandedHistoryRecords.value.has(historyRecordKey(record));
+}
+
+function toggleHistoryRecord(record) {
+  toggleSet(expandedHistoryRecords, historyRecordKey(record));
 }
 
 function durationText(seconds) {
@@ -436,7 +449,7 @@ onMounted(loadTasks);
 
                 <div v-if="isHistorySubExpanded(demo, subProject)" class="sub-record-list">
                   <article v-for="record in subProject.records" :key="`${record.attempt.attempt_id}-${record.sub.id || record.sub.sub_task_id}`" class="sub-record-card">
-                    <div class="record-summary">
+                    <button class="record-summary" @click="toggleHistoryRecord(record)">
                       <div>
                         <strong>#{{ record.attempt.attempt_id }} {{ record.attempt.task_title || demo.title }}</strong>
                         <span>{{ formatTime(record.sub.finished_at || record.attempt.finished_at || record.attempt.started_at) }}</span>
@@ -445,34 +458,36 @@ onMounted(loadTasks);
                         <strong>{{ record.sub.score ?? "-" }}</strong>
                         <span>{{ durationText(record.sub.train_time) }}</span>
                       </div>
-                    </div>
+                    </button>
 
-                    <p class="record-comment">{{ record.sub.summary || "暂无学习评价" }}</p>
+                    <div v-if="isHistoryRecordExpanded(record)" class="record-detail">
+                      <p class="record-comment">{{ record.sub.summary || "暂无学习评价" }}</p>
 
-                    <div class="record-meta">
-                      <span>错误 {{ record.sub.error_count || 0 }}</span>
-                      <span>安全错误 {{ record.sub.safety_error_count || 0 }}</span>
-                      <span>{{ subStatusText(record.sub.status) }}</span>
-                    </div>
-
-                    <div class="step-grid">
-                      <div v-for="step in record.sub.steps" :key="`${record.attempt.attempt_id}-${record.sub.sub_task_id}-step-${step.index}`" class="step-row">
-                        <strong>{{ Number(step.index) + 1 }}. {{ step.name || step.stepName || "未命名步骤" }}</strong>
-                        <span>{{ step.expectedAction || step.expected_action || "未记录期望动作" }}</span>
-                        <small>{{ step.completed ? "已完成" : "未完成" }} · 错误 {{ step.mistakeCount || step.mistake_count || 0 }}</small>
+                      <div class="record-meta">
+                        <span>错误 {{ record.sub.error_count || 0 }}</span>
+                        <span>安全错误 {{ record.sub.safety_error_count || 0 }}</span>
+                        <span>{{ subStatusText(record.sub.status) }}</span>
                       </div>
-                    </div>
 
-                    <div class="error-list compact">
-                      <article v-for="(error, index) in record.sub.errors" :key="`${record.attempt.attempt_id}-${record.sub.sub_task_id}-error-${index}`" class="error-item">
-                        <div>
-                          <strong>{{ error.stepName || error.step_name || `错误 ${index + 1}` }}</strong>
-                          <span>{{ error.reason || "未记录原因" }}</span>
+                      <div class="step-grid">
+                        <div v-for="step in record.sub.steps" :key="`${record.attempt.attempt_id}-${record.sub.sub_task_id}-step-${step.index}`" class="step-row">
+                          <strong>{{ Number(step.index) + 1 }}. {{ step.name || step.stepName || "未命名步骤" }}</strong>
+                          <span>{{ step.expectedAction || step.expected_action || "未记录期望动作" }}</span>
+                          <small>{{ step.completed ? "已完成" : "未完成" }} · 错误 {{ step.mistakeCount || step.mistake_count || 0 }}</small>
                         </div>
-                        <p>{{ error.consequence || "暂无后果说明" }}</p>
-                        <small>{{ severityText(error.severity) }} · {{ error.time ? `${Number(error.time).toFixed(1)}s` : "-" }}</small>
-                      </article>
-                      <div v-if="!record.sub.errors?.length" class="muted-box">暂无错误详情。</div>
+                      </div>
+
+                      <div class="error-list compact">
+                        <article v-for="(error, index) in record.sub.errors" :key="`${record.attempt.attempt_id}-${record.sub.sub_task_id}-error-${index}`" class="error-item">
+                          <div>
+                            <strong>{{ error.stepName || error.step_name || `错误 ${index + 1}` }}</strong>
+                            <span>{{ error.reason || "未记录原因" }}</span>
+                          </div>
+                          <p>{{ error.consequence || "暂无后果说明" }}</p>
+                          <small>{{ severityText(error.severity) }} · {{ error.time ? `${Number(error.time).toFixed(1)}s` : "-" }}</small>
+                        </article>
+                        <div v-if="!record.sub.errors?.length" class="muted-box">暂无错误详情。</div>
+                      </div>
                     </div>
                   </article>
 
@@ -557,11 +572,13 @@ onMounted(loadTasks);
 .sub-project-stat span { margin-top: 3px; white-space: nowrap; }
 .sub-record-list { display: grid; gap: 10px; padding: 0 12px 12px; }
 .sub-record-card { display: grid; gap: 12px; padding: 14px; border: 1px solid #dce8e8; border-radius: var(--radius); background: #fbfdfd; }
-.record-summary { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.record-summary { width: 100%; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 0; border: 0; background: transparent; text-align: left; }
+.record-summary:hover strong { color: var(--primary-strong); }
 .record-summary strong { display: block; color: var(--heading); }
 .record-summary span { display: block; margin-top: 4px; color: var(--text-muted); font-size: 12px; }
 .record-score { min-width: 64px; text-align: right; }
 .record-score strong { color: var(--heading); font-size: 30px; line-height: 1; }
+.record-detail { display: grid; gap: 12px; }
 .record-comment { padding: 10px 12px; border-radius: var(--radius); color: var(--text); background: #f2f7f7; line-height: 1.6; white-space: pre-line; }
 .record-meta { display: flex; flex-wrap: wrap; gap: 8px; }
 .record-meta span { padding: 5px 10px; border-radius: var(--radius-full); color: var(--text-muted); background: #eef3f5; font-size: 12px; font-weight: 800; }

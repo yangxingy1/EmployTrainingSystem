@@ -93,8 +93,15 @@
         <div class="panel-header">
           <div>
             <h2>训练数据分析</h2>
-            <p>按训练会话展开子项目成绩与步骤错误，后续可接入 AI 助手生成分析。</p>
+            <p>按学员查看 Demo 学习历史，并汇总本公司训练完成情况。</p>
           </div>
+          <label class="analysis-select">
+            <span>选择学员</span>
+            <select v-model="selectedAnalyticsStudentId">
+              <option value="" disabled>请选择学员</option>
+              <option v-for="student in students" :key="student.id" :value="String(student.id)">{{ student.username }}</option>
+            </select>
+          </label>
         </div>
 
         <section class="analysis-grid">
@@ -105,63 +112,133 @@
           <div><span>安全错误</span><strong>{{ analytics.summary.safety_error_count }}</strong></div>
         </section>
 
-        <div class="analysis-list">
-          <article v-for="item in analytics.attempts" :key="item.attempt_id" class="attempt-card">
-            <button class="attempt-main" @click="toggleAttempt(item)">
-              <div>
-                <strong>{{ item.username || item.student_id }} · {{ item.task_title || item.scene_name }}</strong>
-                <span>#{{ item.attempt_id }} · {{ item.scene_name }} · {{ item.completed_sub_count || 0 }}/{{ item.total_sub_count || item.sub_results?.length || 0 }} 子项目完成</span>
-              </div>
-              <div class="attempt-score">
-                <strong>{{ item.score ?? "-" }}</strong>
-                <span>{{ formatTime(item.finished_at || item.started_at) }}</span>
-              </div>
-            </button>
+        <section class="chart-grid">
+          <article class="chart-card">
+            <header>
+              <strong>任务完成率</strong>
+              <span>{{ completedAssignmentCount }} / {{ assignments.length }}</span>
+            </header>
+            <div class="big-rate">{{ completionRate }}%</div>
+            <div class="progress-line"><span :style="{ width: percentWidth(completionRate) }"></span></div>
+          </article>
 
-            <div v-if="isAttemptExpanded(item)" class="sub-list">
-              <section v-for="sub in item.sub_results" :key="sub.sub_task_id" class="sub-card" :class="{ pending: sub.status !== 'done' }">
-                <button class="sub-main" @click="toggleSub(item, sub)">
+          <article class="chart-card">
+            <header>
+              <strong>Demo 训练分布</strong>
+              <span>按训练次数</span>
+            </header>
+            <div class="bar-list">
+              <div v-for="row in sceneChartRows" :key="row.key" class="bar-row">
+                <div>
+                  <strong>{{ row.title }}</strong>
+                  <span>{{ row.attemptCount }} 次 · 均分 {{ row.averageScore || "-" }}</span>
+                </div>
+                <div class="mini-bar"><span :style="{ width: row.width }"></span></div>
+              </div>
+            </div>
+          </article>
+
+          <article class="chart-card">
+            <header>
+              <strong>学员完成概览</strong>
+              <span>{{ students.length }} 人</span>
+            </header>
+            <div class="bar-list">
+              <div v-for="row in studentChartRows" :key="row.id" class="bar-row">
+                <div>
+                  <strong>{{ row.username }}</strong>
+                  <span>{{ row.done }} / {{ row.total }} · {{ row.rate }}%</span>
+                </div>
+                <div class="mini-bar"><span :style="{ width: percentWidth(row.rate) }"></span></div>
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <div v-if="selectedAnalyticsStudent" class="selected-student-title">
+          <strong>{{ selectedAnalyticsStudent.username }}</strong>
+          <span>学习历史</span>
+        </div>
+
+        <div v-if="selectedAnalyticsStudent" class="demo-history-grid">
+          <article v-for="demo in selectedStudentHistoryDemos" :key="demo.key" class="demo-history-card">
+            <header class="demo-history-head">
+              <div>
+                <span>{{ demo.subtitle }}</span>
+                <strong>{{ demo.title }}</strong>
+              </div>
+              <div class="demo-history-stats">
+                <strong>{{ demo.recordCount }}</strong>
+                <small>次子项目记录</small>
+              </div>
+            </header>
+
+            <div class="sub-project-list">
+              <section v-for="subProject in demo.subProjects" :key="subProject.id" class="sub-project-card">
+                <button class="sub-project-main" @click="toggleAnalysisSub(demo, subProject)">
                   <div>
-                    <strong>{{ sub.sub_task_name }}</strong>
-                    <span>{{ sub.status === "done" ? "已完成" : "未完成" }} · 错误 {{ sub.error_count || 0 }} / 安全 {{ sub.safety_error_count || 0 }}</span>
+                    <strong>{{ subProject.name }}</strong>
+                    <span>{{ subProject.description || "暂无子项目说明" }}</span>
                   </div>
-                  <div class="sub-score">
-                    <strong>{{ sub.score ?? "-" }}</strong>
-                    <span>{{ sub.train_time ? `${sub.train_time}s` : "-" }}</span>
+                  <div class="sub-project-stat">
+                    <strong>{{ subProject.averageScore ?? "-" }}</strong>
+                    <span>平均分 / {{ subProject.records.length }} 次</span>
                   </div>
                 </button>
 
-                <div v-if="isSubExpanded(item, sub)" class="detail-box">
-                  <div class="detail-actions">
-                    <p>{{ sub.summary || "暂无摘要" }}</p>
-                    <button disabled>AI 分析</button>
-                  </div>
-
-                  <div class="step-grid">
-                    <div v-for="step in sub.steps" :key="`${item.attempt_id}-${sub.sub_task_id}-step-${step.index}`" class="step-row">
-                      <strong>{{ Number(step.index) + 1 }}. {{ step.name || step.stepName || "未命名步骤" }}</strong>
-                      <span>{{ step.expectedAction || step.expected_action || "未记录期望动作" }}</span>
-                      <small>{{ step.completed ? "已完成" : "未完成" }} · 错误 {{ step.mistakeCount || step.mistake_count || 0 }}</small>
-                    </div>
-                  </div>
-
-                  <div class="error-list">
-                    <article v-for="(error, index) in sub.errors" :key="`${item.attempt_id}-${sub.sub_task_id}-error-${index}`" class="error-item">
+                <div v-if="isAnalysisSubExpanded(demo, subProject)" class="sub-record-list">
+                  <article v-for="record in subProject.records" :key="analysisRecordKey(record)" class="sub-record-card">
+                    <button class="record-summary" @click="toggleAnalysisRecord(record)">
                       <div>
-                        <strong>{{ error.stepName || error.step_name || `错误 ${index + 1}` }}</strong>
-                        <span>{{ error.reason || "未记录原因" }}</span>
+                        <strong>#{{ record.attempt.attempt_id }} {{ record.attempt.task_title || demo.title }}</strong>
+                        <span>{{ formatTime(record.sub.finished_at || record.attempt.finished_at || record.attempt.started_at) }}</span>
                       </div>
-                      <p>{{ error.consequence || "暂无后果说明" }}</p>
-                      <small>{{ severityText(error.severity) }} · {{ error.time ? `${Number(error.time).toFixed(1)}s` : "-" }}</small>
-                    </article>
-                    <div v-if="!sub.errors?.length" class="muted-box">暂无错误详情。</div>
-                  </div>
+                      <div class="record-score">
+                        <strong>{{ record.sub.score ?? "-" }}</strong>
+                        <span>{{ durationText(record.sub.train_time) }}</span>
+                      </div>
+                    </button>
+
+                    <div v-if="isAnalysisRecordExpanded(record)" class="record-detail">
+                      <p class="record-comment">{{ record.sub.summary || "暂无学习评价" }}</p>
+
+                      <div class="record-meta">
+                        <span>错误 {{ record.sub.error_count || 0 }}</span>
+                        <span>安全错误 {{ record.sub.safety_error_count || 0 }}</span>
+                        <span>{{ subStatusText(record.sub.status) }}</span>
+                      </div>
+
+                      <div class="step-grid">
+                        <div v-for="step in record.sub.steps" :key="`${record.attempt.attempt_id}-${record.sub.sub_task_id}-step-${step.index}`" class="step-row">
+                          <strong>{{ Number(step.index) + 1 }}. {{ step.name || step.stepName || "未命名步骤" }}</strong>
+                          <span>{{ step.expectedAction || step.expected_action || "未记录期望动作" }}</span>
+                          <small>{{ step.completed ? "已完成" : "未完成" }} · 错误 {{ step.mistakeCount || step.mistake_count || 0 }}</small>
+                        </div>
+                      </div>
+
+                      <div class="error-list compact">
+                        <article v-for="(error, index) in record.sub.errors" :key="`${record.attempt.attempt_id}-${record.sub.sub_task_id}-error-${index}`" class="error-item">
+                          <div>
+                            <strong>{{ error.stepName || error.step_name || `错误 ${index + 1}` }}</strong>
+                            <span>{{ error.reason || "未记录原因" }}</span>
+                          </div>
+                          <p>{{ error.consequence || "暂无后果说明" }}</p>
+                          <small>{{ severityText(error.severity) }} · {{ error.time ? `${Number(error.time).toFixed(1)}s` : "-" }}</small>
+                        </article>
+                        <div v-if="!record.sub.errors?.length" class="muted-box">暂无错误详情。</div>
+                      </div>
+                    </div>
+                  </article>
+
+                  <div v-if="!subProject.records.length" class="muted-box">这个子项目还没有训练记录。</div>
                 </div>
               </section>
             </div>
           </article>
+        </div>
 
-          <div v-if="!analytics.attempts.length" class="empty-cell">暂无训练数据</div>
+        <div v-else class="empty-cell">
+          暂无可查看的学员
         </div>
       </section>
     </main>
@@ -241,12 +318,29 @@ const analytics = ref({
 const dashboardError = ref("");
 const username = localStorage.getItem("username") || "管理员";
 const adminCompanyId = Number(localStorage.getItem("company_id"));
-const expandedAttempts = ref(new Set());
-const expandedSubResults = ref(new Set());
+const selectedAnalyticsStudentId = ref("");
+const expandedAnalysisSubs = ref(new Set());
+const expandedAnalysisRecords = ref(new Set());
 const showStudentCreate = ref(false);
 const creatingStudent = ref(false);
 const newStudent = reactive({ username: "", password: "" });
 const showChangePassword = ref(false);
+
+const DEMO_CONFIGS = [
+  { key: "demo01", title: "Demo 01", subtitle: "lead-train1", sceneName: "lead-train1" },
+  { key: "demo02", title: "Demo 02", subtitle: "train2", sceneName: "train2" },
+];
+
+const DEMO_SUBPROJECT_FALLBACKS = {
+  "lead-train1": [
+    { sub_task_id: "lead_train1_electrical_cabinet_gesture", name: "配电柜主断路器" },
+    { sub_task_id: "lead_train1_gesture", name: "Breaker Shutdown" },
+    { sub_task_id: "lead_train1_cnc_gesture", name: "CNC 标准加工" },
+  ],
+  train2: [
+    { sub_task_id: "default_sub_task", name: "Demo 02 综合训练" },
+  ],
+};
 
 const menus = [
   { key: "assign", title: "训练分配", desc: "学员训练派发", mark: "分" },
@@ -257,10 +351,12 @@ const menus = [
 const currentMenu = ref("assign");
 const currentMenuMeta = computed(() => menus.find(m => m.key === currentMenu.value) || menus[0]);
 
+const completedAssignmentCount = computed(() =>
+  assignments.value.filter(a => a.status === "done" || a.status === "已完成").length
+);
 const completionRate = computed(() => {
   if (!assignments.value.length) return 0;
-  const done = assignments.value.filter(a => a.status === "done" || a.status === "已完成").length;
-  return Math.round((done / assignments.value.length) * 100);
+  return Math.round((completedAssignmentCount.value / assignments.value.length) * 100);
 });
 
 const showTaskLibrary = ref(false);
@@ -273,6 +369,49 @@ const availableGlobalTasks = computed(() => {
   return globalTasks.value.filter(t => !existingIds.includes(t.id));
 });
 
+const selectedAnalyticsStudent = computed(() =>
+  students.value.find(student => String(student.id) === String(selectedAnalyticsStudentId.value))
+);
+
+const selectedStudentAttempts = computed(() =>
+  (analytics.value.attempts || []).filter(item => String(item.student_id) === String(selectedAnalyticsStudentId.value))
+);
+
+const selectedStudentHistoryDemos = computed(() =>
+  DEMO_CONFIGS.map(demo => buildDemoHistory(demo, selectedStudentAttempts.value))
+);
+
+const sceneChartRows = computed(() => {
+  const rows = DEMO_CONFIGS.map((demo) => {
+    const attempts = (analytics.value.attempts || []).filter(item => item.scene_name === demo.sceneName);
+    const scores = attempts.flatMap(validSubRecordsFromAttempt).map(sub => Number(sub.score || 0));
+    return {
+      ...demo,
+      attemptCount: attempts.length,
+      averageScore: averageScore(scores) || 0,
+    };
+  });
+  const max = Math.max(1, ...rows.map(row => row.attemptCount));
+  return rows.map(row => ({
+    ...row,
+    width: percentWidth(Math.round((row.attemptCount / max) * 100)),
+  }));
+});
+
+const studentChartRows = computed(() =>
+  students.value.map(student => {
+    const total = studentAssigned(student.id);
+    const done = studentCompleted(student.id);
+    return {
+      id: student.id,
+      username: student.username,
+      total,
+      done,
+      rate: total ? Math.round((done / total) * 100) : 0,
+    };
+  })
+);
+
 function studentAssigned(sid) { return assignments.value.filter(a => a.user_id === sid).length; }
 function studentCompleted(sid) { return assignments.value.filter(a => a.user_id === sid && (a.status === "done" || a.status === "已完成")).length; }
 function studentRate(sid) { const t = studentAssigned(sid); return t ? Math.round((studentCompleted(sid) / t) * 100) : 0; }
@@ -280,18 +419,107 @@ function studentLatestStatus(sid) { const list = assignments.value.filter(a => a
 function taskAssignedCount(tid) { return assignments.value.filter(a => a.task_id === tid).length; }
 function formatTime(value) { return value ? new Date(value).toLocaleString() : "-"; }
 function severityText(severity) { return severity === "safety" ? "安全" : severity === "warning" ? "警告" : "普通"; }
-function attemptKey(item) { return `attempt-${item.attempt_id}`; }
-function subKey(item, sub) { return `${item.attempt_id}-${sub.sub_task_id}`; }
-function isAttemptExpanded(item) { return expandedAttempts.value.has(attemptKey(item)); }
-function isSubExpanded(item, sub) { return expandedSubResults.value.has(subKey(item, sub)); }
+function subStatusText(status) { return status === "done" ? "已完成" : "未完成"; }
+function durationText(seconds) {
+  if (!seconds) return "-";
+  if (seconds < 60) return `${seconds}s`;
+  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+}
+function percentWidth(value) { return `${Math.max(0, Math.min(100, value || 0))}%`; }
 function toggleSet(target, key) {
   const next = new Set(target.value);
   if (next.has(key)) next.delete(key);
   else next.add(key);
   target.value = next;
 }
-function toggleAttempt(item) { toggleSet(expandedAttempts, attemptKey(item)); }
-function toggleSub(item, sub) { toggleSet(expandedSubResults, subKey(item, sub)); }
+
+function buildDemoHistory(demo, attemptsSource) {
+  const attempts = attemptsSource.filter((item) => item.scene_name === demo.sceneName);
+  const subMap = new Map();
+
+  for (const fallback of DEMO_SUBPROJECT_FALLBACKS[demo.sceneName] || []) {
+    ensureHistorySub(subMap, fallback.sub_task_id, fallback.name, fallback.description);
+  }
+
+  for (const attempt of attempts) {
+    for (const item of attempt.sub_items || []) {
+      ensureHistorySub(subMap, item.sub_task_id, item.name, item.description);
+    }
+
+    for (const sub of attempt.sub_results || []) {
+      const subItem = ensureHistorySub(
+        subMap,
+        sub.sub_task_id,
+        sub.sub_task_name,
+        sub.catalog?.description
+      );
+      if (sub.status === "done" && Number(sub.score || 0) > 0) {
+        subItem.records.push({ attempt, sub });
+      }
+    }
+  }
+
+  const subProjects = Array.from(subMap.values()).map((item) => ({
+    ...item,
+    records: item.records.sort((a, b) => b.attempt.attempt_id - a.attempt.attempt_id),
+    averageScore: averageScore(item.records.map((record) => Number(record.sub.score || 0))),
+  }));
+  const records = subProjects.flatMap((item) => item.records);
+
+  return {
+    ...demo,
+    attempts,
+    subProjects,
+    recordCount: records.length,
+  };
+}
+
+function ensureHistorySub(map, id, name, description = "") {
+  const key = id || "default_sub_task";
+  if (!map.has(key)) {
+    map.set(key, {
+      id: key,
+      name: name || key,
+      description: description || "",
+      records: [],
+    });
+  }
+  return map.get(key);
+}
+
+function averageScore(values) {
+  const valid = values.filter((value) => Number.isFinite(value));
+  if (!valid.length) return null;
+  return Math.round(valid.reduce((sum, value) => sum + value, 0) / valid.length);
+}
+
+function validSubRecordsFromAttempt(attempt) {
+  return (attempt.sub_results || []).filter(sub => sub.status === "done" && Number(sub.score || 0) > 0);
+}
+
+function analysisSubKey(demo, subProject) {
+  return `${demo.key}-${subProject.id}`;
+}
+
+function isAnalysisSubExpanded(demo, subProject) {
+  return expandedAnalysisSubs.value.has(analysisSubKey(demo, subProject));
+}
+
+function toggleAnalysisSub(demo, subProject) {
+  toggleSet(expandedAnalysisSubs, analysisSubKey(demo, subProject));
+}
+
+function analysisRecordKey(record) {
+  return `${record.attempt.attempt_id}-${record.sub.id || record.sub.sub_task_id}`;
+}
+
+function isAnalysisRecordExpanded(record) {
+  return expandedAnalysisRecords.value.has(analysisRecordKey(record));
+}
+
+function toggleAnalysisRecord(record) {
+  toggleSet(expandedAnalysisRecords, analysisRecordKey(record));
+}
 
 function toggleGlobalTask(taskId) {
   const idx = selectedGlobalTasks.value.indexOf(taskId);
@@ -338,6 +566,9 @@ async function loadDashboard() {
     students.value = companyStudents;
     assignments.value = (assignmentsRes.data || []).filter((assignment) => companyStudentIds.has(assignment.user_id));
     analytics.value = analyticsRes.data || analytics.value;
+    if (!companyStudentIds.has(Number(selectedAnalyticsStudentId.value))) {
+      selectedAnalyticsStudentId.value = companyStudents[0] ? String(companyStudents[0].id) : "";
+    }
     if (adminCompanyId) {
       const r = await api.get(`/task/company/${adminCompanyId}`);
       companyTasks.value = r.data || [];
@@ -432,6 +663,54 @@ tr:last-child td { border-bottom: 0; }
 .analysis-grid > div { padding: 14px; border: 1px solid var(--border); border-radius: var(--radius); background: #f8fbfc; }
 .analysis-grid span { display: block; color: var(--text-muted); font-size: 12px; }
 .analysis-grid strong { display: block; margin-top: 6px; color: var(--heading); font-size: 26px; }
+.analysis-select { min-width: 220px; display: grid; gap: 6px; }
+.analysis-select span { color: var(--text-muted); font-size: 12px; font-weight: 800; }
+.analysis-select select { height: 40px; padding: 0 12px; border: 1px solid var(--border); border-radius: var(--radius); background: #fff; color: var(--heading); font-weight: 800; outline: none; }
+.analysis-select select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(20,112,111,0.10); }
+.chart-grid { display: grid; grid-template-columns: 0.9fr 1fr 1.1fr; gap: 12px; margin-bottom: 18px; }
+.chart-card { min-width: 0; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius); background: #fbfdfd; }
+.chart-card header { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.chart-card header strong { color: var(--heading); }
+.chart-card header span, .bar-row span { color: var(--text-muted); font-size: 12px; }
+.big-rate { margin-bottom: 10px; color: var(--heading); font-size: 34px; font-weight: 900; line-height: 1; }
+.bar-list { display: grid; gap: 10px; }
+.bar-row { display: grid; grid-template-columns: minmax(110px, 0.9fr) minmax(100px, 1fr); gap: 12px; align-items: center; }
+.bar-row strong { display: block; color: var(--heading); font-size: 13px; }
+.mini-bar { height: 8px; overflow: hidden; border-radius: 999px; background: #e0e8ec; }
+.mini-bar span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--primary), var(--accent)); }
+.selected-student-title { display: flex; align-items: baseline; gap: 8px; margin: 4px 0 12px; }
+.selected-student-title strong { color: var(--heading); font-size: 18px; }
+.selected-student-title span { color: var(--text-muted); font-weight: 800; }
+.demo-history-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.demo-history-card { min-width: 0; border: 1px solid var(--border); border-radius: var(--radius-lg); background: #fff; overflow: hidden; }
+.demo-history-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px; border-bottom: 1px solid var(--border); background: #f8fbfb; }
+.demo-history-head span { display: block; margin-bottom: 4px; color: var(--accent); font-size: 12px; font-weight: 900; }
+.demo-history-head strong { display: block; color: var(--heading); font-size: 20px; }
+.demo-history-stats { text-align: right; }
+.demo-history-stats strong { font-size: 28px; line-height: 1; }
+.demo-history-stats small { display: block; margin-top: 4px; color: var(--text-muted); white-space: nowrap; }
+.sub-project-list { display: grid; gap: 10px; padding: 14px; }
+.sub-project-card { border: 1px solid var(--border); border-radius: var(--radius); background: #fff; overflow: hidden; }
+.sub-project-main { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 64px; gap: 12px; align-items: center; padding: 14px; text-align: left; background: transparent; }
+.sub-project-main:hover { background: #f6faf9; }
+.sub-project-main strong { display: block; color: var(--heading); }
+.sub-project-main span { display: block; margin-top: 4px; color: var(--text-muted); font-size: 12px; line-height: 1.5; }
+.sub-project-stat { text-align: right; }
+.sub-project-stat strong { display: block; color: var(--primary-strong); font-size: 26px; line-height: 1; }
+.sub-project-stat span { margin-top: 3px; white-space: nowrap; }
+.sub-record-list { display: grid; gap: 10px; padding: 0 12px 12px; }
+.sub-record-card { display: grid; gap: 12px; padding: 14px; border: 1px solid #dce8e8; border-radius: var(--radius); background: #fbfdfd; }
+.record-summary { width: 100%; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 0; border: 0; background: transparent; text-align: left; }
+.record-summary:hover strong { color: var(--primary-strong); }
+.record-summary strong { display: block; color: var(--heading); }
+.record-summary span { display: block; margin-top: 4px; color: var(--text-muted); font-size: 12px; }
+.record-score { min-width: 64px; text-align: right; }
+.record-score strong { color: var(--heading); font-size: 30px; line-height: 1; }
+.record-detail { display: grid; gap: 12px; }
+.record-comment { padding: 10px 12px; border-radius: var(--radius); color: var(--text); background: #f2f7f7; line-height: 1.6; white-space: pre-line; }
+.record-meta { display: flex; flex-wrap: wrap; gap: 8px; }
+.record-meta span { padding: 5px 10px; border-radius: var(--radius-full); color: var(--text-muted); background: #eef3f5; font-size: 12px; font-weight: 800; }
+.error-list.compact { gap: 8px; }
 .analysis-list, .sub-list, .error-list { display: grid; gap: 10px; }
 .attempt-card { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-lg); background: #fff; }
 .attempt-main, .sub-main { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 130px; gap: 12px; align-items: center; padding: 16px; text-align: left; background: transparent; }
@@ -479,14 +758,15 @@ tr:last-child td { border-bottom: 0; }
   .admin-shell { grid-template-columns: 1fr; }
   .sidebar { position: static; height: auto; }
   .side-menu { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .stat-grid, .analysis-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stat-grid, .analysis-grid, .chart-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 760px) {
   .content-area { padding: 18px; }
-  .top-bar, .user-area { align-items: stretch; flex-direction: column; }
+  .top-bar, .user-area, .panel-header { align-items: stretch; flex-direction: column; }
   .user-area div { text-align: left; }
-  .side-menu, .stat-grid, .analysis-grid, .attempt-main, .sub-main, .error-item, .step-grid { grid-template-columns: 1fr; }
+  .side-menu, .stat-grid, .analysis-grid, .chart-grid, .demo-history-grid, .sub-project-main, .bar-row, .attempt-main, .sub-main, .error-item, .step-grid { grid-template-columns: 1fr; }
   .dialog.wide { width: 95vw; }
-  .attempt-score, .sub-score { text-align: left; }
+  .attempt-score, .sub-score, .demo-history-stats, .sub-project-stat, .record-score { text-align: left; }
+  .record-summary { flex-direction: column; }
 }
 </style>
