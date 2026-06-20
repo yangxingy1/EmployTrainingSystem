@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
@@ -8,6 +8,7 @@ from backend.models.task_assignment import TaskAssignment
 from backend.models.user import User
 from backend.schemas.assignment import AssignmentCreate
 from backend.schemas.task import TaskCreate
+from backend.auth import verify_token
 from backend.training_catalog import is_allowed_scene, normalize_scene_name
 
 router = APIRouter(prefix="/task", tags=["Task"])
@@ -31,6 +32,16 @@ def _require_allowed_task(db: Session, task_id: int) -> Task:
     if not is_allowed_scene(task.scene_name):
         raise HTTPException(status_code=400, detail="该训练项目不在当前可分配范围内")
     return task
+
+
+def _require_current_user(authorization: str = Header(None)) -> dict:
+    if not authorization:
+        raise HTTPException(status_code=401, detail="未登录")
+    token = authorization.replace("Bearer ", "")
+    payload = verify_token(token)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Token失效")
+    return payload
 
 
 @router.post("/create")
@@ -181,15 +192,19 @@ def get_global_tasks(db: Session = Depends(get_db)):
 
 
 @router.get("/assignments")
-def get_assignments(db: Session = Depends(get_db)):
-    rows = (
+def get_assignments(payload: dict = Depends(_require_current_user), db: Session = Depends(get_db)):
+    query = (
         db.query(TaskAssignment, User, Task)
         .join(User, TaskAssignment.user_id == User.id)
         .join(Task, TaskAssignment.task_id == Task.id)
         .filter(Task.scene_name.in_(ALLOWED_SCENE_LIST))
-        .order_by(TaskAssignment.id.desc())
-        .all()
     )
+    if payload.get("role") == "admin":
+        query = query.filter(User.company_id == payload.get("company_id"))
+    elif payload.get("role") == "student":
+        query = query.filter(User.id == payload.get("user_id"))
+
+    rows = query.order_by(TaskAssignment.id.desc()).all()
     return [
         {
             "id": assignment.id,
@@ -206,10 +221,27 @@ def get_assignments(db: Session = Depends(get_db)):
 
 
 @router.post("/assign")
-def assign_task(data: AssignmentCreate, db: Session = Depends(get_db)):
+def assign_task(data: AssignmentCreate, payload: dict = Depends(_require_current_user), db: Session = Depends(get_db)):
     if not data.user_id or not data.task_id:
         raise HTTPException(status_code=400, detail="缺少必要参数")
     _require_allowed_task(db, data.task_id)
+
+    if payload.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="仅管理员可分配训练")
+    company_id = payload.get("company_id")
+    student = db.query(User).filter(
+        User.id == data.user_id,
+        User.role == "student",
+        User.company_id == company_id,
+    ).first()
+    if not student:
+        raise HTTPException(status_code=403, detail="只能给本公司学员分配训练")
+    company_task = db.query(CompanyTask).filter(
+        CompanyTask.company_id == company_id,
+        CompanyTask.task_id == data.task_id,
+    ).first()
+    if not company_task:
+        raise HTTPException(status_code=403, detail="只能分配本公司已开通的训练")
 
     existing = db.query(TaskAssignment).filter(
         TaskAssignment.user_id == data.user_id,

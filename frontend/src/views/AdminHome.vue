@@ -333,8 +333,10 @@ async function loadDashboard() {
       getAssignments(),
       adminCompanyId ? getCompanyTrainingAnalytics(adminCompanyId) : Promise.resolve({ data: analytics.value })
     ]);
-    students.value = (usersRes.data || []).filter(u => u.role === "student" && u.company_id === adminCompanyId);
-    assignments.value = assignmentsRes.data || [];
+    const companyStudents = (usersRes.data || []).filter(u => u.role === "student" && u.company_id === adminCompanyId);
+    const companyStudentIds = new Set(companyStudents.map((student) => student.id));
+    students.value = companyStudents;
+    assignments.value = (assignmentsRes.data || []).filter((assignment) => companyStudentIds.has(assignment.user_id));
     analytics.value = analyticsRes.data || analytics.value;
     if (adminCompanyId) {
       const r = await api.get(`/task/company/${adminCompanyId}`);

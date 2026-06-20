@@ -462,9 +462,14 @@ def remove_task_from_company(assignment_id: int, db: Session = Depends(get_db)):
 # =================================================================
 
 @app.get("/users")
-def get_users(db: Session = Depends(get_db)):
-    """获取所有用户列表 —— Admin 前端按 company_id 过滤"""
-    users = db.query(User).order_by(User.id.asc()).all()
+def get_users(payload: dict = Depends(require_current_user), db: Session = Depends(get_db)):
+    """获取用户列表；管理员仅能看到本公司用户。"""
+    query = db.query(User)
+    if payload.get("role") == "admin":
+        query = query.filter(User.company_id == payload.get("company_id"))
+    elif payload.get("role") == "student":
+        query = query.filter(User.id == payload.get("user_id"))
+    users = query.order_by(User.id.asc()).all()
     return [{"id": u.id, "username": u.username, "role": u.role, "company_id": u.company_id} for u in users]
 
 
