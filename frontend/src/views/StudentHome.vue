@@ -93,7 +93,7 @@ function buildDemoHistory(demo) {
         sub.sub_task_name,
         sub.catalog?.description
       );
-      if (sub.status === "done") {
+      if (sub.status === "done" && Number(sub.score || 0) > 0) {
         subItem.records.push({ attempt, sub });
       }
     }
@@ -102,6 +102,7 @@ function buildDemoHistory(demo) {
   const subProjects = Array.from(subMap.values()).map((item) => ({
     ...item,
     records: item.records.sort((a, b) => b.attempt.attempt_id - a.attempt.attempt_id),
+    averageScore: averageScore(item.records.map((record) => record.sub.score)),
   }));
   const records = subProjects.flatMap((item) => item.records);
 
@@ -110,7 +111,6 @@ function buildDemoHistory(demo) {
     attempts,
     subProjects,
     recordCount: records.length,
-    averageScore: averageScore(records.map((record) => record.sub.score)),
   };
 }
 
@@ -421,12 +421,6 @@ onMounted(loadTasks);
               </div>
             </header>
 
-            <div class="demo-average">
-              <span>平均分</span>
-              <strong>{{ demo.averageScore ?? "-" }}</strong>
-              <small>{{ demo.attempts.length }} 次训练会话</small>
-            </div>
-
             <div class="sub-project-list">
               <section v-for="subProject in demo.subProjects" :key="subProject.id" class="sub-project-card">
                 <button class="sub-project-main" @click="toggleHistorySub(demo, subProject)">
@@ -435,8 +429,8 @@ onMounted(loadTasks);
                     <span>{{ subProject.description || "暂无子项目说明" }}</span>
                   </div>
                   <div class="sub-project-stat">
-                    <strong>{{ subProject.records.length }}</strong>
-                    <span>次</span>
+                    <strong>{{ subProject.averageScore ?? "-" }}</strong>
+                    <span>平均分 / {{ subProject.records.length }} 次</span>
                   </div>
                 </button>
 
@@ -552,9 +546,6 @@ onMounted(loadTasks);
 .demo-history-stats { text-align: right; }
 .demo-history-stats strong { font-size: 28px; line-height: 1; }
 .demo-history-stats small { display: block; margin-top: 4px; color: var(--text-muted); white-space: nowrap; }
-.demo-average { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: end; padding: 14px 16px; border-bottom: 1px solid var(--border); }
-.demo-average span, .demo-average small { color: var(--text-muted); }
-.demo-average strong { grid-row: span 2; color: var(--heading); font-size: 32px; line-height: 1; }
 .sub-project-list { display: grid; gap: 10px; padding: 14px; }
 .sub-project-card { border: 1px solid var(--border); border-radius: var(--radius); background: #fff; overflow: hidden; }
 .sub-project-main { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 64px; gap: 12px; align-items: center; padding: 14px; text-align: left; background: transparent; }
@@ -563,7 +554,7 @@ onMounted(loadTasks);
 .sub-project-main span { display: block; margin-top: 4px; color: var(--text-muted); font-size: 12px; line-height: 1.5; }
 .sub-project-stat { text-align: right; }
 .sub-project-stat strong { display: block; color: var(--primary-strong); font-size: 26px; line-height: 1; }
-.sub-project-stat span { margin-top: 3px; }
+.sub-project-stat span { margin-top: 3px; white-space: nowrap; }
 .sub-record-list { display: grid; gap: 10px; padding: 0 12px 12px; }
 .sub-record-card { display: grid; gap: 12px; padding: 14px; border: 1px solid #dce8e8; border-radius: var(--radius); background: #fbfdfd; }
 .record-summary { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
