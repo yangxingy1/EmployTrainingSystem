@@ -1,4 +1,3 @@
-using System.Collections;
 using UnityEngine;
 
 public class ElectricSwitchTask : MonoBehaviour
@@ -15,7 +14,6 @@ public class ElectricSwitchTask : MonoBehaviour
     Renderer _panelRenderer;
     float _completedAt = -999f;
     bool _lastUp;
-    bool _returnScheduled;
     string _instruction = "握拳后拉动电闸，推动或拉下竖杆完成训练。";
     string _successMessage = "成功完成训练";
 
@@ -47,7 +45,6 @@ public class ElectricSwitchTask : MonoBehaviour
         {
             _lastUp = switchInteractable.IsUp;
             _completedAt = Time.time;
-            ScheduleReturnAfterSuccess();
         }
     }
 
@@ -259,7 +256,8 @@ public class ElectricSwitchTask : MonoBehaviour
             "\n动作：" + phase +
             "\n握拳强度：" + switchInteractable.GripSignal.ToString("0.00") + " / " + switchInteractable.grabThreshold.ToString("0.00") +
             "\n行程：" + Mathf.RoundToInt(switchInteractable.CurrentTravel * 100f) + "%" +
-            done;
+            done +
+            "\n按 Esc 返回新手训练大厅";
     }
 
     void LoadSessionPrompt()
@@ -271,23 +269,6 @@ public class ElectricSwitchTask : MonoBehaviour
             _instruction = session.selectedInstruction;
         if (!string.IsNullOrEmpty(session.selectedSuccessMessage))
             _successMessage = session.selectedSuccessMessage;
-    }
-
-    void ScheduleReturnAfterSuccess()
-    {
-        if (_returnScheduled) return;
-
-        var session = SessionManager.Instance;
-        if (session == null || !session.hasHubReturnPosition) return;
-
-        _returnScheduled = true;
-        StartCoroutine(ReturnAfterSuccessRoutine());
-    }
-
-    IEnumerator ReturnAfterSuccessRoutine()
-    {
-        yield return new WaitForSeconds(1.5f);
-        SceneFlow.EnsureExists().ReturnToHub();
     }
 
     GameObject CreateBox(Transform parent, string name, Vector3 position, Vector3 scale, Color color)

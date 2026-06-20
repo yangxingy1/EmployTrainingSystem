@@ -1,4 +1,3 @@
-using System.Collections;
 using UnityEngine;
 using System.Collections.Generic;
 
@@ -15,7 +14,6 @@ public class RotaryValveTask : MonoBehaviour
     Renderer _flowLamp;
     float _completedAt = -999f;
     bool _wasAtTarget;
-    bool _returnScheduled;
     string _instruction = "握拳后拧动阀门，将红色手轮旋转到目标角度。";
     string _successMessage = "成功完成训练";
 
@@ -46,7 +44,6 @@ public class RotaryValveTask : MonoBehaviour
         if (valve != null && valve.IsAtTarget && !_wasAtTarget)
         {
             _completedAt = Time.time;
-            ScheduleReturnAfterSuccess();
         }
         if (valve != null) _wasAtTarget = valve.IsAtTarget;
     }
@@ -286,7 +283,8 @@ public class RotaryValveTask : MonoBehaviour
             "\n握拳强度：" + valve.GripSignal.ToString("0.00") + " / " + valve.grabThreshold.ToString("0.00") +
             "\n阀门角度：" + valve.CurrentAngle.ToString("0") + "°" +
             "\n目标角度：" + valve.targetAngle.ToString("0") + "° ± " + valve.targetTolerance.ToString("0") + "°" +
-            done;
+            done +
+            "\n按 Esc 返回新手训练大厅";
     }
 
     void LoadSessionPrompt()
@@ -298,23 +296,6 @@ public class RotaryValveTask : MonoBehaviour
             _instruction = session.selectedInstruction;
         if (!string.IsNullOrEmpty(session.selectedSuccessMessage))
             _successMessage = session.selectedSuccessMessage;
-    }
-
-    void ScheduleReturnAfterSuccess()
-    {
-        if (_returnScheduled) return;
-
-        var session = SessionManager.Instance;
-        if (session == null || !session.hasHubReturnPosition) return;
-
-        _returnScheduled = true;
-        StartCoroutine(ReturnAfterSuccessRoutine());
-    }
-
-    IEnumerator ReturnAfterSuccessRoutine()
-    {
-        yield return new WaitForSeconds(1.5f);
-        SceneFlow.EnsureExists().ReturnToHub();
     }
 
     GameObject CreateBox(Transform parent, string name, Vector3 position, Vector3 scale, Color color)

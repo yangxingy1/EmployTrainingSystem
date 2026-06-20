@@ -79,7 +79,7 @@ public class ReturnToHubInput : MonoBehaviour
     {
         string sceneName = ResolveReturnSceneName();
         if (sceneName == "freshTrain")
-            return "返回自由练习区";
+            return "返回新手训练大厅";
         if (sceneName == "entry")
             return "返回游戏大厅";
         if (sceneName == "regTrain")
