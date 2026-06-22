@@ -20,6 +20,17 @@ public class PipelineTrainingManager : MonoBehaviour
     public TextMesh instructionText;
     public TextMesh statusText;
 
+    [Header("Screen Guide GUI")]
+    public bool showScreenGuide = true;
+    public bool hideWorldGuideText = true;
+    public Color guidePanelBackgroundColor = new Color(0.04f, 0.07f, 0.09f, 0.86f);
+    public Color guidePanelTextColor = Color.white;
+    public Color guidePanelAccentColor = new Color(0.35f, 0.86f, 1f, 1f);
+    public int guidePanelFontSize = 18;
+    public float guidePanelLeft = 18f;
+    public float guidePanelTop = 18f;
+    public float guidePanelWidth = 520f;
+
     // ── 10 个培训步骤定义 ──────────────────────────────────────
 
     public enum PipelineStep
@@ -79,6 +90,17 @@ public class PipelineTrainingManager : MonoBehaviour
     public event Action<PipelineStep> OnStepCompleted;
     public event Action<PipelineStep> OnStepChanged;
 
+    private string _guideTitleText = "化工厂管道操作培训";
+    private string _guideStepText = "";
+    private string _guideInstructionText = "";
+    private string _guideStatusText = "";
+    private GUIStyle _guidePanelStyle;
+    private GUIStyle _guideTitleStyle;
+    private GUIStyle _guideStepStyle;
+    private GUIStyle _guideBodyStyle;
+    private GUIStyle _guideStatusStyle;
+    private Texture2D _guidePanelTexture;
+
     // ═══════════════════════════════════════════════════════════
     //  初始化
     // ═══════════════════════════════════════════════════════════
@@ -131,7 +153,7 @@ public class PipelineTrainingManager : MonoBehaviour
             {
                 step = PipelineStep.SystemInspection,
                 name = "2. 系统状态巡检",
-                instruction = "沿管道走向检查管线外观：\n· 确认管道无泄漏痕迹\n· 检查法兰螺栓是否紧固\n· 确认无异常报警信号\n走到每个巡检点按 F 键确认。",
+                instruction = "沿管道走向检查管线外观：\n· 确认管道无泄漏痕迹\n· 检查法兰螺栓是否紧固\n· 确认无异常报警信号\n三个巡检点已全部高亮，靠近后按 F 键确认。",
                 completionHint = "系统巡检完成，管道状态正常。",
                 targetZoneId = "InspectionZone"
             },
@@ -139,7 +161,7 @@ public class PipelineTrainingManager : MonoBehaviour
             {
                 step = PipelineStep.ReadInitialPressure,
                 name = "3. 读取初始压力表",
-                instruction = "走到管道起始端压力表（P1）前，\n读取并记录当前压力值。\n正常范围：0.0 - 0.1 MPa（静止状态）。",
+                instruction = "请前往高亮显示的「初始压力表」，\n靠近后按 F 键读取并记录当前压力值。\n正常范围：0.0 - 0.1 MPa（静止状态）。",
                 completionHint = "初始压力读数已记录。",
                 targetGaugeValue = 0.05f,
                 gaugeTolerance = 0.10f
@@ -148,16 +170,16 @@ public class PipelineTrainingManager : MonoBehaviour
             {
                 step = PipelineStep.OpenInletValve,
                 name = "4. 开启进口主阀门",
-                instruction = "握住进口阀门（V1）手轮，\n逆时针缓慢旋转至全开位置。\n目标：旋转 ≥ 1440°（约 4 圈），\n注意：缓慢开启，观察压力变化。",
+                instruction = "靠近高亮显示的进口阀门（V1），\n按 F 键进入手势训练，逆时针旋转手轮至全开。\n目标：旋转 ≥ 720°（约 2 圈），\n注意：缓慢开启，观察压力变化。",
                 completionHint = "进口阀门已全开，流体开始进入管道。",
-                targetValveAngle = 1440f,
+                targetValveAngle = 720f,
                 angleTolerance = 90f
             },
             new StepDefinition
             {
                 step = PipelineStep.MonitorFlowMeter,
                 name = "5. 监测流量计",
-                instruction = "观察管道中段流量计（F1）的读数。\n正常流量范围：20 - 50 L/min。\n如果流量不在正常范围，请进入下一步调节。",
+                instruction = "靠近高亮显示的流量计（F1），\n按 F 键确认读数。\n正常流量范围：20 - 50 L/min。\n如果流量不在正常范围，请进入下一步调节。",
                 completionHint = "流量计读数已确认。",
                 targetGaugeValue = 35f,
                 gaugeTolerance = 15f
@@ -166,7 +188,7 @@ public class PipelineTrainingManager : MonoBehaviour
             {
                 step = PipelineStep.AdjustControlValve,
                 name = "6. 调节中间控制阀",
-                instruction = "旋转控制阀门（V2）手轮，\n将流量调节至目标值：35 ± 5 L/min。\n顺时针 = 减小流量，逆时针 = 增大流量。",
+                instruction = "靠近高亮显示的「中间控制阀」（V2），\n按 F 键进入手势训练，将流量调节至 35 ± 5 L/min。\n顺时针 = 减小流量，逆时针 = 增大流量。",
                 completionHint = "流量已调节至目标范围。",
                 targetValveAngle = 720f,
                 angleTolerance = 180f
@@ -184,16 +206,16 @@ public class PipelineTrainingManager : MonoBehaviour
             {
                 step = PipelineStep.OpenOutletValve,
                 name = "8. 开启出口阀门",
-                instruction = "走到管道出口端，缓慢打开出口阀门（V3）。\n目标：旋转 ≥ 1080°（约 3 圈）。\n注意：打开后观察下游流量变化。",
+                instruction = "靠近高亮显示的「出口阀门」（V3），\n按 F 键进入手势训练，缓慢打开阀门。\n目标：旋转 ≥ 360°（约 1 圈）。\n注意：打开后观察下游流量变化。",
                 completionHint = "出口阀门已打开，完整流体通路建立。",
-                targetValveAngle = 1080f,
+                targetValveAngle = 360f,
                 angleTolerance = 90f
             },
             new StepDefinition
             {
                 step = PipelineStep.EmergencyStopTest,
                 name = "9. 急停功能测试",
-                instruction = "按下急停按钮（EMG-STOP），\n验证系统快速切断功能：\n· 阀门应自动关断\n· 报警灯应亮起\n按下【复位】按钮恢复正常状态。",
+                instruction = "靠近高亮显示的急停按钮，\n按 F 键进入手势训练并按下急停按钮，\n验证系统快速切断功能：\n· 阀门应自动关断\n· 报警灯应亮起\n按下【复位】按钮恢复正常状态。",
                 completionHint = "急停功能测试通过，系统已复位。",
                 targetButtonId = "EStop_Button"
             },
@@ -505,26 +527,29 @@ public class PipelineTrainingManager : MonoBehaviour
         {
             if (_currentStep == PipelineStep.AllComplete)
             {
-                SetText(titleText, "化工厂管道操作培训");
-                SetText(stepText, "全部完成！");
-                SetText(instructionText, "恭喜！您已完成所有 10 个培训步骤。\n系统已安全关停，操作记录已保存。");
-                SetText(statusText, "成绩：合格");
+                ApplyGuideDisplay(
+                    "化工厂管道操作培训",
+                    "全部完成！",
+                    "恭喜！您已完成所有 10 个培训步骤。\n系统已安全关停，操作记录已保存。",
+                    "成绩：合格");
             }
             else
             {
                 StepDefinition def = GetStepDef(_currentStep);
-                SetText(titleText, "化工厂管道操作培训");
-                SetText(stepText, def.name);
-                SetText(instructionText, def.instruction);
-                SetText(statusText, GetStepProgressText());
+                ApplyGuideDisplay(
+                    "化工厂管道操作培训",
+                    def.name,
+                    def.instruction,
+                    GetStepProgressText());
             }
         }
         else // Practice
         {
-            SetText(titleText, "化工厂管道操作 —— 自由练习");
-            SetText(stepText, "自由练习模式");
-            SetText(instructionText, "请按照标准操作流程依次完成各项操作。\n已完成步骤将显示绿色标记。");
-            SetText(statusText, GetPracticeProgressText());
+            ApplyGuideDisplay(
+                "化工厂管道操作 - 自由练习",
+                "自由练习模式",
+                "请按照标准操作流程依次完成各项操作。\n已完成步骤将显示为“完成”。",
+                GetPracticeProgressText());
         }
     }
 
@@ -533,7 +558,11 @@ public class PipelineTrainingManager : MonoBehaviour
         int completed = 0;
         for (PipelineStep s = PipelineStep.PPECheck; s <= PipelineStep.SystemShutdown; s++)
             if (IsStepCompleted(s)) completed++;
-        return $"进度：{completed} / 10   |   当前步骤：{_currentStep}";
+
+        string currentStepName = _currentStep == PipelineStep.AllComplete
+            ? "全部完成"
+            : GetStepDef(_currentStep).name;
+        return $"进度：{completed} / 10\n当前步骤：{currentStepName}";
     }
 
     string GetPracticeProgressText()
@@ -546,14 +575,103 @@ public class PipelineTrainingManager : MonoBehaviour
             bool ok = IsStepCompleted(s);
             if (ok) completed++;
             StepDefinition def = GetStepDef(s);
-            sb.AppendLine($"  {(ok ? "[√]" : "[ ]")} {def.name}");
+            sb.AppendLine($"{(ok ? "[完成]" : "[未完成]")} {def.name}");
         }
         sb.AppendLine($"总计：{completed} / 10");
         return sb.ToString();
     }
 
+    void ApplyGuideDisplay(string title, string step, string instruction, string status)
+    {
+        _guideTitleText = title ?? "";
+        _guideStepText = step ?? "";
+        _guideInstructionText = instruction ?? "";
+        _guideStatusText = status ?? "";
+
+        SetText(titleText, _guideTitleText);
+        SetText(stepText, _guideStepText);
+        SetText(instructionText, _guideInstructionText);
+        SetText(statusText, _guideStatusText);
+    }
+
+    void OnGUI()
+    {
+        if (!showScreenGuide) return;
+
+        InitializeGuideGuiStyles();
+
+        float margin = Mathf.Max(8f, guidePanelLeft);
+        float panelWidth = Mathf.Min(guidePanelWidth, Screen.width - margin * 2f);
+        panelWidth = Mathf.Max(280f, panelWidth);
+        float panelHeight = GetGuidePanelHeight();
+        Rect panelRect = new Rect(margin, guidePanelTop, panelWidth, panelHeight);
+
+        GUI.Box(panelRect, GUIContent.none, _guidePanelStyle);
+
+        Rect innerRect = new Rect(
+            panelRect.x + 16f,
+            panelRect.y + 12f,
+            panelRect.width - 32f,
+            panelRect.height - 24f);
+
+        GUILayout.BeginArea(innerRect);
+        GUILayout.Label(_guideTitleText, _guideTitleStyle);
+        GUILayout.Space(4f);
+        GUILayout.Label(_guideStepText, _guideStepStyle);
+        GUILayout.Space(8f);
+        GUILayout.Label(_guideInstructionText, _guideBodyStyle);
+        GUILayout.FlexibleSpace();
+        GUILayout.Label(_guideStatusText, _guideStatusStyle);
+        GUILayout.EndArea();
+    }
+
+    float GetGuidePanelHeight()
+    {
+        float targetHeight = mode == TrainingMode.Practice ? 460f : 300f;
+        float maxHeight = Mathf.Max(180f, Screen.height - guidePanelTop - 18f);
+        return Mathf.Min(targetHeight, maxHeight);
+    }
+
+    void InitializeGuideGuiStyles()
+    {
+        if (_guidePanelTexture == null)
+            _guidePanelTexture = new Texture2D(1, 1);
+        _guidePanelTexture.SetPixel(0, 0, guidePanelBackgroundColor);
+        _guidePanelTexture.Apply();
+
+        if (_guidePanelStyle == null)
+            _guidePanelStyle = new GUIStyle(GUI.skin.box);
+        _guidePanelStyle.normal.background = _guidePanelTexture;
+
+        if (_guideTitleStyle == null)
+            _guideTitleStyle = new GUIStyle(GUI.skin.label);
+        _guideTitleStyle.fontSize = guidePanelFontSize + 4;
+        _guideTitleStyle.fontStyle = FontStyle.Bold;
+        _guideTitleStyle.normal.textColor = guidePanelAccentColor;
+        _guideTitleStyle.wordWrap = true;
+
+        if (_guideStepStyle == null)
+            _guideStepStyle = new GUIStyle(GUI.skin.label);
+        _guideStepStyle.fontSize = guidePanelFontSize + 2;
+        _guideStepStyle.fontStyle = FontStyle.Bold;
+        _guideStepStyle.normal.textColor = guidePanelTextColor;
+        _guideStepStyle.wordWrap = true;
+
+        if (_guideBodyStyle == null)
+            _guideBodyStyle = new GUIStyle(GUI.skin.label);
+        _guideBodyStyle.fontSize = guidePanelFontSize;
+        _guideBodyStyle.normal.textColor = guidePanelTextColor;
+        _guideBodyStyle.wordWrap = true;
+
+        if (_guideStatusStyle == null)
+            _guideStatusStyle = new GUIStyle(GUI.skin.label);
+        _guideStatusStyle.fontSize = guidePanelFontSize - 1;
+        _guideStatusStyle.normal.textColor = guidePanelAccentColor;
+        _guideStatusStyle.wordWrap = true;
+    }
+
     void SetText(TextMesh tm, string text)
     {
-        if (tm != null) tm.text = text;
+        if (tm != null) tm.text = hideWorldGuideText ? "" : text;
     }
 }

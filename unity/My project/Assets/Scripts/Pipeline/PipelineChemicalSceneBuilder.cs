@@ -116,16 +116,22 @@ public class PipelineChemicalSceneBuilder : PipelineBuilder
             new Vector3(-7f * S, py, seg1Z), 4f * S, false);
 
         // 进口阀门 V1 在 X=-35
-        BuildValveStation(root, "V1", new Vector3(-7f * S, py, seg1Z),
-            out inletValveWheel, out _);
+        Vector3 v1Pos = new Vector3(-7f * S, py, seg1Z);
+        Vector3 p1Pos = new Vector3(-5f * S, py, seg1Z);
+        float v1P1SharedLabelY = GetV1P1SharedLabelY(py);
+        float v1P1SharedCharSize = GetV1P1SharedLabelCharSize();
+        BuildValveStation(root, "V1", v1Pos,
+            out inletValveWheel, out _, labelText: "进口阀门",
+            labelY: v1P1SharedLabelY, labelCharSize: v1P1SharedCharSize);
 
         // 直管：X=-35 到 X=-25（V1 到 P1 之间），长度 = 10
         CreateStraightPipe("Pipe_Seg1_Mid", root,
             new Vector3(-6f * S, py, seg1Z), 2f * S, false);
 
         // 压力表 P1 在 X=-25
-        BuildGaugeStation(root, "P1", new Vector3(-5f * S, py, seg1Z),
-            out gaugeP1Needle, "压力表 P1\n(起始端)");
+        BuildGaugeStation(root, "P1", p1Pos,
+            out gaugeP1Needle, "初始压力表",
+            labelY: v1P1SharedLabelY, labelCharSize: v1P1SharedCharSize);
 
         // 直管：X=-25 到 X=-15
         CreateStraightPipe("Pipe_Seg1_Right", root,
@@ -152,15 +158,15 @@ public class PipelineChemicalSceneBuilder : PipelineBuilder
 
         // 控制阀 V2 在 Z=5
         BuildValveStation(root, "V2", new Vector3(seg1EndX, py, 1f * S),
-            out controlValveWheel, out _, isControlValve: true);
+            out controlValveWheel, out _, isControlValve: true, labelText: "中间控制阀");
 
         // 直管：Z=5 到 Z=15（V2 到 P2）
         CreatePipeAlongZ("Pipe_Seg2_Z3", root,
             new Vector3(seg1EndX, py, 2f * S), 2f * S);
 
-        // 压力表 P2 在 Z=15
+        // 压力表 P2 在 Z=15（不显示文字标签）
         BuildGaugeStation(root, "P2", new Vector3(seg1EndX, py, 3f * S),
-            out gaugeP2Needle, "压力表 P2\n(中段)");
+            out gaugeP2Needle, null);
 
         // 直管：Z=15 到 Z=25
         CreatePipeAlongZ("Pipe_Seg2_Z4", root,
@@ -179,7 +185,7 @@ public class PipelineChemicalSceneBuilder : PipelineBuilder
 
         // 出口阀 V3 在 X=0
         BuildValveStation(root, "V3", new Vector3(0f * S, py, seg3Z),
-            out outletValveWheel, out _);
+            out outletValveWheel, out _, labelText: "出口阀门");
 
         // 直管：X=0 到 X=25（V3 到 E-Stop/终点）
         CreateStraightPipe("Pipe_Seg3_Right", root,
@@ -204,9 +210,28 @@ public class PipelineChemicalSceneBuilder : PipelineBuilder
         if (!addColliders) DestroySafe(obj.GetComponent<Collider>());
     }
 
+    /// <summary>进口阀 V1 与初始压力表 P1 标签共用高度（二者默认 Y 的均值）。</summary>
+    static float GetV1P1SharedLabelY(float pipeY)
+    {
+        float v1LabelY = pipeY - 0.55f * SCALE_FACTOR;
+        float p1LabelY = pipeY - GAUGE_DIAMETER * 0.95f;
+        return (v1LabelY + p1LabelY) * 0.5f;
+    }
+
+    /// <summary>进口阀 V1 与初始压力表 P1 标签共用字号（二者默认 characterSize 的均值）。</summary>
+    static float GetV1P1SharedLabelCharSize()
+    {
+        float S = SCALE_FACTOR;
+        return (0.022f * S + 0.025f * S) * 0.5f;
+    }
+
+    /// <summary>阀门标签字号（与进口阀门 V1 一致）。</summary>
+    static float GetValveLabelCharSize() => GetV1P1SharedLabelCharSize();
+
     /// <summary>构建阀门工位（管道段 + 法兰 + 阀门）</summary>
     void BuildValveStation(Transform root, string valveId, Vector3 pos,
-        out Transform handwheelRoot, out Transform valveStem, bool isControlValve = false)
+        out Transform handwheelRoot, out Transform valveStem, bool isControlValve = false,
+        string labelText = null, float? labelY = null, float? labelCharSize = null)
     {
         Material wheelMat = isControlValve
             ? CreateMaterial("MAT_CtrlValve_Wheel", new Color(0.2f, 0.5f, 0.9f), 0.05f, 0.30f) // 蓝色手轮区分控制阀
@@ -227,11 +252,21 @@ public class PipelineChemicalSceneBuilder : PipelineBuilder
         {
             handwheelRoot.parent.localRotation = Quaternion.Euler(0f, 0f, 90f);
         }
+
+        if (!string.IsNullOrEmpty(labelText))
+        {
+            float S = SCALE_FACTOR;
+            float y = labelY ?? (pos.y - 0.55f * S);
+            float cs = labelCharSize ?? GetValveLabelCharSize();
+            CreateLabel("Label_" + valveId, root,
+                new Vector3(pos.x, y, pos.z + PIPE_DIAMETER * 0.7f),
+                labelText, cs, Color.white);
+        }
     }
 
     /// <summary>构建压力表工位（管道段 + 法兰 + 压力表）</summary>
     void BuildGaugeStation(Transform root, string gaugeId, Vector3 pos,
-        out Transform needlePivot, string labelText)
+        out Transform needlePivot, string labelText, float? labelY = null, float? labelCharSize = null)
     {
         Material pipeMat = CreateMaterial("MAT_Pipe_Yellow", PipeYellow, 0.15f, 0.35f);
         Material bodyMat = CreateMaterial("MAT_Gauge_Body", MetalDark, 0.75f, 0.40f);
@@ -240,10 +275,18 @@ public class PipelineChemicalSceneBuilder : PipelineBuilder
             "GaugeStation_" + gaugeId, root, pos,
             out needlePivot, pipeMat, bodyMat);
 
-        // 添加标签
-        CreateLabel("Label_" + gaugeId, root,
-            new Vector3(pos.x, pos.y + GAUGE_DIAMETER * 0.9f, pos.z + PIPE_DIAMETER * 0.6f),
-            labelText, 0.025f * SCALE_FACTOR, Color.white);
+        // 添加标签（P1 初始压力表标签放在表盘下方；P2 等可传 null 跳过）
+        if (!string.IsNullOrEmpty(labelText))
+        {
+            float defaultY = gaugeId == "P1"
+                ? pos.y - GAUGE_DIAMETER * 0.95f
+                : pos.y + GAUGE_DIAMETER * 0.9f;
+            float y = labelY ?? defaultY;
+            float cs = labelCharSize ?? (0.025f * SCALE_FACTOR);
+            CreateLabel("Label_" + gaugeId, root,
+                new Vector3(pos.x, y, pos.z + PIPE_DIAMETER * 0.6f),
+                labelText, cs, Color.white);
+        }
     }
 
     /// <summary>构建流量计工位</summary>
@@ -259,7 +302,7 @@ public class PipelineChemicalSceneBuilder : PipelineBuilder
         // 标签
         CreateLabel("Label_" + meterId, root,
             new Vector3(pos.x, pos.y + FLOWMETER_HEIGHT * 0.8f, pos.z + PIPE_DIAMETER * 0.5f),
-            "流量计 F1\n(中段)", 0.025f * SCALE_FACTOR, Color.white);
+            "流量计", 0.025f * SCALE_FACTOR, Color.white);
     }
 
     /// <summary>沿线放置管道支架</summary>
@@ -383,10 +426,10 @@ public class PipelineChemicalSceneBuilder : PipelineBuilder
         CreateSphere("Inspect_Bulb_" + name, point.transform,
             new Vector3(0f, 0.75f * S, 0f), INSPECT_BULB_DIA, bulbMat);
 
-        // 标签
+        // 标签（头部文字缩小为原来的 2/3）
         CreateLabel("Label_" + name, point.transform,
             new Vector3(0f, 0.95f * S, 0f),
-            labelText, 0.018f * S, new Color(0.6f, 0.85f, 1f));
+            labelText, 0.012f * S, new Color(0.6f, 0.85f, 1f));
 
         // 触发器碰撞体
         BoxCollider trigger = point.AddComponent<BoxCollider>();
@@ -411,7 +454,7 @@ public class PipelineChemicalSceneBuilder : PipelineBuilder
         // 标签
         CreateLabel("Label_EStop", root,
             new Vector3(pos.x, pos.y + 1.0f * S, pos.z),
-            "急停功能测试\nEMERGENCY STOP TEST", 0.022f * S, EStopRed, true);
+            "急停功能测试", 0.022f * S, EStopRed, true);
     }
 
     void BuildShutdownStation(Transform root, Vector3 pos)
